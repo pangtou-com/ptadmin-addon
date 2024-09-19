@@ -1,7 +1,7 @@
 {
     "name": "ptadmin/addon",
     "description": "ptadmin 管理平台插件应用管理包，需要搭配PTAdmin 管理平台使用",
-    "version": "v0.0.1",
+    "version": "v0.0.2",
     "license": "Apache-2.0",
     "keywords": ["HTML", "admin", "管理后台", "插件应用", "低代码平台", "addon", "PTAdmin"],
     "type": "library",
