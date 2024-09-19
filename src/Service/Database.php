@@ -85,7 +85,7 @@ class Database
     {
         $this->backupFilesystem->clearTable($table);
         $exportSql = $this->exportDataSql($table);
-        if ($exportSql) {
+        if (!blank($exportSql)) {
             $this->backupFilesystem->write($exportSql, $table);
         }
     }

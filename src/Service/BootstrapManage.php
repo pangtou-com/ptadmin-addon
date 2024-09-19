@@ -159,8 +159,8 @@ final class BootstrapManage
      *
      * @return string
      */
-    private function getAddonsDirs(string $path = null): string
+    private function getAddonsDirs(?string $path = null): string
     {
-        return base_path('addons'.($path ? \DIRECTORY_SEPARATOR.$path : $path));
+        return base_path('addons'.(null !== $path ? \DIRECTORY_SEPARATOR.$path : $path));
     }
 }
