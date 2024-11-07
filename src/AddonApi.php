@@ -207,13 +207,9 @@ class AddonApi
         if ($needLogin) {
             $res = $res->withToken($this->getToken());
         }
-
-        //TODO 这里设置为false来忽略SSL证书验证
-        /**
-         * $res = $res->withOptions([
-         * 'verify' => false,
-         * ]);.
-         */
+        $res = $res->withOptions([
+            'verify' => false,
+        ]);
         $res = $res->post($this->getUrl($method), $this->addonArgsEncrypt($data));
         if (200 === $res->status()) {
             $results = $res->json();

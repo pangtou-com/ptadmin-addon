@@ -1,0 +1,33 @@
+{
+    "title": "CMS内容管理系统",
+    "code": "cms",
+    "type": "ptadmin-addon",
+    "keywords": ["cms", "内容管理系统"],
+    "description": "CMS内容管理系统",
+    "version": "v0.0.1",
+    "framework": "v1.0",
+    "license": "private",
+    "license_key": "",
+    "homepage": "https://www.pangtou.com",
+    "docs": "https://www.pangtou.com",
+    "cover": "",
+    "authors": [
+        {"name": "Zane", "email": "873934580@qq.com"}
+    ],
+    "export": [
+        "addons/Cms/public/assets/js/cms.js",
+        "addons/Cms/public/assets/js/cms@action",
+        {
+            "name": "action",
+            "class": "Cms",
+            "method": "handle",
+            "params": [
+                {"name": "id", "type": "number|number[]", "description": "文章ID", "required": true, "default": ""},
+                {"name": "pid", "type": "number|number[]", "description": "文章分类ID"}
+            ]
+        }
+    ],
+    "require": {
+        "ptadmin/admin": "v1.0"
+    }
+}

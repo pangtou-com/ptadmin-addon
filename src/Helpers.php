@@ -100,7 +100,7 @@ if (!function_exists('addon_path')) {
      */
     function addon_path($code, $path = null): string
     {
-        return base_path('addons'.\DIRECTORY_SEPARATOR.ucfirst($code).($path ? \DIRECTORY_SEPARATOR.$path : ''));
+        return base_path('addons'.\DIRECTORY_SEPARATOR.ucfirst($code).(null !== $path ? \DIRECTORY_SEPARATOR.$path : ''));
     }
 }
 

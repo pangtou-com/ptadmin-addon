@@ -51,7 +51,7 @@ class PTCompiler extends BladeCompiler
         $reflector = new \ReflectionObject($baseCompiler);
         $props = $reflector->getProperties(\ReflectionProperty::IS_PROTECTED);
         foreach ($props as $prop) {
-            $prop->setAccessible(true); // 设置为可访问
+            $prop->setAccessible(true);
             if (\in_array($prop->getName(), $allow, true)) {
                 $this->{$prop->getName()} = $prop->getValue($baseCompiler);
             }
@@ -107,17 +107,16 @@ class PTCompiler extends BladeCompiler
         if ('PT' !== $prefix) {
             return $match[0] ?? '';
         }
-        // 结束标签
-        $end = $this->compileEnd($match[1]);
-        if (null !== $end) {
-            return $end;
-        }
+        /** 将参数解析为类名和方法名 */
         $data = $this->parserAction($match[1]);
-
-        // 这里如果没有插件名称则直接返回，后面的判断必须存在插件名称的语法
         if (!$data['name']) {
             return $match[0];
         }
+        // 当为结束标签时返回结束标签内容
+        if ($this->isEnd($match[1])) {
+            return $this->end($match, $data);
+        }
+
         $instance = AddonDirectivesManage::getInstance();
 
         // 判断是否为插件自定义指令
@@ -167,24 +166,35 @@ class PTCompiler extends BladeCompiler
     /**
      * 解析出是否为结束标签.
      *
-     * @param $action
+     * @pt:end // 简介默认为foreach关闭
+     * @pt:endarc // 默认为foreach关闭
+     * @pt:demo::endarc    // 根据配置关闭
+     *
+     * @param $match
+     * @param null|mixed $data
      *
      * @return null|string
      */
-    protected function compileEnd($action): ?string
+    protected function end($match, $data = null): ?string
     {
-        $temp = strtolower(mb_substr($action, 2, 3));
-        if ('end' !== $temp) {
-            return null;
+        if (null === $data) {
+            $data = $this->parserAction($match[1]);
         }
-        $data = $this->parserAction($action);
-
-        // 默认情况下使用循环作为结束标签
-        if (!$data['name'] || AddonDirectivesManage::getInstance()->isLoop($data['name'], $data['method'])) {
+        // @pt:end 的支持
+        if ('end' === $data['name'] && null === $data['method']) {
             return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
         }
+        $instance = AddonDirectivesManage::getInstance();
+        if (isset($data['name']) && $instance->has($data['name'])) {
+            $data['method'] = mb_substr($data['method'], 3);
+            if ($instance->isLoop($data['name'], $data['method'])) {
+                return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
+            }
 
-        return '<?php endif; ?>';
+            return '<?php endif; ?>';
+        }
+
+        return $this->callLaravelDirective($match);
     }
 
     /**
@@ -271,6 +281,25 @@ class PTCompiler extends BladeCompiler
         $name = $this->getParam($name);
 
         return "<?php if(\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()})): ?>";
+    }
+
+    /**
+     * 判断是否为结束标签.
+     *
+     * @param $action
+     *
+     * @return bool
+     */
+    private function isEnd($action): bool
+    {
+        if (false !== strpos($action, '::')) {
+            $action = explode('::', $action);
+        } else {
+            $action = explode(':', $action);
+        }
+        $action = end($action);
+
+        return 'end' === strtolower(mb_substr($action, 0, 3));
     }
 
     private function getParam($name): string

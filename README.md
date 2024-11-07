@@ -59,7 +59,10 @@ protected $export = [
 
 @pt:auth()
 
-@ptend
+// 关闭指令的支持写法
+@pt:end // 简介默认为foreach关闭
+@pt:endarc // 默认为foreach关闭
+@pt:demo::endarc    // 根据配置关闭
 
 @pt:if(field.is_show==1)
 @pt:else
