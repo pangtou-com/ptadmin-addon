@@ -51,3 +51,31 @@ protected $export = [
 ### (三)、API中指令调用（待完成）
 
 
+#### 系统配置读取
+
+@pt:setting.site_title
+@pt:setting.site_keyword
+@pt:setting.site_doc(limit=100, placeholder="...", default="...")
+
+@pt:auth()
+
+@ptend
+
+@pt:if(field.is_show==1)
+@pt:else
+@pt:endif
+
+
+
+#### 输出内容（打印内容）
+// 打印内容
+// 默认值，可嵌套读取子数组内容， 指定字段名称
+// id 指定读取的字段名称 默认为 field 表示当前循环或者当前环境中变量名称
+// key 嵌套读取的字段名称
+// default 默认值，默认为 null, 支持变量写法
+// encode 是否转义， 默认为 true
+// limit 输出字符长度，默认不限制， 超过长度的字符使用 。。。替换
+// placeholder 占位符， 默认为 `...` 当limit为空时无效
+@pt:echo(id=field, key=title.title, default = "default", encode=false)
+
+@pt:echo.title

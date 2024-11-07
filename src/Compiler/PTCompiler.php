@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Compiler;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Illuminate\View\Compilers\BladeCompiler;
 use PTAdmin\Addon\Compiler\Concerns\PTCompileField;
 use PTAdmin\Addon\Compiler\Concerns\PTCompileSystem;
@@ -107,7 +108,8 @@ class PTCompiler extends BladeCompiler
             return $match[0] ?? '';
         }
         // 结束标签
-        if ($end = $this->compileEnd($match[1])) {
+        $end = $this->compileEnd($match[1]);
+        if (null !== $end) {
             return $end;
         }
         $data = $this->parserAction($match[1]);
@@ -138,7 +140,28 @@ class PTCompiler extends BladeCompiler
             }
         }
 
-        throw new DirectivesException("未定义的模版指令[{$data['name']}].");
+        return $this->callLaravelDirective($match);
+    }
+
+    /**
+     * 通过增加pt前缀的方式调用原始的指令.
+     *
+     * @param $match
+     *
+     * @return string
+     */
+    protected function callLaravelDirective($match): string
+    {
+        $match[1] = mb_substr($match[1], 3);
+        if (Str::contains($match[1], '@')) {
+            $match[0] = isset($match[5]) ? $match[1].$match[5] : $match[1];
+        } elseif (isset($this->customDirectives[$match[1]])) {
+            $match[0] = $this->callCustomDirective($match[1], Arr::get($match, 5));
+        } elseif (method_exists($this, $method = 'compile'.ucfirst($match[1]))) {
+            $match[0] = $this->{$method}(Arr::get($match, 5));
+        }
+
+        return isset($match[5]) ? $match[0] : $match[0].$match[2];
     }
 
     /**
