@@ -10,3 +10,5 @@ composer.lock
 .git
 .phpunit.result.cache
 publish.sh
+node_modules
+pnpm-lock.yaml

@@ -26,15 +26,13 @@ namespace PTAdmin\Addon\Compiler;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\View\Compilers\BladeCompiler;
-use PTAdmin\Addon\Compiler\Concerns\PTCompileField;
-use PTAdmin\Addon\Compiler\Concerns\PTCompileSystem;
+use PTAdmin\Addon\Compiler\Concerns\PTCompileExtend;
 use PTAdmin\Addon\Exception\DirectivesException;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
 
 class PTCompiler extends BladeCompiler
 {
-    use PTCompileField;
-    use PTCompileSystem;
+    use PTCompileExtend;
 
     /**
      * 拷贝原始对象

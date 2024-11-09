@@ -51,6 +51,31 @@ class ParamParse
         return new self($expression);
     }
 
+    public function getAttribute($key, $default = null)
+    {
+        return $this->result[$key] ?? $default;
+    }
+
+    public function setAttribute($key, $value): void
+    {
+        $this->result[$key] = $value;
+    }
+
+    public function hasAttribute($key): bool
+    {
+        return isset($this->result[$key]);
+    }
+
+    /**
+     * 参数是否为空.
+     *
+     * @return bool
+     */
+    public function isParamEmpty(): bool
+    {
+        return 0 === \count($this->result);
+    }
+
     /**
      * 空字符串展示内容.
      *
@@ -76,13 +101,23 @@ class ParamParse
     }
 
     /**
-     * 解析表达式.
+     * 获取所有参数.
+     *
+     * @return array
+     */
+    public function getAll(): array
+    {
+        return $this->result;
+    }
+
+    /**
+     * 返回解析后的表达式.
      *
      * @return string
      */
     public function getExpression(): string
     {
-        if (!$this->result) {
+        if (0 === \count($this->result)) {
             return '\\PTAdmin\\Addon\\Service\\DirectivesDTO::build()';
         }
         $keys = array_keys($this->result);

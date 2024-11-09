@@ -21,12 +21,35 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Compiler\Concerns;
+namespace PTAdmin\Addon\Tests;
 
-trait PTCompileSystem
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Orchestra\Testbench\TestCase as Orchestra;
+use PTAdmin\Addon\Providers\AddonServiceProvider;
+
+abstract class TestCase extends Orchestra
 {
-    protected function systemCompile($expression): string
+    use RefreshDatabase;
+
+    protected static $migration;
+
+    protected function getPackageProviders($app): array
     {
-        return "<?php echo e(setting{$expression}); ?>";
+        return [AddonServiceProvider::class];
+    }
+
+    protected function getEnvironmentSetUp($app): void
+    {
+//        $app['config']->set('database.default', 'testing');
+//        $app['config']->set('database.connections.testing', [
+//            'driver' => 'sqlite',
+//            'database' => ':memory:',
+//            'prefix' => '',
+//        ]);
+//        $path = __DIR__.'/../database/migrations/create_mod_and_field.php';
+//
+//        include_once $path;
+//        self::$migration = new \create_mod_and_field();
+//        self::$migration->up();
     }
 }

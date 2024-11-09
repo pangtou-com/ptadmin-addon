@@ -166,7 +166,9 @@ if (!function_exists('is_addon_running')) {
      */
     function is_addon_running(): bool
     {
-        return null !== request()->addon;
+        $addon = request()->addon ?? null;
+
+        return null !== $addon;
     }
 }
 
@@ -181,7 +183,7 @@ if (!function_exists('get_running_addon_info')) {
      */
     function get_running_addon_info($key = null, $default = null)
     {
-        $addon = request()->addon;
+        $addon = request()->addon ?? null;
         if (null !== $key) {
             return data_get($addon, $key, $default);
         }

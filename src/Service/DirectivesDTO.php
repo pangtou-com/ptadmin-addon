@@ -28,7 +28,7 @@ use Illuminate\Support\Str;
 /**
  * 指令参数传递.
  */
-class DirectivesDTO
+class DirectivesDTO implements \ArrayAccess
 {
     private $param;
 
@@ -40,16 +40,18 @@ class DirectivesDTO
     public function __call($name, $arguments)
     {
         $name = lcfirst(Str::afterLast($name, 'get'));
-        if (!isset($this->param[$name])) {
-            return $arguments[0] ?? null;
-        }
 
-        return $this->param[$name];
+        return $this->getAttribute($name, $arguments[0] ?? null);
     }
 
     public function __get($name)
     {
-        return $this->param[$name] ?? null;
+        return $this->getAttribute($name);
+    }
+
+    public function __set($name, $value): void
+    {
+        $this->setAttribute($name, $value);
     }
 
     public function __toString(): string
@@ -66,17 +68,13 @@ class DirectivesDTO
      */
     public function getLimit(int $default = 10)
     {
-        if (blank($default)) {
-            $default = 10;
-        }
-
-        return $this->param['limit'] ?? $default;
+        return $this->getAttribute('limit', $default);
     }
 
     public function getOrder($default = ['id' => 'desc']): array
     {
         $result = [];
-        $order = $this->param['order'] ?? $default;
+        $order = $this->getAttribute('order', $default);
         if (!\is_array($order)) {
             $order = explode(',', $order);
         }
@@ -98,19 +96,24 @@ class DirectivesDTO
      *
      * @return bool
      */
-    public function getCache(): ?bool
+    public function getCache(): bool
     {
-        return $this->param['cache'] ?? null;
+        return (bool) $this->getAttribute('cache', false);
     }
 
     public function getLang()
     {
-        return $this->param['lang'] ?? config('app.locale', 'zh-CN');
+        return $this->getAttribute('lang', config('app.locale', 'zh-CN'));
     }
 
-    public function get($key, $default = null)
+    public function getAttribute($key, $default = null)
     {
         return $this->param[$key] ?? $default;
+    }
+
+    public function setAttribute($key, $value): void
+    {
+        $this->param[$key] = $value;
     }
 
     public function all()
@@ -121,5 +124,25 @@ class DirectivesDTO
     public static function build($param = []): self
     {
         return new self($param);
+    }
+
+    public function offsetExists($offset): bool
+    {
+        return null !== $this->getAttribute($offset);
+    }
+
+    public function offsetGet($offset)
+    {
+        return $this->getAttribute($offset);
+    }
+
+    public function offsetSet($offset, $value): void
+    {
+        $this->setAttribute($offset, $value);
+    }
+
+    public function offsetUnset($offset): void
+    {
+        unset($this->param[$offset]);
     }
 }
