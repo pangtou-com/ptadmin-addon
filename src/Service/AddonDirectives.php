@@ -161,24 +161,62 @@ class AddonDirectives
     private function mergeParamToMethodParams($methodParams, $dto): array
     {
         $result = [];
-        foreach ($methodParams as $key => $param) {
-            if ('array' === $param['type'] || 'mixed' === $param['type']) {
-                $result[$param['position']] = $dto->get($param['name'], $param['default']);
+        foreach ($methodParams as $param) {
+            switch ($param['type']) {
+                case 'int':
+                    $result[$param['position']] = (int) $dto->getAttribute($param['name'], $param['default']);
 
-                continue;
+                    break;
+
+                case 'bool':
+                    $result[$param['position']] = (bool) $dto->getAttribute($param['name'], $param['default']);
+
+                    break;
+
+                case 'float':
+                    $result[$param['position']] = (float) $dto->getAttribute($param['name'], $param['default']);
+
+                    break;
+
+                case 'string':
+                    $result[$param['position']] = (string) $dto->getAttribute($param['name'], $param['default']);
+
+                    break;
+
+                case 'array':
+                    $result[$param['position']] = (array) $dto->getAttribute($param['name'], $param['default']);
+
+                    break;
+
+                case 'object':
+                    $result[$param['position']] = (object) $dto->getAttribute($param['name'], $param['default']);
+
+                    break;
+
+                case 'callable':
+                    $val = $dto->getAttribute($param['name'], $param['default']);
+                    if (!\is_callable($val)) {
+                        throw new AddonException("插件【{$this->addon_name}】参数【{$param['name']}】必须为函数");
+                    }
+                    $result[$param['position']] = $val;
+
+                    break;
+
+                default:
+                    if (Request::class === $param['type']) {
+                        $result[$param['position']] = $this->mergeRequest($dto);
+
+                        break;
+                    }
+                    if (DirectivesDTO::class === $param['type']) {
+                        $result[$param['position']] = $dto;
+
+                        break;
+                    }
+                    $result[$param['position']] = 'mixed' === $param['type'] ? $dto->getAttribute($param['name'], $param['default']) : app($param['type']);
+
+                    break;
             }
-
-            if (Request::class === $param['type']) {
-                $result[$param['position']] = $this->mergeRequest($dto);
-
-                continue;
-            }
-            if (DirectivesDTO::class === $param['type']) {
-                $result[$param['position']] = $dto;
-
-                continue;
-            }
-            $result[$param['position']] = app($param['type']);
         }
 
         return $result;

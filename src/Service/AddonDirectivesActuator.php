@@ -78,7 +78,7 @@ class AddonDirectivesActuator
                 return $cache;
             }
             $results = $provider->execute($method, $this->transfer);
-            $this->setAddonResultCache($cacheKey, $results, $this->transfer->get('cache_ttl', $this->cache_ttl));
+            $this->setAddonResultCache($cacheKey, $results, $this->transfer->getAttribute('cache_ttl', $this->cache_ttl));
 
             return $results;
         }
