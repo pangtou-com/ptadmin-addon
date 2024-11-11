@@ -179,7 +179,7 @@ class PTCompiler extends BladeCompiler
             $data = $this->parserAction($match[1]);
         }
         // @pt:end 的支持
-        if ('end' === $data['name'] && null === $data['method']) {
+        if ('end' === strtolower($data['name']) && null === $data['method']) {
             return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
         }
         $instance = AddonDirectivesManage::getInstance();
