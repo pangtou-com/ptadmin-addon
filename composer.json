@@ -35,11 +35,13 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "PTAdmin\\AddonTests\\": "tests/"
         }
     },
     "scripts": {
-        "phpstan": "vendor/bin/phpstan.phar analyse app addons package --configuration phpstan.neon"
+        "phpstan": "vendor/bin/phpstan.phar analyse app addons package --configuration phpstan.neon",
+        "test:pest": "./vendor/bin/pest --no-interaction",
+        "test:build": "XDEBUG_MODE=coverage ./vendor/bin/pest --coverage "
     },
     "extra": {
         "laravel": {

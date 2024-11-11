@@ -73,6 +73,7 @@ trait ParseTrait
                 // 一般情况下结束标记后为逗号，所以需要跳过逗号
                 $i = $this->findEndTagIndex($i, $len);
 
+                $tag = "";
                 continue;
             }
 
@@ -84,11 +85,26 @@ trait ParseTrait
 
                 continue;
             }
+            // 找到逗号，并且当前状态为未找到标志位则认为这是一个布尔变量的参数
+            if (',' === $char && TAG_NO_STATE === $this->currentState) {
+                $this->addResult($this->temp, true);
+
+                continue;
+            }
+
+
+            //TODO 如果找到转译字符 \ 需处理
             $this->setTemp($this->temp.$char);
         }
 
-        if ('' !== $tag && '' !== $this->temp) {
-            $this->addResult($tag, $this->temp);
+        if ('' !== $tag) {
+            $this->addResult($tag, '' === $this->temp ? true : $this->temp);
+
+            return;
+        }
+        // 当结尾为布尔变量时如：{$field(limit=10,pl="...", format_before)}
+        if ('' !== $this->temp) {
+            $this->addResult($this->temp, true);
         }
     }
 
@@ -102,7 +118,7 @@ trait ParseTrait
      */
     private function findEndTagIndex($currentIndex, $len): int
     {
-        $i = $currentIndex + 1;
+        $i = $currentIndex ;
         for (; $i < $len; ++$i) {
             $char = mb_substr($this->expression, $i, 1, $this->encoding);
             if (',' === $char) {
@@ -137,7 +153,7 @@ trait ParseTrait
      *
      * @return int
      */
-    private function findVarStartTag($currentIndex, $len, $currentTag): int
+    private function findVarStartTag($currentIndex, $len, &$currentTag): int
     {
         $i = $currentIndex + 1;
         $temp = '';
@@ -145,9 +161,11 @@ trait ParseTrait
             $char = mb_substr($this->expression, $i, 1, $this->encoding);
             if ($this->startTag($char)) {
                 // 当未找到下一个标志位置，但是找到结束位置
+                // 如：{$field(limit=10,pl="...")}, limit=10中 值10没有开始和结束标记
                 if (',' === $char && TAG_NO_STATE === $this->currentState) {
                     $this->addResult($currentTag, trim($temp));
                     $this->cleanUp();
+                    $currentTag = '';
                 }
 
                 return $i;

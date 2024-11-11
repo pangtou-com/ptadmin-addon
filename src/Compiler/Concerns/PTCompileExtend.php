@@ -24,7 +24,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Compiler\Concerns;
 
 use Illuminate\Support\Str;
-use PTAdmin\Addon\Compiler\ParamParse;
+use PTAdmin\Addon\Compiler\Parser;
 
 trait PTCompileExtend
 {
@@ -66,7 +66,7 @@ trait PTCompileExtend
         if (false !== strpos($value, '##BEGIN-COMPONENT-CLASS##')) {
             return $value;
         }
-        $pattern = '/(@)?\{(:)?[ ]*(\$[a-zA-Z_](?:.+?)(\.[a-zA-Z_](?:.+?))*(\([^\)]*\))*)[ ]*}+/';
+        $pattern = '/(@)?\{(:)?[ ]*(\$[a-zA-Z_](?:.+?)(\.[a-zA-Z_](?:.+?))*(\(.*\))*)[ ]*}+/';
         $callback = function ($matches) {
             // @开头，不进行编译
             if ('@' === $matches[1]) {
@@ -107,7 +107,8 @@ trait PTCompileExtend
      */
     private function getOutputContent(array $matches): string
     {
-        $parse = ParamParse::make($matches[5] ?? '');
+        $parse = Parser::make($matches[5] ?? '');
+        dd($parse, $matches);
         $default = $this->getDefaultValue($parse, $matches);
         list($name, $key) = $this->getVariableName($matches);
         $params = [$name, $key];
@@ -120,7 +121,6 @@ trait PTCompileExtend
             $params = implode(', ', $params);
             $out = "data_get({$params})";
         }
-
         // 支持时间格式化
         if ($parse->hasAttribute('format_date') && \function_exists('format_date')) {
             $out = "format_date({$out}, '{$parse->getAttribute('format_date')}')";
@@ -129,7 +129,6 @@ trait PTCompileExtend
         } elseif ($parse->hasAttribute('money')) {
             $out = "money_to_zh({$out})";
         }
-
         // 截取字符串
         if ($parse->hasAttribute('limit') && (int) $parse->getAttribute('limit') > 0) {
             $limit = (int) $parse->getAttribute('limit');
@@ -169,12 +168,12 @@ trait PTCompileExtend
     /**
      * 获取表达式中存在默认值的情况.
      *
-     * @param ParamParse $parse   参数解析对象
+     * @param Parser $parse   参数解析对象
      * @param mixed      $matches
      *
      * @return null|mixed
      */
-    private function getDefaultValue(ParamParse $parse, $matches)
+    private function getDefaultValue(Parser $parse, $matches)
     {
         $default = null;
         if (false !== strpos($matches[3], '|')) {

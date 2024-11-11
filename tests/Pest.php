@@ -21,6 +21,7 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-use PTAdmin\Addon\Tests\TestCase;
+
+use PTAdmin\AddonTests\TestCase;
 
 uses(TestCase::class)->in('Feature', 'Unit');

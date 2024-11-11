@@ -229,7 +229,7 @@ class PTCompiler extends BladeCompiler
      */
     protected function loopCompile($match, $name): string
     {
-        $parse = ParamParse::make(Arr::get($match, 5));
+        $parse = Parser::make(Arr::get($match, 5));
         $name = $this->getParam($name);
         $initLoop = "<?php \$__currentLoopData = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()}); \$__env->addLoop(\$__currentLoopData);?>";
 
@@ -258,7 +258,7 @@ class PTCompiler extends BladeCompiler
      */
     protected function outCompile($match, $name): string
     {
-        $parse = ParamParse::make(Arr::get($match, 5));
+        $parse = Parser::make(Arr::get($match, 5));
         $name = $this->getParam($parse->getExpression());
 
         return "<?php echo e({$name}); ?>";
@@ -274,7 +274,7 @@ class PTCompiler extends BladeCompiler
      */
     protected function ifCompile($match, $name): string
     {
-        $parse = ParamParse::make(Arr::get($match, 5));
+        $parse = Parser::make(Arr::get($match, 5));
         $name = $this->getParam($name);
 
         return "<?php if(\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()})): ?>";

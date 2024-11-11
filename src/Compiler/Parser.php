@@ -27,7 +27,10 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use PTAdmin\Addon\Exception\DirectivesException;
 
-class ParamParse
+/**
+ * 解析表达式.
+ */
+class Parser
 {
     use ParseTrait;
 
@@ -53,7 +56,17 @@ class ParamParse
 
     public function getAttribute($key, $default = null)
     {
-        return $this->result[$key] ?? $default;
+        if (!isset($this->result[$key])) {
+            return $default;
+        }
+        if ('false' === $this->result[$key]) {
+            return false;
+        }
+        if ('true' === $this->result[$key]) {
+            return true;
+        }
+
+        return $this->result[$key];
     }
 
     public function setAttribute($key, $value): void
@@ -110,6 +123,25 @@ class ParamParse
         return $this->result;
     }
 
+    public function __toString()
+    {
+        return $this->getExpression();
+    }
+
+    public function toArray(): array
+    {
+        $data = [];
+        foreach ($this->result as $key => $value) {
+            if (\in_array($key,  ['empty', 'id'], true)) {
+
+                continue;
+            }
+            $data[$key] = $value;
+        }
+
+        return $data;
+    }
+
     /**
      * 返回解析后的表达式.
      *
@@ -117,20 +149,12 @@ class ParamParse
      */
     public function getExpression(): string
     {
-        if (0 === \count($this->result)) {
+        if ($this->isParamEmpty()) {
             return '\\PTAdmin\\Addon\\Service\\DirectivesDTO::build()';
         }
-        $keys = array_keys($this->result);
-        $sorted = Arr::sort($keys);
         $result = '';
-        $exclude = ['empty', 'id'];
-        foreach ($sorted as $key) {
-            if (\in_array($key, $exclude, true)) {
-                $this->checkId($key);
-
-                continue;
-            }
-            $str = $this->result[$key];
+        $data = $this->toArray();
+        foreach ($data as $key => $str) {
             if (\is_string($str) && !Str::startsWith($str, ['$', '[', 'false', 'true'])) {
                 if (Str::contains($str, ["'"])) {
                     $str = Str::replace("'", "\\'", $str);
@@ -170,4 +194,6 @@ class ParamParse
             throw new DirectivesException("表达式中【{$this->expression}】【id】参数无效，必须由字母、数字和下划线组成，且不能以数字开头");
         }
     }
+
+
 }

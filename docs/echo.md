@@ -51,12 +51,11 @@ $default = "我是默认值";
     - 说明：当 `limit` 参数不为空时，超出字符显示。
     - 默认值：`...`。
   - format_before: 
-    - 说明：需要实现函数 `date_format`, 当输出内容为一个有效的时间日期格式时，支持的输出方式，例如：`Y-m-d H:i:s`。
+    - 说明：当输出内容为一个有效的时间日期格式时，支持的输出方式，例如：`Y-m-d H:i:s`。
     - 默认值：空。
-  - format_number:
+    - 示例：`{$field.create_time(format_before)}`
   - format_money:
   - format_date:
-  - format_size:
 
 ### 4、使用 `.` 嵌套调用
 - 语法：`{$field.title}`
