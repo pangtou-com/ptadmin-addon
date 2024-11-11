@@ -62,7 +62,10 @@ trait PTCompileExtend
      */
     protected function PTCompileEchos($value)
     {
-        // $pattern = '/(@)?\{(:)?[ ]*(\$[a-zA-Z_][\w|(\p{L})*]*(\.[a-zA-Z_][\w|(\p{L})]*)*(\([^\)]*\))*)[ ]*}+/';
+        // 忽略组件编译结果
+        if (false !== strpos($value, '##BEGIN-COMPONENT-CLASS##')) {
+            return $value;
+        }
         $pattern = '/(@)?\{(:)?[ ]*(\$[a-zA-Z_](?:.+?)(\.[a-zA-Z_](?:.+?))*(\([^\)]*\))*)[ ]*}+/';
         $callback = function ($matches) {
             // @开头，不进行编译
