@@ -33,9 +33,9 @@ class AddonMiddleware
             $addon = parser_addon_ini($addons[1]);
             if (\count($addon) > 0) {
                 $request->addon = $addon;
+            } else {
+                throw new AddonException("应用【{$addons[0]}】配置信息解析失败");
             }
-
-            throw new AddonException("应用【{$addons[0]}】配置信息解析失败");
         }
 
         return $next($request);
