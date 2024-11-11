@@ -165,7 +165,6 @@ class PTCompiler extends BladeCompiler
      * 解析出是否为结束标签.
      *
      * @pt:end // 简介默认为foreach关闭
-     * @pt:endarc // 默认为foreach关闭
      * @pt:demo::endarc    // 根据配置关闭
      *
      * @param $match
