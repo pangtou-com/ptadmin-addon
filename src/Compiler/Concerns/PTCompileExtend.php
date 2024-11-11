@@ -62,11 +62,7 @@ trait PTCompileExtend
      */
     protected function PTCompileEchos($value)
     {
-        // 忽略组件编译结果
-        if (false !== strpos($value, '##BEGIN-COMPONENT-CLASS##')) {
-            return $value;
-        }
-        $pattern = '/(@)?\{(:)?[ ]*(\$[a-zA-Z_](?:.+?)(\.[a-zA-Z_](?:.+?))*(\(.*\))*)[ ]*}+/';
+        $pattern = '/(@)?\{(:)?[ ]*(\$[a-zA-Z_](?:[^=]+?)(\.[a-zA-Z_](?:.+?))*(\(.*\))*)[ ]*}+/';
         $callback = function ($matches) {
             // @开头，不进行编译
             if ('@' === $matches[1]) {
@@ -108,7 +104,6 @@ trait PTCompileExtend
     private function getOutputContent(array $matches): string
     {
         $parse = Parser::make($matches[5] ?? '');
-        dd($parse, $matches);
         $default = $this->getDefaultValue($parse, $matches);
         list($name, $key) = $this->getVariableName($matches);
         $params = [$name, $key];
