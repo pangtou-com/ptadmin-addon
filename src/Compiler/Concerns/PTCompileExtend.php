@@ -124,7 +124,12 @@ trait PTCompileExtend
         // 支持时间格式化
         if ($parse->hasAttribute('format_date') && \function_exists('format_date')) {
             $out = "format_date({$out}, '{$parse->getAttribute('format_date')}')";
+        } elseif ($parse->hasAttribute('format_before')) {
+            $out = "date_format_before({$out})";
+        } elseif ($parse->hasAttribute('money')) {
+            $out = "money_to_zh({$out})";
         }
+
         // 截取字符串
         if ($parse->hasAttribute('limit') && (int) $parse->getAttribute('limit') > 0) {
             $limit = (int) $parse->getAttribute('limit');

@@ -238,3 +238,87 @@ if (!function_exists('version_if')) {
         return $res;
     }
 }
+
+if (!function_exists('date_format_before')) {
+    /**
+     * 获取时间格式.
+     *
+     * @param $time
+     *
+     * @return string
+     */
+    function date_format_before($time): string
+    {
+        if (!class_exists(Carbon\Carbon::class) || blank($time)) {
+            return $time;
+        }
+        /** @var mixed $now */
+        $now = Carbon\Carbon::now();
+        $standardFormat = format_date($time);
+        $diffInSeconds = $now->diffInSeconds($standardFormat);
+        $timeUnits = [
+            31536000 => ['Years', '年前'],
+            2419200 => ['Months', '个月前'],
+            604800 => ['Weeks', '周前'],
+            86400 => ['Days', '天前'],
+            3600 => ['Hours', '小时前'],
+            60 => ['Minutes', '分钟前'],
+            1 => ['Seconds', '秒前'],
+        ];
+
+        foreach ($timeUnits as $seconds => [$unit, $description]) {
+            if ($diffInSeconds < $seconds) {
+                continue;
+            }
+
+            $diff = $now->{'diffIn'.$unit}($standardFormat);
+
+            return $diff.$description;
+        }
+
+        return '刚刚';
+    }
+}
+
+if (!function_exists('format_date')) {
+    /**
+     * 时间格式化.
+     *
+     * @param $time
+     * @param string $format
+     *
+     * @return string
+     */
+    function format_date($time, string $format = 'Y-m-d H:i:s'): ?string
+    {
+        if (!class_exists(Carbon\Carbon::class) || blank($time)) {
+            return $time;
+        }
+        if ($time instanceof \DateTime || $time instanceof \DateTimeImmutable) {
+            $standardFormat = Carbon\Carbon::instance($time);
+        } elseif (is_numeric($time)) {
+            $standardFormat = Carbon\Carbon::createFromTimestamp($time);
+        } elseif (is_string($time)) {
+            $standardFormat = Carbon\Carbon::parse($time);
+        } else {
+            return $time;
+        }
+
+        return $standardFormat->format($format);
+    }
+}
+
+if (!function_exists('money_to_zh')) {
+    /**
+     * 将金额转换为中文大写.
+     * todo 待处理.
+     *
+     * @param $amount
+     *
+     * @return mixed
+     */
+    function money_to_zh($amount)
+    {
+        return $amount;
+    }
+}
