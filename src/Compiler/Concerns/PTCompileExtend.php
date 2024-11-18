@@ -28,30 +28,13 @@ use PTAdmin\Addon\Compiler\Parser;
 
 trait PTCompileExtend
 {
-    public function test($str)
-    {
-        return $this->PTCompileEchos($str);
-    }
-
     /**
      * 自定义模版输出内容：.
-     *
      * 1、默认书写方式
-     *
      *      { $field.field|default }
      * 2、支持函数调用方式
-     *
-     * 2-1、支持函数参数的写法
-     *      { $field.field(default="dd", limit=10, pl="ccc", dateformat="") }
-     * 2-2、函数参数可换行书写
-     *      { $field.field(
-     *                  default="dd",
-     *                  limit="cc"
-     *                  )
-     *      }.
-     *
+     *      { $field.field(default="dd", limit=10, pl="ccc", format_date="") }
      * 3、忽略编译，增加@后 后续的内容不做编译转换
-     *
      *      @{ $field.field }.
      * 4、不进行html编码处理
      *      {: $field.field|default }.
@@ -73,7 +56,7 @@ trait PTCompileExtend
             }
             $out = $this->getOutputContent($matches);
             // 当未使用 {: $field } 调用时，默认为转译处理
-            // 默认为转译处理
+            // 默认转译处理
             if (':' !== $matches[2]) {
                 $out = sprintf($this->echoFormat, $out);
             }
@@ -116,12 +99,12 @@ trait PTCompileExtend
             $params = implode(', ', $params);
             $out = "data_get({$params})";
         }
-        // 支持时间格式化
+        // 支持格式化方法
         if ($parse->hasAttribute('format_date') && \function_exists('format_date')) {
             $out = "format_date({$out}, '{$parse->getAttribute('format_date')}')";
         } elseif ($parse->hasAttribute('format_before')) {
             $out = "date_format_before({$out})";
-        } elseif ($parse->hasAttribute('money')) {
+        } elseif ($parse->hasAttribute('format_money')) {
             $out = "money_to_zh({$out})";
         }
         // 截取字符串

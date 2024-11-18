@@ -80,6 +80,28 @@ class Parser
     }
 
     /**
+     * 判断是否属于输出参数.
+     * @return bool
+     */
+    public function isOutput(): bool
+    {
+        return $this->result['out'] ?? false;
+    }
+
+    /**
+     * 获取输出参数.
+     * @return string
+     */
+    public function getOutput(): string
+    {
+        if ($this->getAttribute("out") === true) {
+            return $this->getIteration();
+        }
+
+        return Str::start($this->getAttribute("out"), '$');
+    }
+
+    /**
      * 参数是否为空.
      *
      * @return bool
@@ -96,7 +118,13 @@ class Parser
      */
     public function getEmpty(): string
     {
-        return $this->result['empty'] ?? config('view.empty', '');
+        $empty = $this->getAttribute("empty");
+        $char = mb_substr($empty, 0, 1, 'UTF-8');
+        if ('$' === $char) {
+            return $empty;
+        }
+
+        return "{$empty}";
     }
 
     /**

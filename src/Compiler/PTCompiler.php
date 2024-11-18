@@ -119,11 +119,16 @@ class PTCompiler extends BladeCompiler
 
         // 判断是否为插件自定义指令
         if ($instance->has($data['name'])) {
-            if ($instance->isLoop($data['name'], $data['method'])) {
-                return $this->loopCompile($match, $data);
+            $parse = Parser::make(Arr::get($match, 5));
+            if ($parse->isOutput()) {
+                return $this->outputCompile($parse, $data);
             }
 
-            return $this->ifCompile($match, $data);
+            if ($instance->isLoop($data['name'], $data['method'])) {
+                return $this->loopCompile($parse, $data);
+            }
+
+            return $this->ifCompile($parse, $data);
         }
 
         // 判断是否为系统指令
@@ -222,26 +227,20 @@ class PTCompiler extends BladeCompiler
     /**
      * 编译为循环语句.
      *
-     * @param $match
-     * @param mixed $name
+     * @param Parser $parse
+     * @param mixed $name 调用方法名称
      *
      * @return string
      */
-    protected function loopCompile($match, $name): string
+    protected function loopCompile(Parser $parse, $name): string
     {
-        $parse = Parser::make(Arr::get($match, 5));
-        $name = $this->getParam($name);
+        $name = $this->wrapName($name);
         $initLoop = "<?php \$__currentLoopData = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()}); \$__env->addLoop(\$__currentLoopData);?>";
 
         $iterateLoop = '$__env->incrementLoopIndices(); $loop = $__env->getLastLoop();';
         $empty = '';
-        if (!blank($parse->getEmpty())) {
-            $char = mb_substr($parse->getEmpty(), 0, 1, 'UTF-8');
-            if ('$' === $char) {
-                $empty = "<?php if (blank(\$__currentLoopData)): echo e({$parse->getEmpty()}); endif;?>";
-            } else {
-                $empty = "<?php if (blank(\$__currentLoopData)): echo e('{$parse->getEmpty()}'); endif;?>";
-            }
+        if ($parse->hasAttribute("empty")) {
+            $empty = "<?php if (blank(\$__currentLoopData)): echo e({$parse->getEmpty()}); endif;?>";
         }
 
         return "{$initLoop} {$empty} <?php foreach(\$__currentLoopData as {$parse->getIteration()}): {$iterateLoop} ?>";
@@ -249,33 +248,30 @@ class PTCompiler extends BladeCompiler
 
     /**
      * 返回参数类型编译，当指令参数设置了：out=name时，将结果返回.而不是循环输出
-     * TODO 待处理.
      *
-     * @param $match
-     * @param $name
+     * @param Parser $parse
+     * @param mixed $name 调用方法名称
      *
      * @return string
      */
-    protected function outCompile($match, $name): string
+    protected function outputCompile(Parser $parse, $name): string
     {
-        $parse = Parser::make(Arr::get($match, 5));
-        $name = $this->getParam($parse->getExpression());
+        $name = $this->wrapName($name);
 
-        return "<?php echo e({$name}); ?>";
+        return "<?php {$parse->getOutput()} = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()}); ?>";
     }
 
     /**
      * 编译if语句.
      *
-     * @param $match
-     * @param mixed $name
+     * @param Parser $parse
+     * @param mixed $name 调用方法名称
      *
      * @return string
      */
-    protected function ifCompile($match, $name): string
+    protected function ifCompile(Parser $parse, $name): string
     {
-        $parse = Parser::make(Arr::get($match, 5));
-        $name = $this->getParam($name);
+        $name = $this->wrapName($name);
 
         return "<?php if(\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()})): ?>";
     }
@@ -299,7 +295,12 @@ class PTCompiler extends BladeCompiler
         return 'end' === strtolower(mb_substr($action, 0, 3));
     }
 
-    private function getParam($name): string
+    /**
+     * 包装方法名称
+     * @param $name
+     * @return string
+     */
+    private function wrapName($name): string
     {
         $str = '';
         foreach ($name as $value) {
