@@ -27,6 +27,11 @@ use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use PTAdmin\Addon\Commands\AddonInstall;
+use PTAdmin\Addon\Commands\AddonPack;
+use PTAdmin\Addon\Commands\AddonUninstall;
+use PTAdmin\Addon\Commands\AddonUpdate;
+use PTAdmin\Addon\Commands\AddonUpload;
 use PTAdmin\Addon\Compiler\PTCompiler;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Middleware\AddonMiddleware;
@@ -56,6 +61,13 @@ class AddonServiceProvider extends ServiceProvider
     {
         $this->configureMiddleware();
         $this->registerCompiler();
+        $this->commands([
+            AddonInstall::class,
+            AddonUninstall::class,
+            AddonUpdate::class,
+            AddonPack::class,
+            AddonUpload::class
+        ]);
     }
 
     protected function configureMiddleware(): void
