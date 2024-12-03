@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service;
 
 use Illuminate\Filesystem\Filesystem;
+use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
 
 /**
@@ -109,7 +110,7 @@ class AddonInstall
         if (method_exists($this->addonBootstrap, 'beforeEnable')) {
             $this->addonBootstrap->beforeEnable();
         }
-        if (!AddonManager::getInstance()->addonRequired($this->addonCode)) {
+        if (!Addon::addonRequired($this->addonCode)) {
             throw new \PTAdmin\Addon\Exception\AddonException('插件缺少依赖');
         }
         $this->addonBootstrap->enable();
@@ -158,7 +159,7 @@ class AddonInstall
 
     private function initialize($addonCode): void
     {
-        $addonInfo = AddonManager::getInstance()->getInstalledAddons();
+        $addonInfo = Addon::getInstalledAddons();
 
         $addonInfo = $addonInfo[$addonCode] ?? null;
         if (null === $addonInfo) {
@@ -181,7 +182,7 @@ class AddonInstall
      */
     private function uninstallCheck(): bool
     {
-        return AddonManager::getInstance()->hasAddonRequired($this->addonCode);
+        return Addon::hasAddonRequired($this->addonCode);
     }
 
     /**

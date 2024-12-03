@@ -168,10 +168,10 @@ class AddonApi
     {
         return self::getCacheData('my-addon', $data, function ($data) {
             $result = (new static())->send('my-addon', $data);
-            $addons = AddonManager::getInstance()->getInstalledAddonsCode();
+            $addons = Addon::getInstalledAddonsCode();
             foreach ($result['results'] as &$value) {
                 $value['is_install'] = (int) \in_array($value['addon_code'], $addons, true);
-                $value['is_enable'] = (int) AddonManager::getInstance()->hasAddon($value['addon_code']);
+                $value['is_enable'] = (int) Addon::hasAddon($value['addon_code']);
             }
             unset($value);
 

@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Commands\AddonCache;
 use PTAdmin\Addon\Commands\AddonCacheClear;
 use PTAdmin\Addon\Commands\AddonInstall;
@@ -48,7 +49,7 @@ class AddonServiceProvider extends ServiceProvider
     private $addon_booting;
     public function register(): void
     {
-        $addon = AddonManager::getInstance();
+        $addon = new AddonManager();
         $addon->boot();
         $this->app->singleton("addon", function () use ($addon) {
             return $addon;
@@ -56,7 +57,6 @@ class AddonServiceProvider extends ServiceProvider
         $this->app->singleton("__addon__", function () {
             return new AddonMiddleware();
         });
-
         $this->addon_booting = BootstrapManage::registerProvider($this->app);
     }
 
@@ -90,9 +90,7 @@ class AddonServiceProvider extends ServiceProvider
      */
     protected function registerViews($addonCode): void
     {
-        $instance = AddonManager::getInstance();
-        $response = $instance->getResponse($addonCode);
-        $path = $instance->getAddonPath($addonCode, data_get($response, "view", "Response/Views"));
+        $path = Addon::getResponsePath($addonCode,"view", "Response/Views");
         if (is_dir($path)) {
             $this->loadViewsFrom($path, $addonCode);
         }
@@ -105,9 +103,7 @@ class AddonServiceProvider extends ServiceProvider
      */
     protected function registerConfig($addonCode): void
     {
-        $instance = AddonManager::getInstance();
-        $response = $instance->getResponse($addonCode);
-        $path = $instance->getAddonPath($addonCode, data_get($response, "config", "Config/config.php"));
+        $path = Addon::getResponsePath($addonCode,"config", "Config/config.php");
         if (is_file($path) && file_exists($path)) {
             $this->mergeConfigFrom($path, $addonCode);
         }
@@ -118,9 +114,7 @@ class AddonServiceProvider extends ServiceProvider
      */
     protected function registerLang($addonCode): void
     {
-        $instance = AddonManager::getInstance();
-        $response = $instance->getResponse($addonCode);
-        $path = $instance->getAddonPath($addonCode, data_get($response, "lang", "Response/Lang"));
+        $path = Addon::getResponsePath($addonCode,"lang", "Response/Lang");
         if (is_dir($path)) {
             $this->loadTranslationsFrom($path, $addonCode);
         }
@@ -133,14 +127,12 @@ class AddonServiceProvider extends ServiceProvider
      */
     protected function registerRoutes($addonCode): void
     {
-        $instance = AddonManager::getInstance();
-        $response = $instance->getResponse($addonCode);
-        $routesDir = $instance->getAddonPath($addonCode, data_get($response, "route", "Routes"));
+        $routesDir = Addon::getResponsePath($addonCode, "route", "Routes");
         $routes = [];
         if (is_dir($routesDir)) {
             $routes = array_diff(scandir($routesDir), ['.', '..', '.gitkeep']);
         }
-        $addonBasePath = $instance->getAddon($addonCode)['base_path'];
+        $addonBasePath = Addon::getAddon($addonCode)['base_path'];
         foreach ($routes as $route) {
             if (!Str::endsWith($route, '.php')) {
                 continue;
@@ -156,9 +148,7 @@ class AddonServiceProvider extends ServiceProvider
      */
     protected function registerHelper($addonCode): void
     {
-        $instance = AddonManager::getInstance();
-        $response = $instance->getResponse($addonCode);
-        $path = $instance->getAddonPath($addonCode, data_get($response, "func", "functions.php"));
+        $path = Addon::getResponsePath($addonCode, "func", "functions.php");
         if (is_file($path) && file_exists($path)) {
             include_once $path;
         }

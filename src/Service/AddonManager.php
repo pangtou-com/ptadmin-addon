@@ -30,24 +30,13 @@ use PTAdmin\Addon\Exception\AddonException;
  */
 class AddonManager
 {
-    // 实例
-    private static $instance;
 
     /** @var AddonConfigManager 插件配置管理器对象 */
     protected $addonManager;
 
-    private function __construct()
+    public function __construct()
     {
         $this->addonManager = new AddonConfigManager();
-    }
-
-    public static function getInstance(): self
-    {
-        if (null === self::$instance) {
-            self::$instance = new self();
-        }
-
-        return self::$instance;
     }
 
 
@@ -115,19 +104,19 @@ class AddonManager
     /**
      * 执行指令方法.
      *
-     * @param $addonName
+     * @param $addonCode
      * @param $method
      * @param array $params
      *
      * @return null|mixed
      */
-    public function execute($addonName, $method, array $params = [])
+    public function execute($addonCode, $method, array $params = [])
     {
-        if (!$this->hasAddon($addonName)) {
-            throw new AddonException("未定义的插件【{$addonName}】");
+        if (!$this->hasAddon($addonCode)) {
+            throw new AddonException("未定义的插件【{$addonCode}】");
         }
 
-        return AddonDirectivesActuator::handle($addonName, $method, DirectivesDTO::build($params));
+        return AddonDirectivesActuator::handle($addonCode, $method, DirectivesDTO::build($params));
     }
 
     /**
@@ -207,17 +196,17 @@ class AddonManager
     /**
      * 校验插件版本.
      *
-     * @param $addonName
+     * @param $addonCode
      * @param $version
      *
      * @return bool
      */
-    public function checkAddonVersion($addonName, $version): bool
+    public function checkAddonVersion($addonCode, $version): bool
     {
-        if (!$this->hasAddon($addonName)) {
+        if (!$this->hasAddon($addonCode)) {
             return false;
         }
-        $var = $this->getAddonVersion($addonName);
+        $var = $this->getAddonVersion($addonCode);
         if (null === $var) {
             return false;
         }
@@ -287,15 +276,15 @@ class AddonManager
     /**
      * 判断当前插件是否属于必须插件.
      *
-     * @param $addonName
+     * @param $addonCode
      *
      * @return bool
      */
-    public function hasAddonRequired($addonName): bool
+    public function hasAddonRequired($addonCode): bool
     {
         $addons = $this->getAddons();
         foreach ($addons as $value) {
-            if (isset($value['require'], $value['require'][$addonName])) {
+            if (isset($value['require'], $value['require'][$addonCode])) {
                 return true;
             }
         }
@@ -306,13 +295,13 @@ class AddonManager
     /**
      * 判断插件依赖是否满足.
      *
-     * @param $addonName
+     * @param $addonCode
      *
      * @return bool
      */
-    public function addonRequired($addonName): bool
+    public function addonRequired($addonCode): bool
     {
-        $required = $this->getAddonRequired($addonName);
+        $required = $this->getAddonRequired($addonCode);
         if (\count($required) < 1) {
             return true;
         }
@@ -337,5 +326,17 @@ class AddonManager
         $addon = $this->getAddon($addonCode);
 
         return $addon['version'] ?? null;
+    }
+
+    /**
+     * 获取资源路径
+     * @param $addonCode
+     * @param $key
+     * @param $default
+     * @return string
+     */
+    public function getResponsePath($addonCode, $key, $default = null): string
+    {
+        return $this->getAddonPath($addonCode, data_get($this->getResponse($addonCode), $key, $default));
     }
 }

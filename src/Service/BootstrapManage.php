@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service;
 
 use Illuminate\Support\Arr;
+use PTAdmin\Addon\Addon;
 
 /**
  * 插件启动管理.
@@ -39,7 +40,7 @@ final class BootstrapManage
     public static function registerProvider($app): array
     {
         $wait_booting = [];
-        $providers = AddonManager::getInstance()->getProviders();
+        $providers = Addon::getProviders();
         foreach ($providers as $key => $item) {
             $item = Arr::wrap($item);
             $isBoot = false;
@@ -63,7 +64,7 @@ final class BootstrapManage
      */
     public static function refreshCache(): void
     {
-        (new self())->setAddonsCache(AddonManager::getInstance()->getAddonManager());
+        (new self())->setAddonsCache(Addon::getAddonManager());
     }
 
     public static function clearCache(){

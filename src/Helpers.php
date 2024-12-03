@@ -100,7 +100,7 @@ if (!function_exists('addon_path')) {
      */
     function addon_path($code, $path = null): string
     {
-        return \PTAdmin\Addon\Service\AddonManager::getInstance()->getAddonPath($code, $path);
+        return \PTAdmin\Addon\Addon::getAddonPath($code, $path);
     }
 }
 
