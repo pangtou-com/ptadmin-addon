@@ -5,14 +5,14 @@
  * Date: 2024/11/11
  */
 
-it("解析-数字", function () {
+it("Parser number", function () {
     $str = '(limit=10, limit1="123")';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('limit'))->toEqual(10)
         ->and($result->getAttribute('limit1'))->toEqual("123");
 })->group("parser");
 
-it("解析-布尔值", function () {
+it("Parser bool", function () {
     $str = '(param=false, param1=true, param2="false", param3="true", param4)';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
 
@@ -23,7 +23,7 @@ it("解析-布尔值", function () {
         ->and($result->getAttribute("param4"))->toBeTrue();
 })->group("parser");
 
-it("解析-字符串", function () {
+it("Parser string", function () {
     $str = '(param=测试字符串, param3=\'测试"字符串\', param1="测试,字符串", param2="@#测%试&,字()符&串")';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('param'))->toEqual("测试字符串")
@@ -32,7 +32,7 @@ it("解析-字符串", function () {
         ->and($result->getAttribute("param2"))->toEqual('@#测%试&,字()符&串');
 })->group("parser");
 
-it("解析-字符串-复杂模式", function () {
+it("Parser string complex pattern", function () {
     $str = '(param="测试字符串", param1="测试\',字符串", param2="@#测%试&,字()符&串")';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('param'))->toEqual("测试字符串")
@@ -40,7 +40,7 @@ it("解析-字符串-复杂模式", function () {
         ->and($result->getAttribute("param2"))->toEqual('@#测%试&,字()符&串');
 })->group("parser");
 
-it("解析-字符串-无符号", function () {
+it("Parser string Unsigned", function () {
     $str = '(param=测试字符串, param1="测试\',字符串", param2="@#测%试&,字()符&串")';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('param'))->toEqual("测试字符串")
@@ -48,7 +48,7 @@ it("解析-字符串-无符号", function () {
         ->and($result->getAttribute("param2"))->toEqual('@#测%试&,字()符&串');
 })->group("parser");
 
-it("解析-字符串+变量", function () {
+it("Parser String and Var", function () {
     $str = '(param="测试字符串", param1=$filed, param2="@#测%试&,字()符&串")';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
 
@@ -57,14 +57,14 @@ it("解析-字符串+变量", function () {
         ->and($result->getAttribute("param2"))->toEqual('@#测%试&,字()符&串');
 })->group("parser");
 
-it("解析-数组", function () {
+it("Parser array", function () {
     $str = '(limit=[1,2,3,4])';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('limit'))->toEqual("[1,2,3,4]");
 
 })->group("parser");
 
-it("解析-数组+字符串", function () {
+it("Parser array and string", function () {
     $str = '(limit=[1,2,3,4], param="测试字符串")';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('limit'))->toEqual("[1,2,3,4]")
@@ -72,14 +72,14 @@ it("解析-数组+字符串", function () {
 
 })->group("parser");
 
-it("解析-变量", function () {
+it("Parser var", function () {
     $str = '(param=$field)';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('param'))->toEqual('$field');
 
 })->group("parser");
 
-it("解析-变量+数组", function () {
+it("Parser var and array", function () {
     $str = '(param=$field, param1=["aa" => $cc, "bb" => $dd])';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('param'))->toEqual('$field')
@@ -87,7 +87,7 @@ it("解析-变量+数组", function () {
 
 })->group("parser");
 
-it("解析-变量+字符串", function () {
+it("Parser var and string", function () {
     $str = '(param=$field, param1="测试字符串")';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('param'))->toEqual('$field')
@@ -95,7 +95,7 @@ it("解析-变量+字符串", function () {
 
 })->group("parser");
 
-it("解析-混合模式", function () {
+it("Parser mix", function () {
     $str = '(param=$field, param1="测试字符串", param2=[1,2,3,4],  param7="[1,2,3,4]", param3=false, param6 = "ddliuoujomvf&&9338*", param4, param5=true)';
     $result = \PTAdmin\Addon\Compiler\Parser::make($str);
     expect($result->getAttribute('param'))->toEqual('$field')

@@ -32,11 +32,13 @@ class AddonManager
 {
     // 实例
     private static $instance;
-    // 插件集合
-    private $addon_maps = [];
+
+    /** @var AddonConfigManager 插件配置管理器对象 */
+    protected $addonManager;
 
     private function __construct()
     {
+        $this->addonManager = new AddonConfigManager();
     }
 
     public static function getInstance(): self
@@ -48,15 +50,66 @@ class AddonManager
         return self::$instance;
     }
 
-    public function insert($provider): void
+
+    public function getAddonManager(): AddonConfigManager
     {
-        if (!method_exists($provider, 'getAddonName')) {
+        return $this->addonManager;
+    }
+
+    /**
+     * 启动插件项目
+     * @return void
+     */
+    public function boot()
+    {
+        if ($this->addonManager->getLoadStatus()) {
             return;
         }
-        if (!method_exists($provider, 'getAddonInfo')) {
+        if ((boolean)config("app.debug") === true && file_exists($this->getAddonCacheDir())) {
+            $data = require_once $this->getAddonCacheDir();
+            $this->addonManager->byCacheLoadConfig($data, $this);
             return;
         }
-        $this->addon_maps[$provider->getAddonName()] = $provider->getAddonInfo();
+
+        $this->addonManager->loadConfig($this->getAddonsDirs(), $this);
+    }
+
+    /**
+     * 插件是否禁用中
+     * @param $addonDir
+     * @return bool
+     */
+    public function isAddonDisable($addonDir): bool
+    {
+        return file_exists($addonDir.\DIRECTORY_SEPARATOR.'disable');
+    }
+
+    /**
+     * 获取缓存文件路径
+     * @return string
+     */
+    protected function getAddonCacheDir(): string
+    {
+        return base_path('bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php');
+    }
+
+
+    /**
+     * 扫描所有的插件完整目录
+     * @return array
+     */
+    protected function getAddonsDirs(): array
+    {
+        $addons = [];
+        $dirs = $this->scanAddonsPath();
+        foreach ($dirs as $dir) {
+            $addon_path = base_path("addons".\DIRECTORY_SEPARATOR.$dir);
+            if (!is_dir($addon_path)) {
+                continue;
+            }
+            $addons[] = $addon_path;
+        }
+        return $addons;
     }
 
     /**
@@ -80,13 +133,75 @@ class AddonManager
     /**
      * 判断插件是否存在.
      *
-     * @param $addonName
+     * @param $addonCode
      *
      * @return bool
      */
-    public function hasAddon($addonName): bool
+    public function hasAddon($addonCode): bool
     {
-        return isset($this->addon_maps[$addonName]);
+        $addons = $this->getAddon($addonCode);
+
+        return $addons !== null;
+    }
+
+    public function getProviders(): array
+    {
+        return $this->getAddonManager()->getProviders();
+    }
+
+    public function getProvider($addonCode)
+    {
+        return  $this->getAddonManager()->getProviders($addonCode);
+    }
+
+    public function getInjects(): array
+    {
+        return $this->getAddonManager()->getInject();
+    }
+
+    public function getInject($addonCode)
+    {
+        return $this->getAddonManager()->getInject($addonCode);
+    }
+
+    public function getResponses(): array
+    {
+        return $this->getAddonManager()->getResponse();
+    }
+
+    public function getResponse($addonCode)
+    {
+        return $this->getAddonManager()->getResponse($addonCode);
+    }
+
+    public function getDirectives(): array
+    {
+        return $this->getAddonManager()->getDirectives();
+    }
+
+    public function getDirective($addonCode)
+    {
+        return $this->getAddonManager()->getDirectives($addonCode);
+    }
+
+    public function getAddons(): array
+    {
+        return $this->getAddonManager()->getAddons();
+    }
+
+    public function getAddon($addonCode)
+    {
+        return $this->getAddonManager()->getAddons($addonCode);
+    }
+
+    public function getAddonPath($addonCode, $path = null): string
+    {
+        $addon = $this->getAddon($addonCode);
+        if ($addon === null) {
+            throw new AddonException("未定义的插件【{$addonCode}】");
+        }
+
+        return base_path('addons'.\DIRECTORY_SEPARATOR.$addon['base_path'].(null !== $path ? \DIRECTORY_SEPARATOR.$path : ''));
     }
 
     /**
@@ -111,21 +226,27 @@ class AddonManager
     }
 
     /**
+     * 扫描插件目录
+     * @return array
+     */
+    protected function scanAddonsPath(): array
+    {
+        $dirs = array_diff(scandir(base_path('addons')), ['.', '..', '.gitkeep', '.gitignore']);
+        if (0 === \count($dirs)) {
+            return [];
+        }
+
+        return $dirs;
+    }
+
+    /**
      * 获取所有的已安装插件code.
      *
      * @return array
      */
     public function getInstalledAddonsCode(): array
     {
-        $infos = $this->getInstalledAddons();
-        $codes = [];
-        foreach ($infos as $info) {
-            if (isset($info['code']) && $info['code']) {
-                $codes[] = $info['code'];
-            }
-        }
-
-        return $codes;
+        return array_keys($this->getInstalledAddons());
     }
 
     /**
@@ -135,50 +256,32 @@ class AddonManager
      */
     public function getInstalledAddons(): array
     {
-        $dirs = array_diff(scandir(base_path('addons')), ['.', '..', '.gitkeep', '.gitignore']);
-        if (0 === \count($dirs)) {
-            return [];
-        }
-        $infos = [];
-        foreach ($dirs as $dir) {
-            $addon_path = addon_path($dir);
-            if (!is_dir($addon_path)) {
+        $addons = $this->getAddonsDirs();
+        $results = [];
+        foreach ($addons as $addon) {
+            $config = $this->getAddonManager()->readAddonConfig($addon);
+            if ($config === null) {
                 continue;
             }
-            $info = parser_addon_ini($dir);
-            if (\count($info) > 0) {
-                $info['addon_path'] = $info['dir'] = $dir;
-                $info['base_path'] = $addon_path;
-
-                $infos[$info['code']] = $info;
-            }
+            $config['disable'] = $this->isAddonDisable($addon);
+            $results[$config['code']] = $config;
         }
 
-        return $infos;
-    }
-
-    /**
-     * 获取插件信息.
-     *
-     * @param $addonName
-     *
-     * @return array
-     */
-    public function getAddonInfo($addonName): array
-    {
-        return $this->addon_maps[$addonName] ?? [];
+        return $results;
     }
 
     /**
      * 获取插件依赖.
      *
-     * @param $addonName
+     * @param $addonCode
      *
      * @return array
      */
-    public function getAddonRequired($addonName): array
+    public function getAddonRequired($addonCode): array
     {
-        return $this->addon_maps[$addonName]['require'] ?? [];
+        $addon = $this->getAddon($addonCode);
+
+        return $addon['require'] ?? [];
     }
 
     /**
@@ -190,7 +293,8 @@ class AddonManager
      */
     public function hasAddonRequired($addonName): bool
     {
-        foreach ($this->addon_maps as $value) {
+        $addons = $this->getAddons();
+        foreach ($addons as $value) {
             if (isset($value['require'], $value['require'][$addonName])) {
                 return true;
             }
@@ -224,12 +328,14 @@ class AddonManager
     /**
      * 获取插件版本.
      *
-     * @param $addonName
+     * @param $addonCode
      *
      * @return null|string
      */
-    public function getAddonVersion($addonName): ?string
+    public function getAddonVersion($addonCode): ?string
     {
-        return $this->addon_maps[$addonName]['version'] ?? null;
+        $addon = $this->getAddon($addonCode);
+
+        return $addon['version'] ?? null;
     }
 }

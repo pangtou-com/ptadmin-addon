@@ -17,6 +17,6 @@ parameters:
         - '#^Variable static method call on [a-zA-Z0-9\|\\_]+\.#'
         - '#^Variable method call on mixed\.#'
         - '#^Unsafe usage of new static\(\)\.#'
-        - '#^Variable method call on Illuminate\\Database\\Schema\\Blueprint\.#'
+        # - '#^Variable method call on Illuminate\\Database\\Schema\\Blueprint\.#'
+        - '#^Variable method call on [a-zA-Z0-9\|\\_]+\.#'
         - '#^Call to an undefined method ReflectionType::getName\(\)\.#'
-

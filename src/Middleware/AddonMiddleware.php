@@ -23,21 +23,15 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Middleware;
 
-use PTAdmin\Addon\Exception\AddonException;
+use Illuminate\Http\Request;
 
 class AddonMiddleware
 {
-    public function handle($request, \Closure $next, ...$addons)
+    public function handle(Request  $request, \Closure $next, ...$addons)
     {
-        if (isset($addons[1])) {
-            $addon = parser_addon_ini($addons[1]);
-            if (\count($addon) > 0) {
-                $request->addon = $addon;
-            } else {
-                throw new AddonException("应用【{$addons[0]}】配置信息解析失败");
-            }
+        if (isset($addons[0])) {
+            $request->offsetSet("__addon__", app("addon")->getAddon($addons[0]));
         }
-
         return $next($request);
     }
 }

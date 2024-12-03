@@ -33,18 +33,18 @@ class AddonInstall
 {
     /** @var BaseBootstrap 插件启用服务类 */
     private $addonBootstrap;
-    private $addonName;
+    private $addonCode;
     private $addonInfo;
 
     private function __construct()
     {
     }
 
-    public static function make($addonName): self
+    public static function make($addonCode): self
     {
         $instance = new self();
-        $instance->addonName = $addonName;
-        $instance->initialize($addonName);
+        $instance->addonCode = $addonCode;
+        $instance->initialize($addonCode);
 
         return $instance;
     }
@@ -94,7 +94,7 @@ class AddonInstall
             throw new AddonException('插件作为其他插件的依赖，不允许卸载');
         }
         // 删除插件菜单
-        // PermissionService::addonUninstallMenu($this->addonName);
+        // PermissionService::addonUninstallMenu($this->addonCode);
         // 删除插件目录
         $this->rmAddonPath();
 
@@ -109,14 +109,14 @@ class AddonInstall
         if (method_exists($this->addonBootstrap, 'beforeEnable')) {
             $this->addonBootstrap->beforeEnable();
         }
-        if (!AddonManager::getInstance()->addonRequired($this->addonName)) {
+        if (!AddonManager::getInstance()->addonRequired($this->addonCode)) {
             throw new \PTAdmin\Addon\Exception\AddonException('插件缺少依赖');
         }
         $this->addonBootstrap->enable();
 
         @unlink($this->addonInfo['base_path'].\DIRECTORY_SEPARATOR.'disable');
 
-        BootstrapManage::reCache();
+        BootstrapManage::refreshCache();
     }
 
     /**
@@ -126,7 +126,7 @@ class AddonInstall
     {
         $this->addonBootstrap->disable();
         @touch($this->addonInfo['base_path'].\DIRECTORY_SEPARATOR.'disable');
-        BootstrapManage::reCache();
+        BootstrapManage::refreshCache();
     }
 
     /**
@@ -156,13 +156,13 @@ class AddonInstall
         return null;
     }
 
-    private function initialize($addonName): void
+    private function initialize($addonCode): void
     {
         $addonInfo = AddonManager::getInstance()->getInstalledAddons();
 
-        $addonInfo = $addonInfo[$addonName] ?? null;
+        $addonInfo = $addonInfo[$addonCode] ?? null;
         if (null === $addonInfo) {
-            throw new AddonException("未定义的插件【{$addonName}】");
+            throw new AddonException("未定义的插件【{$addonCode}】");
         }
         $class = 'Addon\\'.$addonInfo['addon_path'].'\\Bootstrap';
         $this->addonInfo = $addonInfo;
@@ -170,7 +170,7 @@ class AddonInstall
         try {
             $this->addonBootstrap = (new \ReflectionClass($class))->newInstance();
         } catch (\ReflectionException $e) {
-            throw new AddonException("插件【{$addonName}】启动类不存在");
+            throw new AddonException("插件【{$addonCode}】启动类不存在");
         }
     }
 
@@ -181,7 +181,7 @@ class AddonInstall
      */
     private function uninstallCheck(): bool
     {
-        return AddonManager::getInstance()->hasAddonRequired($this->addonName);
+        return AddonManager::getInstance()->hasAddonRequired($this->addonCode);
     }
 
     /**

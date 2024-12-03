@@ -23,75 +23,54 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Service;
 
-use Illuminate\Support\Str;
-use PTAdmin\Addon\Providers\BaseAddonService;
+use Illuminate\Support\Arr;
 
 /**
  * 插件启动管理.
  */
 final class BootstrapManage
 {
+
     /**
-     * 初始化插件信息.
+     * 注册插件应用的服务提供者
+     * @param $app
+     * @return array
      */
-    public static function getServiceRegister(): array
+    public static function registerProvider($app): array
     {
-        $instance = new self();
-        if (!(bool) config('app.debug')) {
-            $data = $instance->getAddonsCache();
-            if (\count($data) > 0) {
-                return $data;
+        $wait_booting = [];
+        $providers = AddonManager::getInstance()->getProviders();
+        foreach ($providers as $key => $item) {
+            $item = Arr::wrap($item);
+            $isBoot = false;
+            foreach ($item as $val) {
+                $provider = $app->register($val);
+                if (method_exists($provider, "boot")) {
+                    $isBoot = true;
+                }
+            }
+            if (!$isBoot) {
+                $wait_booting[] = $key;
             }
         }
 
-        return $instance->getAddonService();
+        return $wait_booting;
     }
 
     /**
      * 刷新缓存
      * 当插件安装、启用、禁用时需要刷新缓存.
      */
-    public static function reCache(): void
+    public static function refreshCache(): void
     {
-        (new self())->setAddonsCache(self::getServiceRegister());
+        (new self())->setAddonsCache(AddonManager::getInstance()->getAddonManager());
     }
 
-    /**
-     * 获取启用的插件服务.
-     *
-     * @return array
-     */
-    private function getAddonService(): array
-    {
-        $addons = $this->getAddonsFolders();
-        if (0 === \count($addons)) {
-            return [];
-        }
-        // 加载服务注册和配置信息
-        $register = [];
-        foreach ($addons as $addon) {
-            if (file_exists($this->getAddonsDirs($addon.\DIRECTORY_SEPARATOR.'disable'))) {
-                continue;
-            }
-            $dir = $this->getAddonsDirs($addon.\DIRECTORY_SEPARATOR.'Providers');
-            if (!is_dir($dir)) {
-                continue;
-            }
-
-            $files = array_diff(scandir($dir), ['.', '..', '.gitkeep']);
-            foreach ($files as $item) {
-                if (!Str::endsWith($item, '.php')) {
-                    continue;
-                }
-                $class = 'Addon\\'.$addon.'\\Providers\\'.str_replace('.php', '', $item);
-                if (is_subclass_of($class, BaseAddonService::class)) {
-                    $register[] = $class;
-                }
-            }
-        }
-
-        return $register;
+    public static function clearCache(){
+        $path = (new self())->getCacheDir();
+        @unlink($path);
     }
+
 
     /**
      * 通过缓存获取插件目录信息.
@@ -103,64 +82,19 @@ final class BootstrapManage
         return base_path('bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php');
     }
 
-    /**
-     * 获取插件缓存信息.
-     *
-     * @return array
-     */
-    private function getAddonsCache(): array
-    {
-        $cacheDir = $this->getCacheDir();
-        if (file_exists($cacheDir)) {
-            return require_once $cacheDir;
-        }
-
-        return [];
-    }
 
     /**
      * 设置插件目录缓存信息.
      *
-     * @param array $addons
+     * @param $addons
      */
-    private function setAddonsCache(array $addons): void
+    private function setAddonsCache($addons): void
     {
         $cacheDir = $this->getCacheDir();
         if (file_exists($cacheDir)) {
             unlink($cacheDir);
         }
-        $content = "<?php\nreturn ".var_export($addons, true).';';
+        $content = "<?php\nreturn ".$addons.';';
         file_put_contents($cacheDir, $content);
-    }
-
-    /**
-     * 获取插件目录信息.
-     *
-     * @return array
-     */
-    private function getAddonsFolders(): array
-    {
-        $addonsDir = $this->getAddonsDirs();
-        $addons = [];
-        if (is_dir($addonsDir)) {
-            $addons = array_diff(scandir($addonsDir), ['.', '..', '.gitkeep']);
-            $addons = array_filter($addons, function ($item) {
-                return is_dir($this->getAddonsDirs($item));
-            });
-        }
-
-        return $addons;
-    }
-
-    /**
-     * 获取插件目录信息.
-     *
-     * @param null|string $path
-     *
-     * @return string
-     */
-    private function getAddonsDirs(?string $path = null): string
-    {
-        return base_path('addons'.(null !== $path ? \DIRECTORY_SEPARATOR.$path : $path));
     }
 }
