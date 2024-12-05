@@ -27,7 +27,7 @@ use PTAdmin\Addon\Service\AddonManager;
  * @method static mixed getResponse($addonCode) 获取资源信息
  * @method static mixed getResponsePath($addonCode, $key, $default = null) 获取资源路径
  * @method static mixed getDirective($addonCode)
- * @method static mixed getAddon($addonCode)
+ * @method static mixed getAddon($addonCode, $key = null, $default = null)
  * @method static string getAddonPath($addonCode, $path = null)
  * @method static bool checkAddonVersion($addonName, $version)
  * @method static array getInstalledAddonsCode() 本地已安装插件code

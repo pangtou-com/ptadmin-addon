@@ -15,4 +15,9 @@ class AddonUninstall extends BaseAddonCommand
     protected $signature = 'addon:uninstall {--c|code : 应用编码} {--f|force : 强制覆盖}';
     protected $description = '卸载插件应用';
 
+
+    public function handle(): int
+    {
+        return 0;
+    }
 }

@@ -15,9 +15,11 @@ class AddonInstall extends BaseAddonCommand
     protected $signature = 'addon:install {code : 应用编码} {--f|force=false : 强制覆盖}';
     protected $description = '安装插件应用';
 
-
     public function handle(): int
     {
+        $code = $this->argument('code');
+        $install = \PTAdmin\Addon\Service\AddonInstall::make($code);
+        $install->install((bool)$this->option("force"));
         return 0;
     }
 }

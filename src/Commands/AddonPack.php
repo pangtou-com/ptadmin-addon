@@ -15,4 +15,9 @@ class AddonPack extends BaseAddonCommand
 {
     protected $signature = 'addon:pack {--c|code : 应用编码}';
     protected $description = '打包插件应用';
+
+    public function handle(): int
+    {
+        return 0;
+    }
 }

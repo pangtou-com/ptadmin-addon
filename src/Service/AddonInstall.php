@@ -35,7 +35,6 @@ class AddonInstall
     /** @var BaseBootstrap 插件启用服务类 */
     private $addonBootstrap;
     private $addonCode;
-    private $addonInfo;
 
     private function __construct()
     {
@@ -51,9 +50,11 @@ class AddonInstall
     }
 
     /**
-     * 安装插件.
+     * 插件安装
+     * @param bool $force
+     * @return bool
      */
-    public function install(): bool
+    public function install(bool $force = false): bool
     {
         // 1、插件安装之前调用
         if (method_exists($this->addonBootstrap, 'beforeInstall')) {
@@ -66,7 +67,6 @@ class AddonInstall
         if (($sql = $this->getAddonInstallSql()) !== null) {
             app(Database::class)->restoreData($sql);
         }
-
         // 3、管理菜单添加。
         $menu = $this->addonBootstrap->admin_menu;
         if (\is_array($menu) && \count($menu) > 0) {
@@ -114,8 +114,7 @@ class AddonInstall
             throw new \PTAdmin\Addon\Exception\AddonException('插件缺少依赖');
         }
         $this->addonBootstrap->enable();
-
-        @unlink($this->addonInfo['base_path'].\DIRECTORY_SEPARATOR.'disable');
+        @unlink(Addon::getAddonPath($this->addonCode, 'disable'));
 
         BootstrapManage::refreshCache();
     }
@@ -126,7 +125,7 @@ class AddonInstall
     public function disable(): void
     {
         $this->addonBootstrap->disable();
-        @touch($this->addonInfo['base_path'].\DIRECTORY_SEPARATOR.'disable');
+        @touch(Addon::getAddonPath($this->addonCode, 'disable'));
         BootstrapManage::refreshCache();
     }
 
@@ -149,8 +148,8 @@ class AddonInstall
      */
     private function getAddonInstallSql(): ?string
     {
-        $sql = $this->addonInfo['base_path'].\DIRECTORY_SEPARATOR.'install.sql';
-        if (file_exists($sql)) {
+        $sql = Addon::getAddonPath($this->addonCode, 'install.sql');
+        if (is_file($sql) && file_exists($sql)) {
             return $sql;
         }
 
@@ -159,15 +158,11 @@ class AddonInstall
 
     private function initialize($addonCode): void
     {
-        $addonInfo = Addon::getInstalledAddons();
-
-        $addonInfo = $addonInfo[$addonCode] ?? null;
-        if (null === $addonInfo) {
+        $path = Addon::getAddon($addonCode, 'base_path');
+        if (null === $path) {
             throw new AddonException("未定义的插件【{$addonCode}】");
         }
-        $class = 'Addon\\'.$addonInfo['addon_path'].'\\Bootstrap';
-        $this->addonInfo = $addonInfo;
-
+        $class = 'Addon\\'.$path.'\\Bootstrap';
         try {
             $this->addonBootstrap = (new \ReflectionClass($class))->newInstance();
         } catch (\ReflectionException $e) {
@@ -190,6 +185,6 @@ class AddonInstall
      */
     private function rmAddonPath(): void
     {
-        (new Filesystem())->deleteDirectory($this->addonInfo['base_path']);
+        (new Filesystem())->deleteDirectory(Addon::getAddon($this->addonCode, 'base_path'));
     }
 }

@@ -178,9 +178,17 @@ class AddonManager
         return $this->getAddonManager()->getAddons();
     }
 
-    public function getAddon($addonCode)
+    public function getAddon($addonCode, $key = null, $default = null)
     {
-        return $this->getAddonManager()->getAddons($addonCode);
+        $addon = $this->getAddonManager()->getAddons($addonCode);
+        if ($addon === null) {
+            return $default;
+        }
+        if (null === $key) {
+            return $addon;
+        }
+
+        return $addon[$key] ?? $default;
     }
 
     public function getAddonPath($addonCode, $path = null): string

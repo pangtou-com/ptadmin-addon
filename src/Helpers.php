@@ -33,7 +33,7 @@ if (!function_exists('get_table_name')) {
      */
     function get_table_name($tableName): string
     {
-        $prefix = config('database.prefix', 'pt_');
+        $prefix = config('database.prefix');
         if (blank($prefix)) {
             return $tableName;
         }
@@ -53,7 +53,7 @@ if (!function_exists('table_to_prefix_empty')) {
      */
     function table_to_prefix_empty($tableName): string
     {
-        $prefix = config('database.prefix', 'pt_');
+        $prefix = config('database.prefix');
         if (blank($prefix)) {
             return $tableName;
         }
@@ -61,17 +61,18 @@ if (!function_exists('table_to_prefix_empty')) {
         return \Illuminate\Support\Str::replaceFirst($prefix, '', $tableName);
     }
 }
+
 if (!function_exists('has_addon')) {
     /**
      * 验证插件是否存在.
      *
-     * @param $name
+     * @param $code
      *
      * @return bool
      */
-    function has_addon($name): bool
+    function has_addon($code): bool
     {
-        return false;
+        return \PTAdmin\Addon\Addon::hasAddon($code);
     }
 }
 
@@ -79,16 +80,17 @@ if (!function_exists('has_addon_version')) {
     /**
      * 验证插件版本.
      *
-     * @param string $name
+     * @param string $code
      * @param mixed  $version
      *
      * @return bool
      */
-    function has_addon_version(string $name, $version): bool
+    function has_addon_version(string $code, $version): bool
     {
-        return false;
+        return \PTAdmin\Addon\Addon::checkAddonVersion($code, $version);
     }
 }
+
 if (!function_exists('addon_path')) {
     /**
      * 插件目录.
@@ -115,46 +117,45 @@ if (!function_exists('addon_namespace')) {
      */
     function addon_namespace($code, $namespace = null): string
     {
-        return 'Addon\\'.ucfirst($code).($namespace ? '\\'.$namespace : '');
+        $base_path = \PTAdmin\Addon\Addon::getAddon($code, "base_path");
+
+        return 'Addon\\'.$base_path.($namespace ? '\\'.$namespace : '');
     }
 }
 
-if (!function_exists('parser_addon_ini')) {
+if (!function_exists('addon_asset')) {
     /**
-     * 解析插件配置文件.
+     * 插件的静态资源访问路径.
      *
-     * @param mixed $addonDir
+     * @param mixed $addon_code 所属插件code
+     * @param mixed $path       资源路径
+     * @param bool  $force      是否强制更新
+     * @param mixed $secure     设置是否生成安全访问地址
      *
-     * @return array
+     * @return string
      */
-    function parser_addon_ini($addonDir): array
+    function addon_asset($addon_code, $path, bool $force = false, $secure = null): string
     {
-        $root = addon_path($addonDir);
-        if (!is_dir($root)) {
-            return [];
+        $path = ltrim($path, '/');
+        // 当不启用debug模式时，直接返回资源地址
+        if (true !== config('app.debug') && false === $force) {
+            return asset("addons/{$addon_code}/{$path}", $secure);
         }
-        $file = $root.\DIRECTORY_SEPARATOR.'info.ini';
-        if (!is_file($file) || !file_exists($file)) {
-            return [];
+        // 判断应用目录下是否存在资源信息
+        $addon_path = addon_path($addon_code, 'Assets'.\DIRECTORY_SEPARATOR.$path);
+        if (!file_exists($addon_path)) {
+            throw new \PTAdmin\Addon\Exception\AddonException("Addon [{$addon_code}] Assets [{$path}] Not Found.");
         }
-        $config = parse_ini_file($file, true);
-        if (false === $config) {
-            return [];
-        }
-        $result = [];
-        foreach ($config as $key => $value) {
-            if ('license_key' === $key) {
-                continue;
-            }
-            $key = explode('.', $key);
-            if (count($key) > 1) {
-                $result[$key[0]][$key[1]] = $value;
-            } else {
-                $result[$key[0]] = $value;
-            }
+        // 拷贝资源至访问目录
+        $addon_storage_path = storage_path('app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR."{$addon_code}".\DIRECTORY_SEPARATOR."{$path}");
+        $storageExists = file_exists($addon_storage_path);
+        if (!$storageExists || (filemtime($addon_path) > filemtime($addon_storage_path))) {
+            $filesystem = new \Illuminate\Filesystem\Filesystem();
+            $filesystem->ensureDirectoryExists($filesystem->dirname($addon_storage_path));
+            $filesystem->copy($addon_path, $addon_storage_path);
         }
 
-        return $result;
+        return asset("addons/{$addon_code}/{$path}?a=".time(), $secure);
     }
 }
 
@@ -166,7 +167,7 @@ if (!function_exists('is_addon_running')) {
      */
     function is_addon_running(): bool
     {
-        $addon = request()->addon ?? null;
+        $addon = request()->get("__addon__", null);
 
         return null !== $addon;
     }
@@ -183,7 +184,7 @@ if (!function_exists('get_running_addon_info')) {
      */
     function get_running_addon_info($key = null, $default = null)
     {
-        $addon = request()->addon ?? null;
+        $addon = request()->get("__addon__") ?? null;
         if (null !== $key) {
             return data_get($addon, $key, $default);
         }
