@@ -21,18 +21,25 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Middleware;
 
-/**
- * 插件打包.
- */
-class AddonPack extends BaseAddonCommand
+class CanInstallMiddleware
 {
-    protected $signature = 'addon:pack {--c|code : 应用编码}';
-    protected $description = '打包插件应用';
-
-    public function handle(): int
+    public function handle($request, \Closure $next)
     {
-        return 0;
+        if (file_exists(storage_path('installed')) && $this->isAccessInstall()) {
+            abort(404);
+        } elseif (!file_exists(__DIR__.'/../storage/installed') && !$this->isAccessInstall()) {
+            header('Location: /install');
+
+            exit;
+        }
+
+        return $next($request);
+    }
+
+    private function isAccessInstall(): bool
+    {
+        return isset($_SERVER['REQUEST_URI']) && '/install' === substr($_SERVER['REQUEST_URI'], 0, 8);
     }
 }

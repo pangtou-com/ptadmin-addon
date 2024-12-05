@@ -21,18 +21,28 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Service\Install\Pipe;
 
-/**
- * 插件打包.
- */
-class AddonPack extends BaseAddonCommand
+use Illuminate\Support\Facades\Validator;
+use PTAdmin\Addon\Service\Traits\FormatOutputTrait;
+
+class ValidateData
 {
-    protected $signature = 'addon:pack {--c|code : 应用编码}';
-    protected $description = '打包插件应用';
+    use FormatOutputTrait;
 
-    public function handle(): int
+    public function handle(array $data, \Closure $next): void
     {
-        return 0;
+        $rules = config('install.form.rules', []);
+        $attributes = config('install.form.attributes', []);
+        $message = config('install.form.message', []);
+        $validator = Validator::make($data, $rules, $message, $attributes);
+        if ($validator->fails()) {
+            foreach ($validator->errors()->all() as $error) {
+                $this->error($error);
+            }
+
+            return;
+        }
+        $next($data);
     }
 }

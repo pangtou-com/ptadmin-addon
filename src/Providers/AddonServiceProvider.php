@@ -23,8 +23,6 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Providers;
 
-use Illuminate\Contracts\Container\BindingResolutionException;
-use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -38,24 +36,28 @@ use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpdate;
 use PTAdmin\Addon\Commands\AddonUpload;
 use PTAdmin\Addon\Compiler\PTCompiler;
-use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Controller\InstallController;
 use PTAdmin\Addon\Middleware\AddonMiddleware;
-use PTAdmin\Addon\Service\AddonDirectivesManage;
+use PTAdmin\Addon\Middleware\CanInstallMiddleware;
 use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\BootstrapManage;
 
 class AddonServiceProvider extends ServiceProvider
 {
     private $addon_booting;
+
     public function register(): void
     {
         $addon = new AddonManager();
         $addon->boot();
-        $this->app->singleton("addon", function () use ($addon) {
+        $this->app->singleton('addon', function () use ($addon) {
             return $addon;
         });
-        $this->app->singleton("__addon__", function () {
+        $this->app->singleton('__addon__', function () {
             return new AddonMiddleware();
+        });
+        $this->app->singleton('install', function () {
+            return new CanInstallMiddleware();
         });
         $this->addon_booting = BootstrapManage::registerProvider($this->app);
     }
@@ -72,7 +74,7 @@ class AddonServiceProvider extends ServiceProvider
             AddonCache::class,
             AddonCacheClear::class,
         ]);
-        if ($this->addon_booting && is_array($this->addon_booting)) {
+        if ($this->addon_booting && \is_array($this->addon_booting)) {
             foreach ($this->addon_booting as $addonCode) {
                 $this->registerLang($addonCode);
                 $this->registerViews($addonCode);
@@ -81,29 +83,32 @@ class AddonServiceProvider extends ServiceProvider
                 $this->registerRoutes($addonCode);
             }
         }
+        if (!file_exists(storage_path('installed'))) {
+            $this->registerInstaller();
+        }
     }
 
     /**
-     * 注册视图文件
+     * 注册视图文件.
+     *
      * @param $addonCode
-     * @return void
      */
     protected function registerViews($addonCode): void
     {
-        $path = Addon::getResponsePath($addonCode,"view", "Response/Views");
+        $path = Addon::getResponsePath($addonCode, 'view', 'Response/Views');
         if (is_dir($path)) {
             $this->loadViewsFrom($path, $addonCode);
         }
     }
 
     /**
-     * 注册配置文件
+     * 注册配置文件.
+     *
      * @param $addonCode
-     * @return void
      */
     protected function registerConfig($addonCode): void
     {
-        $path = Addon::getResponsePath($addonCode,"config", "Config/config.php");
+        $path = Addon::getResponsePath($addonCode, 'config', 'Config/config.php');
         if (is_file($path) && file_exists($path)) {
             $this->mergeConfigFrom($path, $addonCode);
         }
@@ -111,10 +116,12 @@ class AddonServiceProvider extends ServiceProvider
 
     /**
      * 注册语言包文件.
+     *
+     * @param mixed $addonCode
      */
     protected function registerLang($addonCode): void
     {
-        $path = Addon::getResponsePath($addonCode,"lang", "Response/Lang");
+        $path = Addon::getResponsePath($addonCode, 'lang', 'Response/Lang');
         if (is_dir($path)) {
             $this->loadTranslationsFrom($path, $addonCode);
         }
@@ -124,10 +131,12 @@ class AddonServiceProvider extends ServiceProvider
      * Register routes.
      * 注册路由.
      * 自动扫描插件Routes目录下的路由文件.并将api为前缀的文件设置为api中间件.
+     *
+     * @param mixed $addonCode
      */
     protected function registerRoutes($addonCode): void
     {
-        $routesDir = Addon::getResponsePath($addonCode, "route", "Routes");
+        $routesDir = Addon::getResponsePath($addonCode, 'route', 'Routes');
         $routes = [];
         if (is_dir($routesDir)) {
             $routes = array_diff(scandir($routesDir), ['.', '..', '.gitkeep']);
@@ -145,15 +154,39 @@ class AddonServiceProvider extends ServiceProvider
 
     /**
      * 加载助手函数.
+     *
+     * @param mixed $addonCode
      */
     protected function registerHelper($addonCode): void
     {
-        $path = Addon::getResponsePath($addonCode, "func", "functions.php");
+        $path = Addon::getResponsePath($addonCode, 'func', 'functions.php');
         if (is_file($path) && file_exists($path)) {
             include_once $path;
         }
     }
 
+    private function registerInstaller(): void
+    {
+        $this->mergeConfigFrom($this->getPath('Config/install.php'), 'install');
+        $this->loadViewsFrom($this->getPath('Response/Views'), 'install');
+        Route::group(['prefix' => 'install'], function (): void {
+            Route::get('/', [InstallController::class, 'welcome']);
+            Route::get('/requirements', [InstallController::class, 'requirements']);
+            Route::match(['get', 'post'], '/env', [InstallController::class, 'environment']);
+            Route::match(['post'], '/stream', [InstallController::class, 'stream']);
+        });
+    }
+
+    private function getPath(string $path): string
+    {
+        $dir = \dirname(__DIR__);
+
+        return $dir.\DIRECTORY_SEPARATOR.$path;
+    }
+
+    /**
+     * 注册自定义编译器.
+     */
     private function registerCompiler(): void
     {
         $old = app('blade.compiler');

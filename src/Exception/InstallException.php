@@ -21,18 +21,8 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Exception;
 
-/**
- * 插件打包.
- */
-class AddonPack extends BaseAddonCommand
+class InstallException extends \RuntimeException
 {
-    protected $signature = 'addon:pack {--c|code : 应用编码}';
-    protected $description = '打包插件应用';
-
-    public function handle(): int
-    {
-        return 0;
-    }
 }

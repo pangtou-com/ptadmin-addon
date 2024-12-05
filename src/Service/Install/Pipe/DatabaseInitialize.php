@@ -21,18 +21,39 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Service\Install\Pipe;
 
-/**
- * 插件打包.
- */
-class AddonPack extends BaseAddonCommand
+use Illuminate\Support\Facades\Artisan;
+use PTAdmin\Addon\Service\Traits\FormatOutputTrait;
+
+class DatabaseInitialize
 {
-    protected $signature = 'addon:pack {--c|code : 应用编码}';
-    protected $description = '打包插件应用';
+    use FormatOutputTrait;
 
-    public function handle(): int
+    public function handle($data, \Closure $next): void
     {
-        return 0;
+        if (!$this->migrate()) {
+            return;
+        }
+
+        $next($data);
+    }
+
+    /**
+     * 执行迁移命令.
+     */
+    private function migrate(): bool
+    {
+        try {
+            $this->process('正在执行数据库迁移命令...');
+
+            Artisan::call('migrate', ['--force' => true]);
+        } catch (\Exception $exception) {
+            $this->error('迁移命令执行失败:'.$exception->getMessage());
+
+            return false;
+        }
+
+        return true;
     }
 }

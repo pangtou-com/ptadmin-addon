@@ -21,18 +21,44 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Service\Traits;
 
-/**
- * 插件打包.
- */
-class AddonPack extends BaseAddonCommand
+trait FormatOutputTrait
 {
-    protected $signature = 'addon:pack {--c|code : 应用编码}';
-    protected $description = '打包插件应用';
-
-    public function handle(): int
+    protected function process($message, $data = []): void
     {
-        return 0;
+        $this->output('process', $message, $data);
+    }
+
+    protected function success($message, $data = []): void
+    {
+        $this->output('success', $message, $data);
+    }
+
+    protected function error($message, $data = []): void
+    {
+        $this->output('error', $message, $data);
+    }
+
+    protected function info($message, $data = []): void
+    {
+        $this->output('info', $message, $data);
+    }
+
+    protected function output(string $type, $message, $data = []): void
+    {
+        $data = ['type' => $type, 'message' => $message, 'data' => $data];
+        /*
+         * 标准sse输出格式为：
+         * event: event name\n
+         * data: message \n\n
+         * 这个是标准的输出方式，我不需要这种标准输出，直接输出一个json字符串即可
+         */
+        echo json_encode($data)."\n\n";
+        /*
+         * echo 'event:'.$type."\n";
+         * echo 'data:'.$message."\n\n";
+         */
+        usleep(100000);
     }
 }

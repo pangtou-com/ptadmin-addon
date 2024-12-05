@@ -21,18 +21,33 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Service\Install\Pipe;
 
-/**
- * 插件打包.
- */
-class AddonPack extends BaseAddonCommand
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\File;
+use PTAdmin\Addon\Service\Traits\FormatOutputTrait;
+
+class Complete
 {
-    protected $signature = 'addon:pack {--c|code : 应用编码}';
-    protected $description = '打包插件应用';
+    use FormatOutputTrait;
 
-    public function handle(): int
+    public function handle($data, \Closure $next): void
     {
-        return 0;
+        $this->process('创建管理员账户');
+        $status = Artisan::call('admin:init', ['-u' => $data['username'], '-p' => $data['password'], '-f' => true]);
+        if (0 !== $status) {
+            $this->error('创建管理员失败:'.Artisan::output());
+
+            return;
+        }
+        File::put(storage_path('installed'), date('Y-m-d H:i:s', time()));
+        Artisan::call('cache:clear');
+        Artisan::call('config:clear');
+        Artisan::call('event:clear');
+        Artisan::call('route:clear');
+        Artisan::call('view:clear');
+        Artisan::call('permission:cache-reset');
+        $this->success('安装成功');
+        $next($data);
     }
 }
