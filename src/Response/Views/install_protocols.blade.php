@@ -4,13 +4,11 @@
     <meta charset="UTF-8">
     <title>PTAdmin 安装协议</title>
     <style>
-        body{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            line-height: 1.4;
-            margin: 1rem;
-        }
         .content-body{
             word-wrap: break-word;
+            margin: 1rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.4;
         }
     </style>
 </head>
