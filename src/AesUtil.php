@@ -23,8 +23,6 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon;
 
-use Illuminate\Support\Str;
-
 class AesUtil
 {
     /**
@@ -55,14 +53,10 @@ class AesUtil
 
     public function __construct()
     {
-        $this->secret_key = config('app.app_secret_key'); // 密钥
+        $this->secret_key = config('app.key'); // 密钥
         $this->method = 'AES-128-CBC';
         $this->iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($this->method));
         $this->options = 0;
-        // 当密钥为空时设置一个默认密钥
-        if (null === $this->secret_key || '' === $this->secret_key) {
-            $this->secret_key = Str::random();
-        }
     }
 
     /**
@@ -91,10 +85,10 @@ class AesUtil
     public static function decrypt(string $data): string
     {
         $obj = new static();
+        $data = base64_decode($data, true);
         $result = explode('::', $data);
-        $string = openssl_decrypt($result[0], $obj->method, $obj->secret_key, $obj->options, $result[1]);
 
-        return base64_decode($string, true);
+        return openssl_decrypt($result[0], $obj->method, $obj->secret_key, $obj->options, $result[1]);
     }
 
     /**

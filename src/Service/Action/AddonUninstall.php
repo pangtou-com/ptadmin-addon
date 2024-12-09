@@ -21,20 +21,11 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Service\Action;
 
-use PTAdmin\Addon\Addon;
-
-class AddonCacheClear extends BaseAddonCommand
+final class AddonUninstall extends AbstractAction
 {
-    protected $signature = 'addon:cache-clear';
-    protected $description = '清理应用缓存';
 
-    public function handle(): int
-    {
-        Addon::clearCache();
-        $this->info('插件缓存清理成功');
 
-        return 0;
-    }
+
 }

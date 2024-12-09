@@ -54,7 +54,7 @@ trait FormatOutputTrait
          * data: message \n\n
          * 这个是标准的输出方式，我不需要这种标准输出，直接输出一个json字符串即可
          */
-        echo json_encode($data)."\n\n";
+        echo app()->runningInConsole() ? $message."\n" : json_encode($data)."\n\n";
         /*
          * echo 'event:'.$type."\n";
          * echo 'data:'.$message."\n\n";

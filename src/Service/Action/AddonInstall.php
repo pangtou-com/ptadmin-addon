@@ -21,40 +21,44 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Service;
+namespace PTAdmin\Addon\Service\Action;
 
 use Illuminate\Filesystem\Filesystem;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\BaseBootstrap;
+use PTAdmin\Addon\Service\Database;
 
 /**
  * 插件安装.
  */
-class AddonInstall
+final class AddonInstall
 {
     /** @var BaseBootstrap 插件启用服务类 */
     private $addonBootstrap;
     private $addonCode;
+    private $basePath;
 
     private function __construct()
     {
     }
 
-    public static function make($addonCode): self
+    public static function make($addonCode, $basePath): self
     {
         $instance = new self();
         $instance->addonCode = $addonCode;
-        $instance->initialize($addonCode);
+        $instance->basePath = $basePath;
+        $instance->initialize();
 
         return $instance;
     }
 
     /**
-     * 插件安装
-     * @param bool $force
+     * 插件安装.
+     *
      * @return bool
      */
-    public function install(bool $force = false): bool
+    public function install(): bool
     {
         // 1、插件安装之前调用
         if (method_exists($this->addonBootstrap, 'beforeInstall')) {
@@ -116,7 +120,7 @@ class AddonInstall
         $this->addonBootstrap->enable();
         @unlink(Addon::getAddonPath($this->addonCode, 'disable'));
 
-        BootstrapManage::refreshCache();
+        // BootstrapManage::refreshCache();
     }
 
     /**
@@ -126,7 +130,7 @@ class AddonInstall
     {
         $this->addonBootstrap->disable();
         @touch(Addon::getAddonPath($this->addonCode, 'disable'));
-        BootstrapManage::refreshCache();
+        // BootstrapManage::refreshCache();
     }
 
     /**
@@ -148,7 +152,7 @@ class AddonInstall
      */
     private function getAddonInstallSql(): ?string
     {
-        $sql = Addon::getAddonPath($this->addonCode, 'install.sql');
+        $sql = base_path($this->basePath.\DIRECTORY_SEPARATOR.'install.sql');
         if (is_file($sql) && file_exists($sql)) {
             return $sql;
         }
@@ -156,17 +160,15 @@ class AddonInstall
         return null;
     }
 
-    private function initialize($addonCode): void
+    private function initialize(): void
     {
-        $path = Addon::getAddon($addonCode, 'base_path');
-        if (null === $path) {
-            throw new AddonException("未定义的插件【{$addonCode}】");
-        }
+        $path = basename($this->basePath);
         $class = 'Addon\\'.$path.'\\Bootstrap';
+
         try {
             $this->addonBootstrap = (new \ReflectionClass($class))->newInstance();
         } catch (\ReflectionException $e) {
-            throw new AddonException("插件【{$addonCode}】启动类不存在");
+            throw new AddonException("插件【{$this->addonCode}】启动类不存在");
         }
     }
 

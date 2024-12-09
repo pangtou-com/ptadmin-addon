@@ -21,20 +21,55 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Service;
 
-use PTAdmin\Addon\Addon;
-
-class AddonCacheClear extends BaseAddonCommand
+class AddonPath
 {
-    protected $signature = 'addon:cache-clear';
-    protected $description = '清理应用缓存';
+    /** @var string 插件目录基础路径 */
+    public const ADDON_DIR = 'addons';
 
-    public function handle(): int
+    /**
+     * 获取缓存文件路径.
+     *
+     * @return string
+     */
+    public static function getAddonCacheDir(): string
     {
-        Addon::clearCache();
-        $this->info('插件缓存清理成功');
+        return base_path('bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php');
+    }
 
-        return 0;
+    /**
+     * 扫描所有的插件完整目录.
+     *
+     * @return array
+     */
+    public static function getAddonsDirs(): array
+    {
+        $addons = [];
+        $dirs = self::scanAddonsPath();
+        foreach ($dirs as $dir) {
+            $addon_path = base_path('addons'.\DIRECTORY_SEPARATOR.$dir);
+            if (!is_dir($addon_path)) {
+                continue;
+            }
+            $addons[] = $addon_path;
+        }
+
+        return $addons;
+    }
+
+    /**
+     * 扫描插件目录.
+     *
+     * @return array
+     */
+    public static function scanAddonsPath(): array
+    {
+        $dirs = array_diff(scandir(base_path(self::ADDON_DIR)), ['.', '..', '.gitkeep', '.gitignore']);
+        if (0 === \count($dirs)) {
+            return [];
+        }
+
+        return $dirs;
     }
 }

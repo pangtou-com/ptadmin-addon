@@ -23,6 +23,7 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Providers;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -33,18 +34,17 @@ use PTAdmin\Addon\Commands\AddonCacheClear;
 use PTAdmin\Addon\Commands\AddonInstall;
 use PTAdmin\Addon\Commands\AddonPack;
 use PTAdmin\Addon\Commands\AddonUninstall;
-use PTAdmin\Addon\Commands\AddonUpdate;
+use PTAdmin\Addon\Commands\AddonUpgrade;
 use PTAdmin\Addon\Commands\AddonUpload;
 use PTAdmin\Addon\Compiler\PTCompiler;
 use PTAdmin\Addon\Controller\InstallController;
 use PTAdmin\Addon\Middleware\AddonMiddleware;
 use PTAdmin\Addon\Middleware\CanInstallMiddleware;
 use PTAdmin\Addon\Service\AddonManager;
-use PTAdmin\Addon\Service\BootstrapManage;
 
 class AddonServiceProvider extends ServiceProvider
 {
-    private $addon_booting;
+    private $addon_booting = [];
 
     public function register(): void
     {
@@ -59,30 +59,30 @@ class AddonServiceProvider extends ServiceProvider
         $this->app->singleton('install', function () {
             return new CanInstallMiddleware();
         });
-        $this->addon_booting = BootstrapManage::registerProvider($this->app);
+        $this->registerProvider($this->app);
     }
 
     public function boot(): void
     {
+        // 全局匹配正整数
         Route::pattern('id', '[1-9][0-9]*');
+
         $this->registerCompiler();
         $this->commands([
             AddonInstall::class,
             AddonUninstall::class,
-            AddonUpdate::class,
+            AddonUpgrade::class,
             AddonPack::class,
             AddonUpload::class,
             AddonCache::class,
             AddonCacheClear::class,
         ]);
-        if ($this->addon_booting && \is_array($this->addon_booting)) {
-            foreach ($this->addon_booting as $addonCode) {
-                $this->registerLang($addonCode);
-                $this->registerViews($addonCode);
-                $this->registerConfig($addonCode);
-                $this->registerHelper($addonCode);
-                $this->registerRoutes($addonCode);
-            }
+        foreach ($this->addon_booting as $addonCode) {
+            $this->registerLang($addonCode);
+            $this->registerViews($addonCode);
+            $this->registerConfig($addonCode);
+            $this->registerHelper($addonCode);
+            $this->registerRoutes($addonCode);
         }
         if (!file_exists(storage_path('installed'))) {
             $this->registerInstaller();
@@ -131,7 +131,6 @@ class AddonServiceProvider extends ServiceProvider
     /**
      * Register routes.
      * 注册路由.
-     * 自动扫描插件Routes目录下的路由文件.并将api为前缀的文件设置为api中间件.
      *
      * @param mixed $addonCode
      */
@@ -148,7 +147,6 @@ class AddonServiceProvider extends ServiceProvider
                 continue;
             }
             $middleware = ["__addon__:{$addonCode},{$addonBasePath}"];
-            $middleware[] = Str::startsWith($route, 'api') ? 'api' : 'web';
             Route::middleware($middleware)->group($routesDir.\DIRECTORY_SEPARATOR.$route);
         }
     }
@@ -163,6 +161,26 @@ class AddonServiceProvider extends ServiceProvider
         $path = Addon::getResponsePath($addonCode, 'func', 'functions.php');
         if (is_file($path) && file_exists($path)) {
             include_once $path;
+        }
+    }
+
+    /**
+     * 注册插件应用的服务提供者.
+     *
+     * @param $app
+     */
+    private function registerProvider($app): void
+    {
+        $providers = Addon::getProviders();
+        foreach ($providers as $key => $item) {
+            $item = Arr::wrap($item);
+            foreach ($item as $val) {
+                $provider = $app->register($val);
+                // 兼容自定义服务提供者
+                if (method_exists($provider, 'boot')) {
+                    $this->addon_booting[] = $key;
+                }
+            }
         }
     }
 

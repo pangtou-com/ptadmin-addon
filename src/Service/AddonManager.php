@@ -28,17 +28,15 @@ use PTAdmin\Addon\Exception\AddonException;
 /**
  * 插件管理.
  */
-class AddonManager
+final class AddonManager
 {
-
     /** @var AddonConfigManager 插件配置管理器对象 */
-    protected $addonManager;
+    private $addonManager;
 
     public function __construct()
     {
         $this->addonManager = new AddonConfigManager();
     }
-
 
     public function getAddonManager(): AddonConfigManager
     {
@@ -46,59 +44,33 @@ class AddonManager
     }
 
     /**
-     * 启动插件项目
-     * @return void
+     * 启动插件项目.
      */
-    public function boot()
+    public function boot(): void
     {
         if ($this->addonManager->getLoadStatus()) {
             return;
         }
-        if ((boolean)config("app.debug") === true && file_exists($this->getAddonCacheDir())) {
-            $data = require_once $this->getAddonCacheDir();
+        if (true === (bool) config('app.debug') && file_exists(AddonPath::getAddonCacheDir())) {
+            $data = require_once AddonPath::getAddonCacheDir();
             $this->addonManager->byCacheLoadConfig($data, $this);
+
             return;
         }
 
-        $this->addonManager->loadConfig($this->getAddonsDirs(), $this);
+        $this->addonManager->loadConfig(AddonPath::getAddonsDirs(), $this);
     }
 
     /**
-     * 插件是否禁用中
+     * 插件是否禁用中.
+     *
      * @param $addonDir
+     *
      * @return bool
      */
     public function isAddonDisable($addonDir): bool
     {
         return file_exists($addonDir.\DIRECTORY_SEPARATOR.'disable');
-    }
-
-    /**
-     * 获取缓存文件路径
-     * @return string
-     */
-    protected function getAddonCacheDir(): string
-    {
-        return base_path('bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php');
-    }
-
-
-    /**
-     * 扫描所有的插件完整目录
-     * @return array
-     */
-    protected function getAddonsDirs(): array
-    {
-        $addons = [];
-        $dirs = $this->scanAddonsPath();
-        foreach ($dirs as $dir) {
-            $addon_path = base_path("addons".\DIRECTORY_SEPARATOR.$dir);
-            if (!is_dir($addon_path)) {
-                continue;
-            }
-            $addons[] = $addon_path;
-        }
-        return $addons;
     }
 
     /**
@@ -130,7 +102,7 @@ class AddonManager
     {
         $addons = $this->getAddon($addonCode);
 
-        return $addons !== null;
+        return null !== $addons;
     }
 
     public function getProviders(): array
@@ -140,7 +112,7 @@ class AddonManager
 
     public function getProvider($addonCode)
     {
-        return  $this->getAddonManager()->getProviders($addonCode);
+        return $this->getAddonManager()->getProviders($addonCode);
     }
 
     public function getInjects(): array
@@ -181,7 +153,7 @@ class AddonManager
     public function getAddon($addonCode, $key = null, $default = null)
     {
         $addon = $this->getAddonManager()->getAddons($addonCode);
-        if ($addon === null) {
+        if (null === $addon) {
             return $default;
         }
         if (null === $key) {
@@ -194,7 +166,7 @@ class AddonManager
     public function getAddonPath($addonCode, $path = null): string
     {
         $addon = $this->getAddon($addonCode);
-        if ($addon === null) {
+        if (null === $addon) {
             throw new AddonException("未定义的插件【{$addonCode}】");
         }
 
@@ -223,20 +195,6 @@ class AddonManager
     }
 
     /**
-     * 扫描插件目录
-     * @return array
-     */
-    protected function scanAddonsPath(): array
-    {
-        $dirs = array_diff(scandir(base_path('addons')), ['.', '..', '.gitkeep', '.gitignore']);
-        if (0 === \count($dirs)) {
-            return [];
-        }
-
-        return $dirs;
-    }
-
-    /**
      * 获取所有的已安装插件code.
      *
      * @return array
@@ -253,11 +211,11 @@ class AddonManager
      */
     public function getInstalledAddons(): array
     {
-        $addons = $this->getAddonsDirs();
+        $addons = AddonPath::getAddonsDirs();
         $results = [];
         foreach ($addons as $addon) {
             $config = $this->getAddonManager()->readAddonConfig($addon);
-            if ($config === null) {
+            if (null === $config) {
                 continue;
             }
             $config['disable'] = $this->isAddonDisable($addon);
@@ -337,14 +295,34 @@ class AddonManager
     }
 
     /**
-     * 获取资源路径
+     * 获取资源路径.
+     *
      * @param $addonCode
      * @param $key
      * @param $default
+     *
      * @return string
      */
     public function getResponsePath($addonCode, $key, $default = null): string
     {
         return $this->getAddonPath($addonCode, data_get($this->getResponse($addonCode), $key, $default));
+    }
+
+    /**
+     * 刷新缓存
+     * 当插件安装、启用、禁用时需要刷新缓存.
+     */
+    public function refreshCache(): void
+    {
+        $content = "<?php\nreturn ".$this->getAddonManager().';';
+        file_put_contents(AddonPath::getAddonCacheDir(), $content);
+    }
+
+    /**
+     * 清理缓存数据.
+     */
+    public function clearCache(): void
+    {
+        @unlink(AddonPath::getAddonCacheDir());
     }
 }

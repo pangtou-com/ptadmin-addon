@@ -18,6 +18,7 @@ class AddonUninstall extends BaseAddonCommand
 
     public function handle(): int
     {
+
         return 0;
     }
 }

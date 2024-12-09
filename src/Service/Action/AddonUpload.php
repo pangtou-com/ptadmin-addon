@@ -21,20 +21,44 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Commands;
+namespace PTAdmin\Addon\Service\Action;
 
-use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\AddonApi;
 
-class AddonCacheClear extends BaseAddonCommand
+final class AddonUpload extends AbstractAction
 {
-    protected $signature = 'addon:cache-clear';
-    protected $description = '清理应用缓存';
-
-    public function handle(): int
+    public function handle($obj)
     {
-        Addon::clearCache();
-        $this->info('插件缓存清理成功');
+        $this->action = $obj;
+        if (!$this->checkUploadPermission()) {
+            return null;
+        }
 
-        return 0;
+        return $this->pack()->upload();
+    }
+
+    private function checkUploadPermission(): bool
+    {
+        $this->error('暂未校验权限');
+
+        return true;
+    }
+
+    private function pack(): self
+    {
+        $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
+        $this->zipDir($this->action->getAddonPath(), $this->action->getStorePath($this->filename));
+
+        return $this;
+    }
+
+    /**
+     * @return mixed
+     */
+    private function upload()
+    {
+        $filename = $this->action->getStorePath($this->filename);
+
+        return AddonApi::addonUpload($this->code, $filename, $this->getFolderMd5($this->action->getAddonPath()));
     }
 }

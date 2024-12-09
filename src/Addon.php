@@ -51,7 +51,9 @@ use PTAdmin\Addon\Service\AddonManager;
  * @method static array getAddonRequired($addonCode)
  * @method static bool hasAddonRequired($addonCode)
  * @method static bool addonRequired($addonCode)
- * @method static string|null getAddonVersion($addonCode)
+ * @method static string|null getAddonVersion($addonCode)                  根据插件ID获取插件当前版本
+ * @method static void refreshCache()                                      刷新插件缓存
+ * @method static void clearCache()                                        清理插件缓存
  *
  * @see AddonManager
  */

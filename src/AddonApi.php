@@ -27,7 +27,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use PTAdmin\Addon\Exception\AddonException;
-use PTAdmin\Addon\Service\AddonManager;
 
 /**
  * @method static string getVerify($code)      验证应用是否购买
@@ -76,7 +75,10 @@ class AddonApi
     {
         $data = Cache::get(self::TOKEN_KEY);
         if (!blank($data)) {
-            return unserialize($data);
+            $data = unserialize($data);
+            unset($data['token']);
+
+            return $data;
         }
 
         return [];
@@ -182,11 +184,26 @@ class AddonApi
     /**
      * 插件上传.
      *
-     * @return array
+     * @param mixed $code
+     * @param mixed $filepath
+     * @param mixed $data
+     * @param mixed $md5
+     *
+     * @return array|mixed
      */
-    public static function addonUpload(): array
+    public static function addonUpload($code, $filepath, $md5, $data = [])
     {
-        return [];
+        $data['code'] = $code;
+        $data['md5'] = $md5;
+        $obj = new static();
+        $res = Http::attach('file', file_get_contents($filepath), basename($filepath));
+        $res->withToken($obj->getToken());
+        $res = $res->withOptions([
+            'verify' => false,
+        ]);
+        $res = $res->post($obj->getUrl('addon-upload'), $obj->addonArgsEncrypt($data));
+
+        return $obj->response($res);
     }
 
     /**
@@ -211,6 +228,12 @@ class AddonApi
             'verify' => false,
         ]);
         $res = $res->post($this->getUrl($method), $this->addonArgsEncrypt($data));
+
+        return $this->response($res);
+    }
+
+    private function response($res)
+    {
         if (200 === $res->status()) {
             $results = $res->json();
             if (\in_array($results['code'], [401, 20000], true)) {
@@ -222,8 +245,9 @@ class AddonApi
 
             return $res->json('data');
         }
+        file_put_contents(base_path('test.html'), $res->body());
 
-        throw new AddonException("请求失败,状态值为：【{$res->status()}】");
+        throw new AddonException("请求失败,状态值为：【{$res->status()}】错误信息：【{$res->json('message')}】");
     }
 
     private function getToken(): string

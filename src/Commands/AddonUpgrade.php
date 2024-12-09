@@ -23,18 +23,16 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Commands;
 
-use PTAdmin\Addon\Addon;
-
-class AddonCacheClear extends BaseAddonCommand
+/**
+ * 插件更新.
+ */
+class AddonUpgrade extends BaseAddonCommand
 {
-    protected $signature = 'addon:cache-clear';
-    protected $description = '清理应用缓存';
+    protected $signature = 'addon:upgrade {--c|code : 应用编码} {--f|force : 强制覆盖}';
+    protected $description = '更新插件应用';
 
     public function handle(): int
     {
-        Addon::clearCache();
-        $this->info('插件缓存清理成功');
-
         return 0;
     }
 }
