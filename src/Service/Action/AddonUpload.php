@@ -30,6 +30,7 @@ final class AddonUpload extends AbstractAction
     public function handle($obj)
     {
         $this->action = $obj;
+        $this->info('开始权限校验');
         if (!$this->checkUploadPermission()) {
             return null;
         }
@@ -39,15 +40,17 @@ final class AddonUpload extends AbstractAction
 
     private function checkUploadPermission(): bool
     {
-        $this->error('暂未校验权限');
+        $this->error('权限校验失败，当前插件不允许提交');
 
         return true;
     }
 
     private function pack(): self
     {
+        $this->info('开始打包插件');
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
         $this->zipDir($this->action->getAddonPath(), $this->action->getStorePath($this->filename));
+        $this->info('插件打包完成');
 
         return $this;
     }
@@ -57,6 +60,7 @@ final class AddonUpload extends AbstractAction
      */
     private function upload()
     {
+        $this->info('开始上传插件');
         $filename = $this->action->getStorePath($this->filename);
 
         return AddonApi::addonUpload($this->code, $filename, $this->getFolderMd5($this->action->getAddonPath()));

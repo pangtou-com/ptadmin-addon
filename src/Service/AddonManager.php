@@ -32,33 +32,19 @@ final class AddonManager
 {
     /** @var AddonConfigManager 插件配置管理器对象 */
     private $addonManager;
+    private $is_booted = false;
 
     public function __construct()
     {
         $this->addonManager = new AddonConfigManager();
+        if (!$this->is_booted) {
+            $this->boot();
+        }
     }
 
     public function getAddonManager(): AddonConfigManager
     {
         return $this->addonManager;
-    }
-
-    /**
-     * 启动插件项目.
-     */
-    public function boot(): void
-    {
-        if ($this->addonManager->getLoadStatus()) {
-            return;
-        }
-        if (true === (bool) config('app.debug') && file_exists(AddonPath::getAddonCacheDir())) {
-            $data = require_once AddonPath::getAddonCacheDir();
-            $this->addonManager->byCacheLoadConfig($data, $this);
-
-            return;
-        }
-
-        $this->addonManager->loadConfig(AddonPath::getAddonsDirs(), $this);
     }
 
     /**
@@ -324,5 +310,24 @@ final class AddonManager
     public function clearCache(): void
     {
         @unlink(AddonPath::getAddonCacheDir());
+    }
+
+    /**
+     * 启动插件项目.
+     */
+    private function boot(): void
+    {
+        $this->is_booted = true;
+        if ($this->addonManager->getLoadStatus()) {
+            return;
+        }
+        if (true === (bool) config('app.debug') && file_exists(AddonPath::getAddonCacheDir())) {
+            $data = require_once AddonPath::getAddonCacheDir();
+            $this->addonManager->byCacheLoadConfig($data, $this);
+
+            return;
+        }
+
+        $this->addonManager->loadConfig(AddonPath::getAddonsDirs(), $this);
     }
 }

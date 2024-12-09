@@ -23,9 +23,10 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Service;
 
+use Illuminate\Support\Arr;
+use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use PTAdmin\Addon\Exception\AddonException;
-use PTAdmin\Addon\Providers\BaseAddonService;
 
 /**
  * 插件配置管理器.
@@ -171,7 +172,12 @@ class AddonConfigManager
     protected function setProviders($config): void
     {
         if (isset($config['providers'])) {
-            $this->providers[$config['code']] = $config['providers'];
+            $provider = Arr::wrap($config['providers']);
+            foreach ($provider as $item) {
+                if (is_subclass_of($item, ServiceProvider::class)) {
+                    $this->providers[$config['code']][] = $item;
+                }
+            }
 
             return;
         }
@@ -196,7 +202,7 @@ class AddonConfigManager
                 continue;
             }
             $class = 'Addon\\'.$config['base_path'].'\\Providers\\'.str_replace('.php', '', $item);
-            if (is_subclass_of($class, BaseAddonService::class)) {
+            if (is_subclass_of($class, ServiceProvider::class)) {
                 $this->providers[$config['code']][] = $class;
             }
         }

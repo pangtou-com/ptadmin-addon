@@ -48,10 +48,8 @@ class AddonServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        $addon = new AddonManager();
-        $addon->boot();
-        $this->app->singleton('addon', function () use ($addon) {
-            return $addon;
+        $this->app->singleton('addon', function () {
+            return new AddonManager();
         });
         $this->app->singleton('__addon__', function () {
             return new AddonMiddleware();
@@ -64,9 +62,7 @@ class AddonServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // 全局匹配正整数
         Route::pattern('id', '[1-9][0-9]*');
-
         $this->registerCompiler();
         $this->commands([
             AddonInstall::class,

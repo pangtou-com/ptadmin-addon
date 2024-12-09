@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service\Action;
 
 use Illuminate\Support\Str;
+use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonConfigManager;
 use PTAdmin\Addon\Service\AddonPath;
@@ -131,13 +132,17 @@ class AddonAction
     /**
      * 卸载插件.
      *
-     * @param $code
+     * @param string $code
+     * @param bool   $force
      *
      * @return null|array|mixed
      */
-    public static function uninstall($code)
+    public static function uninstall(string $code, bool $force = false)
     {
         $obj = new self($code);
+        if (!$force) {
+            $obj->addTask('checkRequired');
+        }
 
         return $obj->addTask(AddonUninstall::class)->action();
     }
@@ -197,9 +202,16 @@ class AddonAction
         return $obj->addTask(AddonUpload::class)->action();
     }
 
+    protected function checkRequired(): void
+    {
+        if (Addon::hasAddonRequired($this->getCode())) {
+            throw new AddonException("插件【{$this->code}】依赖插件，请先卸载依赖插件,或使用 --force 参数强制卸载插件");
+        }
+    }
+
     private function addTask($class): self
     {
-        $this->tasks[] = new $class($this->getCode());
+        $this->tasks[] = method_exists($this, $class) ? $class : new $class($this->getCode());
 
         return $this;
     }
@@ -218,6 +230,11 @@ class AddonAction
         }
         while (\count($this->tasks) > 0) {
             $task = array_shift($this->tasks);
+            if (\is_string($task) && method_exists($this, $task)) {
+                $res = $this->{$task}(...$res);
+
+                continue;
+            }
             if (method_exists($task, 'handle')) {
                 $res = $task->handle($this, ...$res);
                 if (null === $res) {
