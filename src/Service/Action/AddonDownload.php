@@ -24,7 +24,6 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service\Action;
 
 use Illuminate\Support\Facades\Http;
-use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\AddonApi;
 use PTAdmin\Addon\Service\AddonConfigManager;
 
@@ -36,9 +35,8 @@ final class AddonDownload extends AbstractAction
     /** @var int 当前进度 */
     private $progress = 0;
 
-    public function handle($obj, $versionId): ?string
+    public function handle($versionId = 0): ?string
     {
-        $this->action = $obj;
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
         $data = $this->getDownloadUrl([
             'code' => $this->code,
@@ -77,13 +75,6 @@ final class AddonDownload extends AbstractAction
 
     private function getDownloadUrl($data): ?array
     {
-        $codes = Addon::getInstalledAddonsCode();
-        if (\in_array($data['code'], $codes, true)) {
-            $this->info("插件【{$data['name']}】已安装，无需再次下载");
-
-            return null;
-        }
-
         return AddonApi::getAddonDownloadUrl($data);
     }
 

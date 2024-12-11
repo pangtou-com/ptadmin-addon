@@ -41,7 +41,7 @@ abstract class AbstractAction
     /** @var string 压缩文件名 */
     protected $filename;
 
-    public function __construct($code)
+    public function __construct($code, $obj)
     {
         if (!class_exists('ZipArchive')) {
             throw new AddonException('ZipArchive类不存在，请检查PHP环境是否开启Zip扩展');
@@ -49,6 +49,7 @@ abstract class AbstractAction
         $this->code = $code;
         $this->filesystem = new Filesystem();
         $this->filename = $this->code.'_'.time().'.zip';
+        $this->action = $obj;
     }
 
     public function __destruct()

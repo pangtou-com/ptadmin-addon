@@ -23,7 +23,7 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Service;
 
-class AddonPath
+class AddonUtil
 {
     /** @var string 插件目录基础路径 */
     public const ADDON_DIR = 'addons';
@@ -71,5 +71,35 @@ class AddonPath
         }
 
         return $dirs;
+    }
+
+    /**
+     * 基于文件内容计算文件夹MD5.
+     *
+     * @param $folderPath
+     * @param array|string $exclude 排除需要计算的文件
+     *
+     * @return false|string
+     */
+    public static function getFolderMd5($folderPath, $exclude = null)
+    {
+        if (!is_dir($folderPath)) {
+            return false;
+        }
+        $md5Hashes = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($folderPath));
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $md5Hashes[] = md5_file($file->getRealPath());
+            }
+        }
+        sort($md5Hashes);
+
+        return md5(implode('', $md5Hashes));
+    }
+
+    private function excludeMd5($file, $exclude): bool
+    {
+        return false;
     }
 }

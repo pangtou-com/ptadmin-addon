@@ -23,6 +23,9 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Commands;
 
+use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\Service\AddonUtil;
+
 /**
  * 插件更新.
  */
@@ -33,6 +36,8 @@ class AddonUpgrade extends BaseAddonCommand
 
     public function handle(): int
     {
+        $this->info(AddonUtil::getFolderMd5(Addon::getAddonPath('demo')));
+
         return 0;
     }
 }

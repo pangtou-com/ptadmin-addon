@@ -27,7 +27,7 @@ use Illuminate\Support\Str;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonConfigManager;
-use PTAdmin\Addon\Service\AddonPath;
+use PTAdmin\Addon\Service\AddonUtil;
 
 class AddonAction
 {
@@ -50,6 +50,11 @@ class AddonAction
     private function __construct($code)
     {
         $this->code = $code;
+    }
+
+    public function __destruct()
+    {
+        Addon::refreshCache();
     }
 
     /**
@@ -78,7 +83,7 @@ class AddonAction
         if (null !== $this->addon_path) {
             return $this->addon_path;
         }
-        $addons = AddonPath::getAddonsDirs();
+        $addons = AddonUtil::getAddonsDirs();
         foreach ($addons as $addon) {
             $config = (new AddonConfigManager())->readAddonConfig($addon);
             if ($config['code'] === $this->getCode()) {
@@ -95,36 +100,24 @@ class AddonAction
     }
 
     /**
-     * 下载插件.
-     *
-     * @param $code
-     * @param $versionId
-     *
-     * @return null|array|mixed
-     */
-    public static function download($code, $versionId)
-    {
-        $obj = new self($code);
-        // 1、获取下载地址
-        // 2、下载资源
-        // 3、解压资源
-        // 4、将资源移动到插件目录
-        // 5、安装插件
-
-        return $obj->addTask(AddonDownload::class)
-            ->addTask(AddonInstall::class)->action($versionId);
-    }
-
-    /**
      * 安装插件.
      *
-     * @param $code
+     * @param string $code
+     * @param bool   $force
+     * @param mixed  $versionId
      *
      * @return null|array|mixed
      */
-    public static function install($code)
+    public static function install(string $code, $versionId = 0, bool $force = false)
     {
         $obj = new self($code);
+        if (true === $force && Addon::hasAddon($code)) {
+            $obj->addTask(AddonUninstall::class)->addTask(AddonDownload::class, $versionId)->addTask('refresh');
+        } else {
+            if (!Addon::hasAddon($code)) {
+                $obj->addTask(AddonDownload::class, $versionId)->addTask('refresh');
+            }
+        }
 
         return $obj->addTask(AddonInstall::class)->action();
     }
@@ -150,11 +143,13 @@ class AddonAction
     /**
      * 更新插件.
      *
-     * @param $code
+     * @param string $code      插件code
+     * @param mixed  $versionId 插件版本ID
+     * @param bool   $force     是否强制更新
      *
      * @return null|array|mixed
      */
-    public static function upgrade($code)
+    public static function upgrade(string $code, $versionId = 0, bool $force = false)
     {
         // 1、获取插件目录
         // 2、下载更新包
@@ -162,7 +157,7 @@ class AddonAction
         // 4、备份待更新资源
         // 5、更新资源
         $obj = new self($code);
-
+        // 1、比对当前版本与实际版本是否有差异
         return $obj->addTask(AddonUpgrade::class)->action();
     }
 
@@ -202,16 +197,32 @@ class AddonAction
         return $obj->addTask(AddonUpload::class)->action();
     }
 
-    protected function checkRequired(): void
+    /**
+     * 校验插件依赖性.
+     *
+     * @return bool
+     */
+    protected function checkRequired(): bool
     {
         if (Addon::hasAddonRequired($this->getCode())) {
             throw new AddonException("插件【{$this->code}】依赖插件，请先卸载依赖插件,或使用 --force 参数强制卸载插件");
         }
+
+        return true;
     }
 
-    private function addTask($class): self
+    private function refresh(): void
     {
-        $this->tasks[] = method_exists($this, $class) ? $class : new $class($this->getCode());
+        Addon::reset();
+    }
+
+    private function addTask($class, ...$params): self
+    {
+        if (\is_array($class)) {
+            $this->tasks[] = $class;
+        } else {
+            $this->tasks[] = method_exists($this, $class) ? [[$this, $class], $params] : [[new $class($this->getCode(), $this), 'handle'], $params];
+        }
 
         return $this;
     }
@@ -229,17 +240,19 @@ class AddonAction
             return null;
         }
         while (\count($this->tasks) > 0) {
-            $task = array_shift($this->tasks);
-            if (\is_string($task) && method_exists($this, $task)) {
-                $res = $this->{$task}(...$res);
-
-                continue;
+            if (null === $res) {
+                break;
             }
-            if (method_exists($task, 'handle')) {
-                $res = $task->handle($this, ...$res);
-                if (null === $res) {
-                    break;
+            $res = \is_array($res) ? $res : [$res];
+            $task = array_shift($this->tasks);
+            if (\is_array($task)) {
+                if (\is_array($task[0])) {
+                    if (isset($task[1])) {
+                        array_unshift($res, ...(array) $task[1]);
+                    }
+                    $task = $task[0];
                 }
+                $res = \call_user_func_array($task, $res);
             }
         }
 

@@ -26,12 +26,13 @@ namespace PTAdmin\Addon;
 use Illuminate\Support\Facades\Facade;
 use PTAdmin\Addon\Service\AddonConfigManager;
 use PTAdmin\Addon\Service\AddonManager;
+use PTAdmin\Addon\Service\BaseBootstrap;
 
 /**
- * @method static AddonConfigManager getAddonManager()
- * @method static void boot()
+ * @method static AddonConfigManager getAddonManager()                     插件配置管理对象
  * @method static bool isAddonDisable($addonDir)
- * @method static mixed execute($addonName, $method, array $params = [])
+ * @method static void reset()                                             重置插件管理
+ * @method static mixed execute($addonCode, $method, array $params = [])
  * @method static bool hasAddon($addonCode)
  * @method static array getProviders()
  * @method static array getInjects()
@@ -51,6 +52,8 @@ use PTAdmin\Addon\Service\AddonManager;
  * @method static array getAddonRequired($addonCode)
  * @method static bool hasAddonRequired($addonCode)
  * @method static bool addonRequired($addonCode)
+ * @method static string getAddonNamespace($addonCode, $namespace = null)  获取插件内的命名空间
+ * @method static BaseBootstrap getAddonBootstrap($addonCode)              获取插件启动类
  * @method static string|null getAddonVersion($addonCode)                  根据插件ID获取插件当前版本
  * @method static void refreshCache()                                      刷新插件缓存
  * @method static void clearCache()                                        清理插件缓存

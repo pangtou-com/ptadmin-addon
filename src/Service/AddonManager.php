@@ -50,11 +50,11 @@ final class AddonManager
     /**
      * 插件是否禁用中.
      *
-     * @param $addonDir
+     * @param string $addonDir 插件目录
      *
      * @return bool
      */
-    public function isAddonDisable($addonDir): bool
+    public function isAddonDisable(string $addonDir): bool
     {
         return file_exists($addonDir.\DIRECTORY_SEPARATOR.'disable');
     }
@@ -70,10 +70,6 @@ final class AddonManager
      */
     public function execute($addonCode, $method, array $params = [])
     {
-        if (!$this->hasAddon($addonCode)) {
-            throw new AddonException("未定义的插件【{$addonCode}】");
-        }
-
         return AddonDirectivesActuator::handle($addonCode, $method, DirectivesDTO::build($params));
     }
 
@@ -160,6 +156,21 @@ final class AddonManager
     }
 
     /**
+     * 获取插件命名空间.
+     *
+     * @param $addonCode
+     * @param $namespace
+     *
+     * @return string
+     */
+    public function getAddonNamespace($addonCode, $namespace = null): string
+    {
+        $addon = $this->getAddon($addonCode);
+
+        return 'Addon\\'.$addon['base_path'].($namespace ? '\\'.$namespace : '');
+    }
+
+    /**
      * 校验插件版本.
      *
      * @param $addonCode
@@ -197,7 +208,7 @@ final class AddonManager
      */
     public function getInstalledAddons(): array
     {
-        $addons = AddonPath::getAddonsDirs();
+        $addons = AddonUtil::getAddonsDirs();
         $results = [];
         foreach ($addons as $addon) {
             $config = $this->getAddonManager()->readAddonConfig($addon);
@@ -295,13 +306,42 @@ final class AddonManager
     }
 
     /**
+     * 获取插件启动引导文件.
+     *
+     * @param $addonCode
+     *
+     * @return mixed|string
+     */
+    public function getAddonBootstrap($addonCode)
+    {
+        $path = $this->getAddonPath($addonCode, 'Bootstrap.php');
+        if (!file_exists($path)) {
+            return null;
+        }
+        $class = $this->getAddonNamespace($addonCode, 'Bootstrap');
+        if (is_subclass_of($class, BaseBootstrap::class)) {
+            return new $class();
+        }
+
+        return null;
+    }
+
+    /**
      * 刷新缓存
      * 当插件安装、启用、禁用时需要刷新缓存.
      */
     public function refreshCache(): void
     {
+        $this->reset();
         $content = "<?php\nreturn ".$this->getAddonManager().';';
-        file_put_contents(AddonPath::getAddonCacheDir(), $content);
+        file_put_contents(AddonUtil::getAddonCacheDir(), $content);
+    }
+
+    public function reset(): void
+    {
+        clearstatcache();
+        $this->addonManager = new AddonConfigManager();
+        $this->addonManager->loadConfig(AddonUtil::getAddonsDirs(), $this);
     }
 
     /**
@@ -309,7 +349,7 @@ final class AddonManager
      */
     public function clearCache(): void
     {
-        @unlink(AddonPath::getAddonCacheDir());
+        @unlink(AddonUtil::getAddonCacheDir());
     }
 
     /**
@@ -321,13 +361,13 @@ final class AddonManager
         if ($this->addonManager->getLoadStatus()) {
             return;
         }
-        if (true === (bool) config('app.debug') && file_exists(AddonPath::getAddonCacheDir())) {
-            $data = require_once AddonPath::getAddonCacheDir();
+        if (true === (bool) config('app.debug') && file_exists(AddonUtil::getAddonCacheDir())) {
+            $data = require_once AddonUtil::getAddonCacheDir();
             $this->addonManager->byCacheLoadConfig($data, $this);
 
             return;
         }
 
-        $this->addonManager->loadConfig(AddonPath::getAddonsDirs(), $this);
+        $this->addonManager->loadConfig(AddonUtil::getAddonsDirs(), $this);
     }
 }

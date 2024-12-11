@@ -27,9 +27,8 @@ use PTAdmin\Addon\AddonApi;
 
 final class AddonUpload extends AbstractAction
 {
-    public function handle($obj)
+    public function handle()
     {
-        $this->action = $obj;
         $this->info('开始权限校验');
         if (!$this->checkUploadPermission()) {
             return null;

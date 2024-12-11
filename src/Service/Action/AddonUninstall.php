@@ -23,9 +23,28 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Service\Action;
 
+use PTAdmin\Addon\Addon;
+
 final class AddonUninstall extends AbstractAction
 {
+    public function handle(): ?bool
+    {
+        $this->info('开始卸载插件');
+        $bootstrap = Addon::getAddonBootstrap($this->code);
+        if (null !== $bootstrap) {
+            try {
+                $bootstrap->uninstall();
+            } catch (\Exception $exception) {
+                $this->error('插件卸载失败，请检查插件是否正确安装');
+                $this->error($exception->getMessage());
 
+                return null;
+            }
+        }
+        $this->info('开始删除插件文件');
+        $this->filesystem->deleteDirectory(Addon::getAddonPath($this->code));
+        $this->info('插件卸载完成');
 
-
+        return true;
+    }
 }
