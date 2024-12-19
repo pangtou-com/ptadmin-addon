@@ -25,7 +25,7 @@ namespace PTAdmin\Addon\Service\Action;
 
 use PTAdmin\Addon\Addon;
 
-final class AddonUpgrade extends AbstractAction
+final class AddonUpgrade extends AbstractAddonAction
 {
     public function handle($force = false): ?bool
     {

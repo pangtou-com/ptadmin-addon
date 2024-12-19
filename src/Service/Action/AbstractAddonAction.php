@@ -24,10 +24,11 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service\Action;
 
 use Illuminate\Filesystem\Filesystem;
+use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\Traits\FormatOutputTrait;
 
-abstract class AbstractAction
+abstract class AbstractAddonAction
 {
     use FormatOutputTrait;
     /** @var Filesystem */
@@ -41,6 +42,8 @@ abstract class AbstractAction
     /** @var string 压缩文件名 */
     protected $filename;
 
+    private $time;
+
     public function __construct($code, $obj)
     {
         if (!class_exists('ZipArchive')) {
@@ -50,6 +53,7 @@ abstract class AbstractAction
         $this->filesystem = new Filesystem();
         $this->filename = $this->code.'_'.time().'.zip';
         $this->action = $obj;
+        $this->time = time();
     }
 
     public function __destruct()
@@ -57,6 +61,8 @@ abstract class AbstractAction
         if (null !== $this->action) {
             $this->filesystem->deleteDirectory($this->action->getStorePath());
         }
+        Addon::reset();
+        Addon::refreshCache();
     }
 
     /**
@@ -90,19 +96,21 @@ abstract class AbstractAction
     protected function folderToZip($folder, &$zipFile, $exclusiveLength): void
     {
         $handle = opendir($folder);
+        $deny = ['.DS_Store', '.', '..'];
         while (false !== $f = readdir($handle)) {
-            if ('.' !== $f && '..' !== $f) {
-                $filePath = "{$folder}/{$f}";
-                $localPath = substr($filePath, $exclusiveLength);
-                if (is_file($filePath)) {
-                    $zipFile->addFile($filePath, $localPath);
+            if (\in_array($f, $deny, true)) {
+                continue;
+            }
+            $filePath = "{$folder}/{$f}";
+            $localPath = substr($filePath, $exclusiveLength);
+            if (is_file($filePath)) {
+                $zipFile->addFile($filePath, $localPath);
 
-                    continue;
-                }
-                if (is_dir($filePath)) {
-                    $zipFile->addEmptyDir($localPath);
-                    $this->folderToZip($filePath, $zipFile, $exclusiveLength);
-                }
+                continue;
+            }
+            if (is_dir($filePath)) {
+                $zipFile->addEmptyDir($localPath);
+                $this->folderToZip($filePath, $zipFile, $exclusiveLength);
             }
         }
 

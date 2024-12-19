@@ -184,17 +184,13 @@ class AddonApi
     /**
      * 插件上传.
      *
-     * @param mixed $code
      * @param mixed $filepath
      * @param mixed $data
-     * @param mixed $md5
      *
      * @return array|mixed
      */
-    public static function addonUpload($code, $filepath, $md5, $data = [])
+    public static function addonUpload($filepath, $data = [])
     {
-        $data['code'] = $code;
-        $data['md5'] = $md5;
         $obj = new static();
         $res = Http::attach('file', file_get_contents($filepath), basename($filepath));
         $res->withToken($obj->getToken());

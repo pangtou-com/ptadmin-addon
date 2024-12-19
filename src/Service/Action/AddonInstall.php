@@ -29,7 +29,7 @@ use PTAdmin\Addon\Service\Database;
 /**
  * 插件安装.
  */
-final class AddonInstall extends AbstractAction
+final class AddonInstall extends AbstractAddonAction
 {
     private $bootstrap;
 
@@ -72,6 +72,7 @@ final class AddonInstall extends AbstractAction
     {
         $sql = Addon::getAddonPath($this->code, 'install.sql');
         if (is_file($sql) && file_exists($sql)) {
+            $this->info('导入数据');
             app(Database::class)->restoreData($sql);
         }
     }

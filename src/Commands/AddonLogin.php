@@ -21,51 +21,27 @@ declare(strict_types=1);
  *  Email:     vip@pangtou.com
  */
 
-namespace PTAdmin\Addon\Service\Action;
+namespace PTAdmin\Addon\Commands;
 
 use PTAdmin\Addon\AddonApi;
 
-final class AddonUpload extends AbstractAddonAction
+/**
+ * 平台登录.
+ */
+class AddonLogin extends BaseAddonCommand
 {
-    public function handle()
+    protected $signature = 'addon:login {user : 登录用户} {password : 登录密码}';
+    protected $description = '登录平台';
+
+    public function handle(): int
     {
-        $this->info('开始权限校验');
-        if (!$this->checkUploadPermission()) {
-            return null;
-        }
+        $username = $this->argument('user');
+        $password = $this->argument('password');
+        $user = AddonApi::cloudLogin([
+            'username' => $username,
+            'password' => $password,
+        ]);
 
-        return $this->pack()->upload();
-    }
-
-    private function checkUploadPermission(): bool
-    {
-        $this->error('权限校验，未做任何处理');
-
-        return true;
-    }
-
-    private function pack(): self
-    {
-        $this->info('开始打包插件');
-        $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
-        $this->zipDir($this->action->getAddonPath(), $this->action->getStorePath($this->filename));
-        $this->info('插件打包完成');
-
-        return $this;
-    }
-
-    /**
-     * @return mixed
-     */
-    private function upload()
-    {
-        $this->info('开始上传插件');
-        $filename = $this->action->getStorePath($this->filename);
-        $data = [];
-        $data['code'] = $this->code;
-        $data['md5'] = md5_file($filename);
-        $data['content_hash'] = $this->getFolderMd5($this->action->getAddonPath());
-
-        return AddonApi::addonUpload($filename, $data);
+        return 0;
     }
 }

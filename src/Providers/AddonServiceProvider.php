@@ -32,6 +32,7 @@ use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Commands\AddonCache;
 use PTAdmin\Addon\Commands\AddonCacheClear;
 use PTAdmin\Addon\Commands\AddonInstall;
+use PTAdmin\Addon\Commands\AddonLogin;
 use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpgrade;
 use PTAdmin\Addon\Commands\AddonUpload;
@@ -70,6 +71,7 @@ class AddonServiceProvider extends ServiceProvider
             AddonUpload::class,
             AddonCache::class,
             AddonCacheClear::class,
+            AddonLogin::class,
         ]);
         foreach ($this->addon_booting as $addonCode) {
             $this->registerLang($addonCode);

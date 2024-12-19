@@ -52,11 +52,6 @@ class AddonAction
         $this->code = $code;
     }
 
-    public function __destruct()
-    {
-        Addon::refreshCache();
-    }
-
     /**
      * 获取插件存储目录.
      *
@@ -123,6 +118,16 @@ class AddonAction
     }
 
     /**
+     * 登录平台.
+     *
+     * @param $user
+     * @param $password
+     */
+    public static function login($user, $password): void
+    {
+    }
+
+    /**
      * 卸载插件.
      *
      * @param string $code
@@ -143,21 +148,20 @@ class AddonAction
     /**
      * 更新插件.
      *
-     * @param string $code      插件code
-     * @param mixed  $versionId 插件版本ID
-     * @param bool   $force     是否强制更新
+     * @param string $code  插件code
+     * @param bool   $force 是否强制更新
      *
      * @return null|array|mixed
      */
-    public static function upgrade(string $code, $versionId = 0, bool $force = false)
+    public static function upgrade(string $code, bool $force = false)
     {
-        // 1、获取插件目录
-        // 2、下载更新包
-        // 3、比对更新包：文件是否有手动更新，是否有更新文件
-        // 4、备份待更新资源
-        // 5、更新资源
         $obj = new self($code);
-        // 1、比对当前版本与实际版本是否有差异
+        // 1、比对版本差异信息
+        // 2、服务端校验在授权范围内可获取的更新信息
+        // 4、备份待更新资源信息
+        // 3、下载更新包
+        // 5、解压更新包
+        // 6、执行更新操作
         return $obj->addTask(AddonUpgrade::class)->action();
     }
 
@@ -211,9 +215,11 @@ class AddonAction
         return true;
     }
 
-    private function refresh(): void
+    private function refresh(): bool
     {
         Addon::reset();
+
+        return true;
     }
 
     private function addTask($class, ...$params): self
@@ -245,6 +251,7 @@ class AddonAction
             }
             $res = \is_array($res) ? $res : [$res];
             $task = array_shift($this->tasks);
+
             if (\is_array($task)) {
                 if (\is_array($task[0])) {
                     if (isset($task[1])) {

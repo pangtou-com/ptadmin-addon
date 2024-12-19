@@ -30,21 +30,23 @@ use PTAdmin\Addon\Service\AddonConfigManager;
 /**
  * 插件下载安装.
  */
-final class AddonDownload extends AbstractAction
+final class AddonDownload extends AbstractAddonAction
 {
     /** @var int 当前进度 */
     private $progress = 0;
+    private $hash;
 
     public function handle($versionId = 0): ?string
     {
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
-        $data = $this->getDownloadUrl([
+        $data = AddonApi::getAddonDownloadUrl([
             'code' => $this->code,
             'addon_version_id' => $versionId,
         ]);
-        if (null === $data) {
+        if (!isset($data['url']) || '' === $data['url']) {
             return null;
         }
+        $this->hash = $data['hash'] ?? '';
         $this->downloadAddon($data['url']);
 
         return $this->move();
@@ -53,7 +55,7 @@ final class AddonDownload extends AbstractAction
     private function move(): ?string
     {
         $base = $this->getUnzipDirname();
-        if ('' === $base) {
+        if (null === $base) {
             $this->error("插件【{$this->code}】解压失败，请检查插件是否完整或联系官方");
 
             return null;
@@ -65,7 +67,7 @@ final class AddonDownload extends AbstractAction
 
             return null;
         }
-        $this->info("开始安装插件【{$info['title']}】");
+        $this->info("拷贝资源到插件目录：【{$info['title']}】");
         $target = base_path('addons'.\DIRECTORY_SEPARATOR.basename($base));
         $this->filesystem->ensureDirectoryExists($target);
         $this->filesystem->moveDirectory($base, $target);
@@ -73,13 +75,11 @@ final class AddonDownload extends AbstractAction
         return $base;
     }
 
-    private function getDownloadUrl($data): ?array
-    {
-        return AddonApi::getAddonDownloadUrl($data);
-    }
-
     private function downloadAddon($url): void
     {
+        $limit = 0;
+        $this->info('开始下载中');
+        download:
         $response = Http::withOptions([
             'progress' => function ($total, $downloaded): void {
                 if ($total > 0) {
@@ -92,7 +92,27 @@ final class AddonDownload extends AbstractAction
             },
         ])->get($url);
         if ($response->successful()) {
-            file_put_contents($this->getDownloadFilename(), $response->body());
+            $data = $response->json();
+            if (null !== $data) {
+                $this->error($data['message']);
+
+                return;
+            }
+            $body = $response->body();
+            file_put_contents($this->getDownloadFilename(), $body);
+            $hash = md5($body);
+            if ($hash !== $this->hash) {
+                $this->error("插件下载失败，尝试重新下载【{$limit}】");
+                if ($limit > 5) {
+                    $this->error('插件下载失败，请联系官方平台核查');
+
+                    return;
+                }
+                ++$limit;
+
+                goto download;
+            }
+
             $this->unzip($this->getDownloadFilename(), $this->action->getStorePath());
         } else {
             $this->error('插件下载失败:'.json_encode($response->json()), $response->json());
@@ -104,7 +124,7 @@ final class AddonDownload extends AbstractAction
         return $this->action->getStorePath($this->filename);
     }
 
-    private function getUnzipDirname(): string
+    private function getUnzipDirname(): ?string
     {
         clearstatcache();
         $base = $this->action->getStorePath();
@@ -115,6 +135,6 @@ final class AddonDownload extends AbstractAction
             }
         }
 
-        return '';
+        return null;
     }
 }

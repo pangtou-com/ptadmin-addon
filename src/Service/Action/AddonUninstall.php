@@ -25,7 +25,7 @@ namespace PTAdmin\Addon\Service\Action;
 
 use PTAdmin\Addon\Addon;
 
-final class AddonUninstall extends AbstractAction
+final class AddonUninstall extends AbstractAddonAction
 {
     public function handle(): ?bool
     {
