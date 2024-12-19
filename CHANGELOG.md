@@ -8,6 +8,13 @@
 -   [Gitee](https://gitee.com/pangtou/addon)
 
 ## 更新日志
+[更新] 2024-12-19
+-【BUG】修复addon安装bug
+-【BUG】修复addon上传bug
+-【BUG】修复addon下载bug
+-【新增】安装命令
+
+
 [更新] 2024-12-05
 -【新增】将应用安装合并到插件管理包中，取消独立的composer包
 -【新增】新增插件控制台命令执行方法【待完善】

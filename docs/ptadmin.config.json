@@ -1,0 +1,55 @@
+{
+    "title": "演示配置文件",
+    "code": "插件编码code",
+    "addon_path": "插件路径",
+    "type": "插件类型： addon",
+    "keywords": ["cms", "内容管理系统"],
+    "description": "CMS内容管理系统",
+    "version": "v0.0.1",
+    "framework": "v1.0",
+    "homepage": "https://www.pangtou.com",
+    "docs": "https://www.pangtou.com",
+    "authors": {"name": "Zane", "email": "873934580@qq.com"},
+    "inject": {
+        "title": "注入模块，用于需要提供给其他模块调用时的注入方法，目前提供有：payment支付， login: 第三方登录，oss: 存储, message: 消息通知模块",
+        "login": "实现方法"
+    },
+    "hooks": {
+        "*": {
+            "validate": []
+        },
+        "cms": {
+            "validate": ["Addon\\Cms\\Service\\ArchiveExportService@handle"]
+        }
+    },
+    "providers": "自定义服务提供者，默认情况下会扫描provider文件，如指定了provider 则以provider为主",
+    "export": [
+        {
+            "title": "cms列表指令",
+            "type": "指令类型：foreach循环， echo 输出， if 判断「待完善」",
+            "name": "lists",
+            "class": "Cms",
+            "method": "handle",
+            "scene": "调用场景，默认情况下为页面调用，设置为true后为内部调用【保留字段】",
+            "permission": "调用权限，是否需要登录等【保留字段】",
+            "role": "角色权限【保留字段】",
+            "is_login": "是否需要限制登录【保留字段】",
+            "params": [
+                {"name": "id", "type": "number|number[]", "description": "文章ID", "required": true, "default": ""},
+                {"name": "pid", "type": "number|number[]", "description": "文章分类ID"}
+            ]
+        }
+    ],
+    "require": {
+        "ptadmin/admin": ">=1.0",
+        "ptadmin/base": ">=1.0"
+    },
+    "response": {
+        "asset": "./Assets",
+        "route": "./Routes",
+        "view": "./Response/views",
+        "lang": "./Response/Lang",
+        "config": "./Config",
+        "func": "./functions.php"
+    }
+}

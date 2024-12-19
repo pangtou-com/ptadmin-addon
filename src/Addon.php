@@ -30,22 +30,22 @@ use PTAdmin\Addon\Service\BaseBootstrap;
 
 /**
  * @method static AddonConfigManager getAddonManager()                     插件配置管理对象
- * @method static bool isAddonDisable($addonDir)
+ * @method static bool isAddonDisable($addonDir)                           判断插件是否启用
  * @method static void reset()                                             重置插件管理
- * @method static mixed execute($addonCode, $method, array $params = [])
- * @method static bool hasAddon($addonCode)
- * @method static array getProviders()
- * @method static array getInjects()
- * @method static array getResponses()
- * @method static array getDirectives()
- * @method static array getAddons()
- * @method static mixed getProvider($addonCode)
- * @method static mixed getInject($code)
- * @method static mixed getResponse($addonCode)                            获取资源信息
- * @method static mixed getResponsePath($addonCode, $key, $default = null) 获取资源路径
- * @method static mixed getDirective($addonCode)
- * @method static mixed getAddon($addonCode, $key = null, $default = null)
- * @method static string getAddonPath($addonCode, $path = null)
+ * @method static mixed execute($addonCode, $method, array $params = [])   使用代码的方式调用指令
+ * @method static bool hasAddon($addonCode)                                判断是否存在插件
+ * @method static array getProviders()                                     获取所有插件的提供者信息
+ * @method static array getInjects()                                       获取所有插件的注入信息
+ * @method static array getResponses()                                     获取所有插件的资源路径
+ * @method static array getDirectives()                                    获取所有插件的指令信息
+ * @method static array getAddons()                                        获取所有插件应用的配置内容
+ * @method static mixed getProvider($addonCode)                            获取指定插件的提供者信息
+ * @method static mixed getInject($code)                                   获取指定插件的注入信息
+ * @method static mixed getResponse($addonCode)                            获取指定插件的资源信息
+ * @method static mixed getResponsePath($addonCode, $key, $default = null) 获取获取指定插件的资源路径
+ * @method static mixed getDirective($addonCode)                           获取指定插件指令信息
+ * @method static mixed getAddon($addonCode, $key = null, $default = null) 获取指定插件的应用配置
+ * @method static string getAddonPath($addonCode, $path = null)            获取指定插件的路径
  * @method static bool checkAddonVersion($addonName, $version)
  * @method static array getInstalledAddonsCode()                           本地已安装插件code
  * @method static array getInstalledAddons()                               本地已安装插件信息
