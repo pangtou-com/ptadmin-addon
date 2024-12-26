@@ -11,18 +11,32 @@
     "docs": "https://www.pangtou.com",
     "authors": {"name": "Zane", "email": "873934580@qq.com"},
     "inject": {
-        "title": "注入模块，用于需要提供给其他模块调用时的注入方法，目前提供有：payment支付， login: 第三方登录，oss: 存储, message: 消息通知模块",
-        "login": "实现方法"
+        "login": [
+            {
+                "title": "qq登录",
+                "code": "wechat_pay",
+                "type": ["jsapi", "qrcode"],
+                "class": "Addon\\WechatPayment\\Payment@handle"
+            }
+        ],
+        "payment": [
+            {
+                "title": "微信支付",
+                "code": "wechat_pay",
+                "type": ["jsapi", "qrcode"],
+                "class": "Addon\\WechatPayment\\Payment@handle"
+            }
+        ]
     },
     "hooks": {
-        "*": {
+        "payment_success": {
             "validate": []
         },
         "cms": {
             "validate": ["Addon\\Cms\\Service\\ArchiveExportService@handle"]
         }
     },
-    "providers": "自定义服务提供者，默认情况下会扫描provider文件，如指定了provider 则以provider为主",
+    "providers": "Addon\\Cms\\Service\\ArchiveExportService",
     "export": [
         {
             "title": "cms列表指令",

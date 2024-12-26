@@ -4,8 +4,8 @@
 
 ## 发布日志
 
--   [Github](https://github.com/pangtou/addon)
--   [Gitee](https://gitee.com/pangtou/addon)
+-   [Github](https://github.com/pangtou-com/ptadmin-addon)
+-   [Gitee](https://gitee.com/ptadmin/ptadmin-addon)
 
 ## 更新日志
 [更新] 2024-12-19
