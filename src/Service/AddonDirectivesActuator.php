@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -24,7 +24,6 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service;
 
 use Illuminate\Support\Facades\Cache;
-use PTAdmin\Addon\Exception\AddonException;
 
 /**
  * 插件指令执行器.
@@ -51,9 +50,6 @@ class AddonDirectivesActuator
 
     public static function handle($name, $method, DirectivesDTO $transfer)
     {
-        if (!AddonDirectivesManage::getInstance()->has($name)) {
-            throw new AddonException("未定义的标签指令【{$name}】");
-        }
         if (blank($method)) {
             $method = AddonDirectives::DEFAULT_METHOD;
         }

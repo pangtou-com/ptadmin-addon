@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -26,6 +26,7 @@ namespace PTAdmin\Addon\Compiler;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\View\Compilers\BladeCompiler;
+use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Compiler\Concerns\PTCompileExtend;
 use PTAdmin\Addon\Exception\DirectivesException;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
@@ -118,7 +119,7 @@ class PTCompiler extends BladeCompiler
         $instance = AddonDirectivesManage::getInstance();
 
         // 判断是否为插件自定义指令
-        if ($instance->has($data['name'])) {
+        if (Addon::hasAddon($data['name'])) {
             $parse = Parser::make(Arr::get($match, 5));
             if ($parse->isOutput()) {
                 return $this->outputCompile($parse, $data);
@@ -187,7 +188,7 @@ class PTCompiler extends BladeCompiler
             return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
         }
         $instance = AddonDirectivesManage::getInstance();
-        if (isset($data['name']) && $instance->has($data['name'])) {
+        if (isset($data['name']) && Addon::hasAddon($data['name'])) {
             $data['method'] = mb_substr($data['method'], 3);
             if ($instance->isLoop($data['name'], $data['method'])) {
                 return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
@@ -228,7 +229,7 @@ class PTCompiler extends BladeCompiler
      * 编译为循环语句.
      *
      * @param Parser $parse
-     * @param mixed $name 调用方法名称
+     * @param mixed  $name  调用方法名称
      *
      * @return string
      */
@@ -239,7 +240,7 @@ class PTCompiler extends BladeCompiler
 
         $iterateLoop = '$__env->incrementLoopIndices(); $loop = $__env->getLastLoop();';
         $empty = '';
-        if ($parse->hasAttribute("empty")) {
+        if ($parse->hasAttribute('empty')) {
             $empty = "<?php if (blank(\$__currentLoopData)): echo e({$parse->getEmpty()}); endif;?>";
         }
 
@@ -247,10 +248,10 @@ class PTCompiler extends BladeCompiler
     }
 
     /**
-     * 返回参数类型编译，当指令参数设置了：out=name时，将结果返回.而不是循环输出
+     * 返回参数类型编译，当指令参数设置了：out=name时，将结果返回.而不是循环输出.
      *
      * @param Parser $parse
-     * @param mixed $name 调用方法名称
+     * @param mixed  $name  调用方法名称
      *
      * @return string
      */
@@ -265,7 +266,7 @@ class PTCompiler extends BladeCompiler
      * 编译if语句.
      *
      * @param Parser $parse
-     * @param mixed $name 调用方法名称
+     * @param mixed  $name  调用方法名称
      *
      * @return string
      */
@@ -296,8 +297,10 @@ class PTCompiler extends BladeCompiler
     }
 
     /**
-     * 包装方法名称
+     * 包装方法名称.
+     *
      * @param $name
+     *
      * @return string
      */
     private function wrapName($name): string

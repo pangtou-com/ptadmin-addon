@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -38,6 +38,26 @@ class AddonUtil
         return base_path('bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php');
     }
 
+    public static function readAddonConfig($path)
+    {
+        $filename = $path.\DIRECTORY_SEPARATOR.'ptadmin.config.json';
+        if (!file_exists($filename)) {
+            return null;
+        }
+        $content = @file_get_contents($filename);
+        if (false === $content) {
+            return null;
+        }
+
+        $config = @json_decode($content, true);
+        if (null === $config || !isset($config['code'])) {
+            return null;
+        }
+        $config['base_path'] = basename($path);
+
+        return $config;
+    }
+
     /**
      * 扫描所有的插件完整目录.
      *
@@ -65,6 +85,9 @@ class AddonUtil
      */
     public static function scanAddonsPath(): array
     {
+        if (!is_dir(base_path(self::ADDON_DIR))) {
+            return [];
+        }
         $dirs = array_diff(scandir(base_path(self::ADDON_DIR)), ['.', '..', '.gitkeep', '.gitignore']);
         if (0 === \count($dirs)) {
             return [];

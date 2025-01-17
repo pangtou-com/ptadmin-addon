@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -26,8 +26,6 @@ namespace PTAdmin\Addon\Service\Action;
 use Illuminate\Support\Str;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
-use PTAdmin\Addon\Service\AddonConfigManager;
-use PTAdmin\Addon\Service\AddonUtil;
 
 class AddonAction
 {
@@ -78,12 +76,9 @@ class AddonAction
         if (null !== $this->addon_path) {
             return $this->addon_path;
         }
-        $addons = AddonUtil::getAddonsDirs();
-        foreach ($addons as $addon) {
-            $config = (new AddonConfigManager())->readAddonConfig($addon);
-            if ($config['code'] === $this->getCode()) {
-                return $this->addon_path = $addon;
-            }
+        $addons = Addon::getInstalledAddons();
+        if (isset($addons[$this->getCode()])) {
+            return $this->addon_path = $addons[$this->getCode()]['base_path'];
         }
 
         throw new AddonException("插件【{$this->code}】不存在");

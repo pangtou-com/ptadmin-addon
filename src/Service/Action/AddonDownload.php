@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -25,7 +25,7 @@ namespace PTAdmin\Addon\Service\Action;
 
 use Illuminate\Support\Facades\Http;
 use PTAdmin\Addon\AddonApi;
-use PTAdmin\Addon\Service\AddonConfigManager;
+use PTAdmin\Addon\Service\AddonUtil;
 
 /**
  * 插件下载安装.
@@ -60,8 +60,7 @@ final class AddonDownload extends AbstractAddonAction
 
             return null;
         }
-        $manage = new AddonConfigManager();
-        $info = $manage->readAddonConfig($base);
+        $info = AddonUtil::readAddonConfig($base);
         if (null === $info) {
             $this->error("插件【{$this->code}】未找到配置文件，请检查插件是否完整或联系官方");
 

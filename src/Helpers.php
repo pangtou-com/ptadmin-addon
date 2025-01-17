@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -117,7 +117,7 @@ if (!function_exists('addon_namespace')) {
      */
     function addon_namespace($code, $namespace = null): string
     {
-        $base_path = \PTAdmin\Addon\Addon::getAddon($code, "base_path");
+        $base_path = \PTAdmin\Addon\Addon::getAddon($code, 'base_path');
 
         return 'Addon\\'.$base_path.($namespace ? '\\'.$namespace : '');
     }
@@ -167,7 +167,7 @@ if (!function_exists('is_addon_running')) {
      */
     function is_addon_running(): bool
     {
-        $addon = request()->get("__addon__", null);
+        $addon = request()->get('__addon__', null);
 
         return null !== $addon;
     }
@@ -184,7 +184,7 @@ if (!function_exists('get_running_addon_info')) {
      */
     function get_running_addon_info($key = null, $default = null)
     {
-        $addon = request()->get("__addon__") ?? null;
+        $addon = request()->get('__addon__');
         if (null !== $key) {
             return data_get($addon, $key, $default);
         }

@@ -1,6 +1,6 @@
 {
     "title": "演示配置文件",
-    "code": "插件编码code",
+    "code": "test",
     "addon_path": "插件路径",
     "type": "插件类型： addon",
     "keywords": ["cms", "内容管理系统"],
@@ -29,25 +29,24 @@
         ]
     },
     "hooks": {
-        "payment_success": {
-            "validate": []
-        },
-        "cms": {
-            "validate": ["Addon\\Cms\\Service\\ArchiveExportService@handle"]
-        }
+        "payment_success": "事件hook支付完成之后",
+        "cms:handle@before": "预留指令执行之前的hook",
+        "cms:handle@after": "预留指令执行之后的hook"
     },
-    "providers": "Addon\\Cms\\Service\\ArchiveExportService",
+    "providers": "PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestProviderServices",
     "directives": [
         {
-            "title": "cms列表指令",
-            "type": "指令类型：foreach循环, if 判断「待完善」,默认为循环",
+            "title": "列表展示",
+            "type": "for",
             "name": "lists",
-            "class": "Cms",
-            "method": "handle",
-            "params": [
-                {"name": "id", "type": "number|number[]", "description": "文章ID", "required": true, "default": ""},
-                {"name": "pid", "type": "number|number[]", "description": "文章分类ID"}
-            ]
+            "class": "PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestDirectives",
+            "method": "handle"
+        },
+        {
+            "title": "是否访问",
+            "type": "if",
+            "name": "auth",
+            "class": "PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestDirectives"
         }
     ],
     "require": {

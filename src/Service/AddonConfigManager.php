@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -26,23 +26,17 @@ namespace PTAdmin\Addon\Service;
 use Illuminate\Support\Arr;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use PTAdmin\Addon\Exception\AddonException;
 
 /**
  * 插件配置管理器.
  *
- * @method getAddons($addonCode = null)     获取已加载的插件信息
- * @method getProviders($addonCode = null)  获取以启动的服务提供者
- * @method getInject($addonCode = null)     获取注入配置
- * @method getResponse($addonCode = null)   获取资源配置
- * @method getDirectives($addonCode = null) 获取指令配置
- * @method getHooks($addonCode = null)      获取钩子配置
+ * @method string getCode()
+ * @method string getBasePath()
+ * @method string getTitle()
+ * @method string getVersion()
  */
 class AddonConfigManager
 {
-    protected $load_status = false;
-    /** @var array 插件基础信息 */
-    protected $addons = [];
     /** @var array 插件服务注册 */
     protected $providers = [];
     /** @var array 注入配置 */
@@ -54,147 +48,147 @@ class AddonConfigManager
     /** @var array 钩子信息 */
     protected $hooks = [];
 
-    public function __call($name, $arguments)
+    /** @var array 原始配置信息 */
+    protected $config;
+
+    public function __construct(array $config)
     {
-        $name = lcfirst(str_replace('get', '', $name));
-        if (property_exists($this, $name)) {
-            if (\count($arguments) > 0) {
-                return $this->{$name}[$arguments[0]] ?? null;
-            }
-
-            return $this->{$name};
-        }
-
-        throw new \BadMethodCallException("Undefined method {$name}");
+        $this->config = $config;
     }
 
-    public function __toArray(): array
+    public function __call($name, $arguments)
     {
-        return [
-            'addons' => $this->addons,
-            'providers' => $this->providers,
-            'inject' => $this->inject,
-            'response' => $this->response,
-            'directives' => $this->directives,
-            'hooks' => $this->hooks,
-        ];
+        if (Str::startsWith($name, 'get')) {
+            $name = Str::snake(Str::after($name, 'get'));
+
+            return data_get($this->config, $name);
+        }
     }
 
     public function __toString()
     {
-        return var_export($this->__toArray(), true);
+        return var_export($this->toArray(), true);
     }
 
-    public function byCacheLoadConfig(array $data, $manager): void
+    public function toArray(): array
     {
-        $this->load_status = true;
-        foreach ($data as $key => $val) {
-            if (!isset($val['base_path'])) {
-                continue;
-            }
-            if ($manager->isAddonDisable(addon_path($val['base_path']))) {
-                continue;
-            }
-            if (property_exists($this, $key)) {
-                $this->{$key} = $val;
-            }
-        }
+        return [
+            'addons' => $this->getAddons(),
+            'providers' => $this->getProviders(),
+            'inject' => $this->getInject(),
+            'response' => $this->getResponse(),
+            'directives' => $this->getDirectives(),
+            'hooks' => $this->getHooks(),
+        ];
     }
 
-    public function getLoadStatus(): bool
+    public function getAddonPath($path = null): string
     {
-        return $this->load_status;
+        return base_path('addons'.\DIRECTORY_SEPARATOR.$this->config['base_path'].(null !== $path ? \DIRECTORY_SEPARATOR.$path : ''));
     }
 
-    public function loadConfig(array $dirs, $manager): void
+    public function getAddonNamespace($namespace = null): string
     {
-        $this->load_status = true;
-        foreach ($dirs as $dir) {
-            if ($manager->isAddonDisable($dir)) {
-                continue;
-            }
-            $config = $this->readAddonConfig($dir);
-            if (null === $config) {
-                continue;
-            }
-            if (isset($this->addons[$config['code']])) {
-                throw new AddonException("插件代码【{$config['code']}】重复定义");
-            }
+        $addon = $this->config['base_path'];
 
-            $this->addonMergeConfig($config);
-        }
+        return 'Addon\\'.$addon.($namespace ? '\\'.$namespace : '');
     }
 
-    public function readAddonConfig($path)
+    public function getAddons(): array
     {
-        $filename = $path.\DIRECTORY_SEPARATOR.'ptadmin.config.json';
-        if (!file_exists($filename)) {
-            return null;
-        }
-        $content = @file_get_contents($filename);
-        if (false === $content) {
-            return null;
-        }
-
-        $config = @json_decode($content, true);
-        if (null === $config || !isset($config['code'])) {
-            return null;
-        }
-        $config['base_path'] = basename($path);
-
-        return $config;
-    }
-
-    protected function addonMergeConfig($config): void
-    {
-        $allow = ['response', 'inject', 'hooks', 'providers', 'directives'];
-        $addons = [];
-        $this->setProviders($config);
-        unset($config['providers']);
-        foreach ($config as $key => $value) {
-            if (\in_array($key, $allow, true)) {
-                if (property_exists($this, $key)) {
-                    $this->{$key}[$config['code']] = $value;
-                }
-
-                continue;
-            }
-            $addons[$key] = $value;
-        }
-        $this->addons[$config['code']] = $addons;
+        return $this->config;
     }
 
     /**
-     * 设置服务注册类.
+     * 插件是否禁用中.
      *
-     * @param $config
+     * @return bool
      */
-    protected function setProviders($config): void
+    public function isDisable(): bool
     {
-        if (isset($config['providers'])) {
-            $provider = Arr::wrap($config['providers']);
+        return file_exists($this->config['base_path'].\DIRECTORY_SEPARATOR.'disable');
+    }
+
+    public function getProviders(): array
+    {
+        if (\count($this->providers) > 0) {
+            return $this->providers;
+        }
+        if (isset($this->config['providers'])) {
+            $provider = Arr::wrap($this->config['providers']);
             foreach ($provider as $item) {
                 if (is_subclass_of($item, ServiceProvider::class)) {
-                    $this->providers[$config['code']][] = $item;
+                    $this->providers[] = $item;
                 }
             }
 
-            return;
+            return $this->providers ?? [];
         }
-        // 如果没有显示指定服务注册类，则自动扫描
-        $this->scanProviders($config);
+
+        return $this->scanProviders();
+    }
+
+    public function getInject(): array
+    {
+        if (\count($this->inject) > 0) {
+            return $this->inject;
+        }
+        if (isset($this->config['inject'])) {
+            $this->inject = Arr::wrap($this->config['inject']);
+        }
+
+        return $this->inject;
+    }
+
+    public function getResponse(): array
+    {
+        if (\count($this->response) > 0) {
+            return $this->response;
+        }
+        if (isset($this->config['response'])) {
+            $this->response = Arr::wrap($this->config['response']);
+        }
+
+        return $this->response;
+    }
+
+    public function getDirectives(): array
+    {
+        if (\count($this->directives) > 0) {
+            return $this->directives;
+        }
+        $d = Arr::wrap($this->config['directives'] ?? []);
+        $data = [];
+        foreach ($d as $item) {
+            if (isset($item['name'])) {
+                $data[$item['name']] = $item;
+            }
+        }
+
+        return $this->directives = $data;
+    }
+
+    public function getHooks(): array
+    {
+        if (\count($this->hooks) > 0) {
+            return $this->hooks;
+        }
+        if (isset($this->config['hooks'])) {
+            $this->hooks = Arr::wrap($this->config['hooks']);
+        }
+
+        return $this->hooks;
     }
 
     /**
      * 扫描服务注册类.
-     *
-     * @param $config
      */
-    protected function scanProviders($config): void
+    protected function scanProviders(): array
     {
+        $config = $this->config;
         $providers = addon_path($config['base_path'], 'Providers');
         if (!is_dir($providers)) {
-            return;
+            return [];
         }
         $files = array_diff(scandir($providers), ['.', '..', '.gitkeep']);
         foreach ($files as $item) {
@@ -203,8 +197,10 @@ class AddonConfigManager
             }
             $class = 'Addon\\'.$config['base_path'].'\\Providers\\'.str_replace('.php', '', $item);
             if (is_subclass_of($class, ServiceProvider::class)) {
-                $this->providers[$config['code']][] = $class;
+                $this->providers[] = $class;
             }
         }
+
+        return $this->providers ?? [];
     }
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -137,7 +137,7 @@ class AddonServiceProvider extends ServiceProvider
         if (is_dir($routesDir)) {
             $routes = array_diff(scandir($routesDir), ['.', '..', '.gitkeep']);
         }
-        $addonBasePath = Addon::getAddon($addonCode)['base_path'];
+        $addonBasePath = Addon::getAddon($addonCode)->getBasePath();
         foreach ($routes as $route) {
             if (!Str::endsWith($route, '.php')) {
                 continue;

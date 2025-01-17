@@ -1,13 +1,13 @@
 includes:
     - vendor/phpstan/phpstan-strict-rules/rules.neon
-
 parameters:
     level: 2
-    checkGenericClassInNonGenericObjectType: false
-    checkMissingIterableValueType: false
-    excludes_analyse:
-        # - package/View/Providers/ServiceProvider.php
-        # - package/View/Providers/PendingRequest.php
+    paths:
+        - ./src
+    excludePaths:
+        - tests/*      # 忽略 tests 目录及其子目录
+    checkFunctionNameCase: true
+    checkInternalClassCaseSensitivity: true
     ignoreErrors:
         - '#^Static call to instance method [a-zA-Z0-9\\_]+::[a-zA-Z0-9\\_]+\(\)\.#'
         # 忽略变量方法调用的警告
@@ -16,6 +16,7 @@ parameters:
         - '#^Variable property access on [a-zA-Z0-9\|\\_]+\.#'
         - '#^Variable static method call on [a-zA-Z0-9\|\\_]+\.#'
         - '#^Variable method call on mixed\.#'
+        - '#^Undefined variable: \$this#'
         - '#^Unsafe usage of new static\(\)\.#'
         # - '#^Variable method call on Illuminate\\Database\\Schema\\Blueprint\.#'
         - '#^Variable method call on [a-zA-Z0-9\|\\_]+\.#'

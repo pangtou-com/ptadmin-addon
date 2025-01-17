@@ -1,6 +1,6 @@
 {
     "title": "演示配置文件",
-    "code": "插件编码code",
+    "code": "test2",
     "addon_path": "插件路径",
     "type": "插件类型： addon",
     "keywords": ["cms", "内容管理系统"],
@@ -36,7 +36,6 @@
             "validate": ["Addon\\Cms\\Service\\ArchiveExportService@handle"]
         }
     },
-    "providers": "Addon\\Cms\\Service\\ArchiveExportService",
     "directives": [
         {
             "title": "cms列表指令",

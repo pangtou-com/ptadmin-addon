@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -30,21 +30,17 @@ use PTAdmin\Addon\Exception\AddonException;
  */
 final class AddonManager
 {
-    /** @var AddonConfigManager 插件配置管理器对象 */
-    private $addonManager;
-    private $is_booted = false;
+    /** @var AddonConfigManager[] 插件配置管理器对象 */
+    private $addonManager = [];
 
     public function __construct()
     {
-        $this->addonManager = new AddonConfigManager();
-        if (!$this->is_booted) {
-            $this->boot();
-        }
+        $this->initialize();
     }
 
-    public function getAddonManager(): AddonConfigManager
+    public function __toString()
     {
-        return $this->addonManager;
+        return var_export($this->toArray(), true);
     }
 
     /**
@@ -60,20 +56,6 @@ final class AddonManager
     }
 
     /**
-     * 执行指令方法.
-     *
-     * @param $addonCode
-     * @param $method
-     * @param array $params
-     *
-     * @return null|mixed
-     */
-    public function execute($addonCode, $method, array $params = [])
-    {
-        return AddonDirectivesActuator::handle($addonCode, $method, DirectivesDTO::build($params));
-    }
-
-    /**
      * 判断插件是否存在.
      *
      * @param $addonCode
@@ -82,77 +64,67 @@ final class AddonManager
      */
     public function hasAddon($addonCode): bool
     {
-        $addons = $this->getAddon($addonCode);
-
-        return null !== $addons;
+        return isset($this->addonManager[$addonCode]);
     }
 
     public function getProviders(): array
     {
-        return $this->getAddonManager()->getProviders();
+        return data_get($this->toArray(), '*.providers', []);
     }
 
-    public function getProvider($addonCode)
+    public function getProvider($addonCode): array
     {
-        return $this->getAddonManager()->getProviders($addonCode);
+        return $this->getAddonManager($addonCode)->getProviders();
     }
 
     public function getInjects(): array
     {
-        return $this->getAddonManager()->getInject();
+        return data_get($this->toArray(), '*.injects', []);
     }
 
-    public function getInject($addonCode)
+    public function getInject($addonCode): array
     {
-        return $this->getAddonManager()->getInject($addonCode);
+        return $this->getAddonManager($addonCode)->getInject();
     }
 
     public function getResponses(): array
     {
-        return $this->getAddonManager()->getResponse();
+        return data_get($this->toArray(), '*.response', []);
     }
 
-    public function getResponse($addonCode)
+    public function getResponse($addonCode): array
     {
-        return $this->getAddonManager()->getResponse($addonCode);
+        return $this->getAddonManager($addonCode)->getResponse();
     }
 
     public function getDirectives(): array
     {
-        return $this->getAddonManager()->getDirectives();
+        $data = [];
+        foreach ($this->addonManager as $key => $value) {
+            $data[$key] = $value->getDirectives();
+        }
+
+        return $data;
     }
 
-    public function getDirective($addonCode)
+    public function getDirective($addonCode): array
     {
-        return $this->getAddonManager()->getDirectives($addonCode);
+        return $this->getAddonManager($addonCode)->getDirectives();
     }
 
     public function getAddons(): array
     {
-        return $this->getAddonManager()->getAddons();
+        return $this->toArray();
     }
 
-    public function getAddon($addonCode, $key = null, $default = null)
+    public function getAddon($addonCode): AddonConfigManager
     {
-        $addon = $this->getAddonManager()->getAddons($addonCode);
-        if (null === $addon) {
-            return $default;
-        }
-        if (null === $key) {
-            return $addon;
-        }
-
-        return $addon[$key] ?? $default;
+        return $this->getAddonManager($addonCode);
     }
 
     public function getAddonPath($addonCode, $path = null): string
     {
-        $addon = $this->getAddon($addonCode);
-        if (null === $addon) {
-            throw new AddonException("未定义的插件【{$addonCode}】");
-        }
-
-        return base_path('addons'.\DIRECTORY_SEPARATOR.$addon['base_path'].(null !== $path ? \DIRECTORY_SEPARATOR.$path : ''));
+        return $this->getAddon($addonCode)->getAddonPath($path);
     }
 
     /**
@@ -165,9 +137,7 @@ final class AddonManager
      */
     public function getAddonNamespace($addonCode, $namespace = null): string
     {
-        $addon = $this->getAddon($addonCode);
-
-        return 'Addon\\'.$addon['base_path'].($namespace ? '\\'.$namespace : '');
+        return $this->getAddon($addonCode)->getAddonNamespace($namespace);
     }
 
     /**
@@ -211,7 +181,7 @@ final class AddonManager
         $addons = AddonUtil::getAddonsDirs();
         $results = [];
         foreach ($addons as $addon) {
-            $config = $this->getAddonManager()->readAddonConfig($addon);
+            $config = AddonUtil::readAddonConfig($addon);
             if (null === $config) {
                 continue;
             }
@@ -231,7 +201,7 @@ final class AddonManager
      */
     public function getAddonRequired($addonCode): array
     {
-        $addon = $this->getAddon($addonCode);
+        $addon = $this->getAddon($addonCode)->getAddons();
 
         return $addon['require'] ?? [];
     }
@@ -326,6 +296,21 @@ final class AddonManager
         return null;
     }
 
+    public function toArray(): array
+    {
+        $data = [];
+        foreach ($this->addonManager as $key => $value) {
+            $data[$key] = $value->toArray();
+        }
+
+        return $data;
+    }
+
+    public function toJson(): string
+    {
+        return json_encode($this->toArray());
+    }
+
     /**
      * 刷新缓存
      * 当插件安装、启用、禁用时需要刷新缓存.
@@ -333,15 +318,15 @@ final class AddonManager
     public function refreshCache(): void
     {
         $this->reset();
-        $content = "<?php\nreturn ".$this->getAddonManager().';';
+        $content = "<?php\nreturn ".$this.';';
         file_put_contents(AddonUtil::getAddonCacheDir(), $content);
     }
 
     public function reset(): void
     {
         clearstatcache();
-        $this->addonManager = new AddonConfigManager();
-        $this->addonManager->loadConfig(AddonUtil::getAddonsDirs(), $this);
+        $this->addonManager = [];
+        $this->loadConfig(AddonUtil::getAddonsDirs());
     }
 
     /**
@@ -352,22 +337,61 @@ final class AddonManager
         @unlink(AddonUtil::getAddonCacheDir());
     }
 
-    /**
-     * 启动插件项目.
-     */
-    private function boot(): void
+    public function getAddonManager(string $addonCode): AddonConfigManager
     {
-        $this->is_booted = true;
-        if ($this->addonManager->getLoadStatus()) {
-            return;
+        if (!$this->hasAddon($addonCode)) {
+            throw new AddonException("未定义的插件【{$addonCode}】");
         }
+
+        return $this->addonManager[$addonCode];
+    }
+
+    /**
+     * 加载配置文件.
+     *
+     * @param array $dirs
+     */
+    private function loadConfig(array $dirs): void
+    {
+        foreach ($dirs as $dir) {
+            if ($this->isAddonDisable($dir)) {
+                continue;
+            }
+            $config = AddonUtil::readAddonConfig($dir);
+            if (null === $config) {
+                continue;
+            }
+            if (isset($this->addonManager[$config['code']])) {
+                throw new AddonException("插件代码【{$config['code']}】重复定义");
+            }
+            $this->addonManager[$config['code']] = new AddonConfigManager($config);
+        }
+    }
+
+    /**
+     * 通过缓存加载配置.
+     *
+     * @param $data
+     */
+    private function loadCacheConfig($data): void
+    {
+        foreach ($data as $key => $config) {
+            $this->addonManager[$key] = new AddonConfigManager($config);
+        }
+    }
+
+    /**
+     * 初始化项目.
+     */
+    private function initialize(): void
+    {
         if (true === (bool) config('app.debug') && file_exists(AddonUtil::getAddonCacheDir())) {
             $data = require_once AddonUtil::getAddonCacheDir();
-            $this->addonManager->byCacheLoadConfig($data, $this);
+            $this->loadCacheConfig($data);
 
             return;
         }
 
-        $this->addonManager->loadConfig(AddonUtil::getAddonsDirs(), $this);
+        $this->loadConfig(AddonUtil::getAddonsDirs());
     }
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -95,8 +95,8 @@ class AddonDirectives
     public function isAllowCaching($method): bool
     {
         $target = $this->getMethodTarget($method);
-        if (!blank($target) && isset($target['allow_caching'])) {
-            return false !== $target['allow_caching'];
+        if (!blank($target) && isset($target['cache'])) {
+            return false !== (bool) $target['cache'];
         }
 
         return true;
@@ -113,8 +113,8 @@ class AddonDirectives
     {
         $method = $method ?? self::DEFAULT_METHOD;
         $target = $this->getMethodTarget($method);
-        if (isset($target['return_type'])) {
-            return true !== $target['return_type'];
+        if (isset($target['type'])) {
+            return 'if' !== $target['type'];
         }
 
         return true;
@@ -279,7 +279,7 @@ class AddonDirectives
             return ['class' => $params, 'method' => $method];
         }
         if (\is_array($params)) {
-            $keys = ['class', 'method', 'return_type', 'allow_caching'];
+            $keys = ['class', 'method', 'type', 'cache'];
             $result = [];
             foreach ($params as $key => $param) {
                 if (\is_int($key)) {
