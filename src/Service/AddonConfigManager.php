@@ -186,7 +186,7 @@ class AddonConfigManager
     protected function scanProviders(): array
     {
         $config = $this->config;
-        $providers = addon_path($config['base_path'], 'Providers');
+        $providers = $this->getAddonPath('Providers');
         if (!is_dir($providers)) {
             return [];
         }
