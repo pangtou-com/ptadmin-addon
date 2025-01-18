@@ -73,7 +73,11 @@ class AddonServiceProvider extends ServiceProvider
             AddonCacheClear::class,
             AddonLogin::class,
         ]);
-        foreach ($this->addon_booting as $addonCode) {
+        $data = array_keys(Addon::getAddons());
+        foreach ($data as $addonCode) {
+            if (\in_array($addonCode, $this->addon_booting, true)) {
+                continue;
+            }
             $this->registerLang($addonCode);
             $this->registerViews($addonCode);
             $this->registerConfig($addonCode);

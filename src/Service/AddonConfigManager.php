@@ -146,7 +146,10 @@ class AddonConfigManager
             return $this->response;
         }
         if (isset($this->config['response'])) {
-            $this->response = Arr::wrap($this->config['response']);
+            $res = Arr::wrap($this->config['response']);
+            foreach ($res as $item) {
+                $this->response[] = realpath($item);
+            }
         }
 
         return $this->response;

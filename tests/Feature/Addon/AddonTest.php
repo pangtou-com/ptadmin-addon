@@ -76,3 +76,9 @@ it('get addon directives', function (): void {
     ];
     expect($this->addon->getDirectives())->toEqual($directives);
 });
+
+it('get addon path', function (): void {
+    $test = __DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test';
+    expect($this->addon->getAddonPath('test'))->toEqual($test)
+        ->and($this->addon->getResponsePath('test', 'view', 'Response/Views'))->toEqual($test.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views');
+});
