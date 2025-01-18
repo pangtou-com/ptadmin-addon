@@ -77,9 +77,20 @@ final class AddonManager
         return $this->getAddonManager($addonCode)->getProviders();
     }
 
-    public function getInjects(): array
+    public function getInjects($type = null): array
     {
-        return data_get($this->toArray(), '*.injects', []);
+        $data = data_get($this->toArray(), '*.inject', []);
+        if (null === $type) {
+            return $data;
+        }
+        $results = [];
+        foreach ($data as $datum) {
+            if (isset($datum[$type])) {
+                $results = array_merge($results, $datum[$type]);
+            }
+        }
+
+        return $results;
     }
 
     public function getInject($addonCode): array

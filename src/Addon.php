@@ -36,7 +36,7 @@ use PTAdmin\Addon\Service\DirectivesDTO;
  * @method static void reset()                                             重置插件管理
  * @method static bool hasAddon($addonCode)                                判断是否存在插件
  * @method static array getProviders()                                     获取所有插件的提供者信息
- * @method static array getInjects()                                       获取所有插件的注入信息
+ * @method static array getInjects($type = null)                           获取所有插件的注入信息
  * @method static array getResponses()                                     获取所有插件的资源路径
  * @method static array getDirectives()                                    获取所有插件的指令信息
  * @method static array getAddons()                                        获取所有插件应用的配置内容
@@ -75,6 +75,46 @@ class Addon extends Facade
     public static function execute(string $addonCode, string $method, array $params = [])
     {
         return AddonDirectivesActuator::handle($addonCode, $method, DirectivesDTO::build($params));
+    }
+
+    /**
+     * 获取支持的支付.
+     *
+     * @return array
+     */
+    public static function getInjectPayment(): array
+    {
+        return self::getInjects('payment');
+    }
+
+    /**
+     * 获取支持的第三方授权.
+     *
+     * @return array
+     */
+    public static function getInjectAuth(): array
+    {
+        return self::getInjects('auth');
+    }
+
+    /**
+     * 获取支持的第三方短信服务.
+     *
+     * @return array
+     */
+    public static function getInjectSMS(): array
+    {
+        return self::getInjects('sms');
+    }
+
+    /**
+     * 获取支持的第三方存储服务.
+     *
+     * @return array
+     */
+    public static function getInjectStorage(): array
+    {
+        return self::getInjects('storage');
     }
 
     protected static function getFacadeAccessor(): string

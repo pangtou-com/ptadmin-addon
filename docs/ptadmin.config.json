@@ -3,8 +3,8 @@
     "code": "插件编码code",
     "addon_path": "插件路径",
     "type": "插件类型： addon",
-    "keywords": ["cms", "内容管理系统"],
-    "description": "CMS内容管理系统",
+    "keywords": ["演示配置文件", "演示配置文件"],
+    "description": "演示配置文件",
     "version": "v0.0.1",
     "framework": "v1.0",
     "homepage": "https://www.pangtou.com",
@@ -16,7 +16,7 @@
                 "title": "qq登录",
                 "code": "wechat_pay",
                 "type": ["jsapi", "qrcode"],
-                "class": "Addon\\WechatPayment\\Payment@handle"
+                "class": "Addon\\WechatPayment\\Payment"
             }
         ],
         "payment": [
@@ -24,7 +24,7 @@
                 "title": "微信支付",
                 "code": "wechat_pay",
                 "type": ["jsapi", "qrcode"],
-                "class": "Addon\\WechatPayment\\Payment@handle"
+                "class": "Addon\\WechatPayment\\Payment"
             }
         ]
     },
