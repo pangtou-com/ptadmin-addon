@@ -26,6 +26,14 @@
                 "type": ["jsapi", "qrcode"],
                 "class": "Addon\\WechatPayment\\Payment"
             }
+        ],
+        "market": [
+            {
+                "title": "秒杀",
+                "code": "wechat_pay",
+                "type": ["jsapi", "qrcode"],
+                "class": "Addon\\WechatPayment\\Payment"
+            }
         ]
     },
     "hooks": {
