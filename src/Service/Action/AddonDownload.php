@@ -25,6 +25,8 @@ namespace PTAdmin\Addon\Service\Action;
 
 use Illuminate\Support\Facades\Http;
 use PTAdmin\Addon\AddonApi;
+use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonPackageValidator;
 use PTAdmin\Addon\Service\AddonUtil;
 
 /**
@@ -36,7 +38,7 @@ final class AddonDownload extends AbstractAddonAction
     private $progress = 0;
     private $hash;
 
-    public function handle($versionId = 0): ?string
+    public function handle($versionId = 0, bool $force = false): ?string
     {
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
         $data = AddonApi::getAddonDownloadUrl([
@@ -49,10 +51,10 @@ final class AddonDownload extends AbstractAddonAction
         $this->hash = $data['hash'] ?? '';
         $this->downloadAddon($data['url']);
 
-        return $this->move();
+        return $this->move($force);
     }
 
-    private function move(): ?string
+    private function move(bool $force = false): ?string
     {
         $base = $this->getUnzipDirname();
         if (null === $base) {
@@ -66,9 +68,19 @@ final class AddonDownload extends AbstractAddonAction
 
             return null;
         }
+        (new AddonPackageValidator(function (string $message): void {
+            $this->info($message);
+        }))->validate($info);
+
         $this->info("拷贝资源到插件目录：【{$info['title']}】");
         $target = base_path('addons'.\DIRECTORY_SEPARATOR.basename($base));
-        $this->filesystem->ensureDirectoryExists($target);
+        if (is_dir($target)) {
+            if (!$force) {
+                throw new AddonException("插件【{$info['code']}】已安装，请使用 --force 覆盖安装");
+            }
+            $this->filesystem->deleteDirectory($target);
+        }
+        $this->filesystem->ensureDirectoryExists(\dirname($target));
         $this->filesystem->moveDirectory($base, $target);
 
         return $base;

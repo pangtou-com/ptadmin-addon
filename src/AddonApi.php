@@ -128,6 +128,11 @@ class AddonApi
         return $results;
     }
 
+    public static function verifyAddonPurchase(array $data): array
+    {
+        return (new static())->send('verify', $data);
+    }
+
     /**
      * 获取云市场数据.
      *

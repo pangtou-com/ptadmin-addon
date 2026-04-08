@@ -24,8 +24,12 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service\Action;
 
 use Illuminate\Support\Str;
+use Illuminate\Filesystem\Filesystem;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonDirectivesManage;
+use PTAdmin\Addon\Service\AddonHooksManage;
+use PTAdmin\Addon\Service\AddonInjectsManage;
 
 class AddonAction
 {
@@ -89,6 +93,40 @@ class AddonAction
         return $this->code;
     }
 
+    public function backupCurrentAddon(string $code = null): ?string
+    {
+        $code = $code ?? $this->code;
+        if (!Addon::hasInstalledAddon($code)) {
+            return null;
+        }
+
+        $filesystem = new Filesystem();
+        $currentPath = Addon::getAddonPath($code);
+        $backupPath = $this->getStorePath('backup'.\DIRECTORY_SEPARATOR.basename($currentPath));
+        $filesystem->ensureDirectoryExists(\dirname($backupPath));
+        $filesystem->copyDirectory($currentPath, $backupPath);
+
+        return $backupPath;
+    }
+
+    public function findBackupAddonPath(): ?string
+    {
+        $base = $this->getStorePath('backup');
+        if (!is_dir($base)) {
+            return null;
+        }
+
+        $dirs = array_diff(scandir($base), ['.', '..']);
+        foreach ($dirs as $dir) {
+            $path = $base.\DIRECTORY_SEPARATOR.$dir;
+            if (is_dir($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * 安装插件.
      *
@@ -100,16 +138,23 @@ class AddonAction
      */
     public static function install(string $code, $versionId = 0, bool $force = false)
     {
-        $obj = new self($code);
-        if (true === $force && Addon::hasAddon($code)) {
-            $obj->addTask(AddonUninstall::class)->addTask(AddonDownload::class, $versionId)->addTask('refresh');
-        } else {
-            if (!Addon::hasAddon($code)) {
-                $obj->addTask(AddonDownload::class, $versionId)->addTask('refresh');
-            }
+        if (Addon::hasInstalledAddon($code) && !$force) {
+            throw new AddonException("插件【{$code}】已安装，请使用 --force 覆盖安装");
         }
 
-        return $obj->addTask(AddonInstall::class)->action();
+        $obj = new self($code);
+        if ($force) {
+            $obj->backupCurrentAddon();
+        }
+
+        return $obj->addTask(AddonDownload::class, $versionId, $force)->addTask('refresh')->addTask(AddonInstall::class)->action();
+    }
+
+    public static function installLocal(string $packageFile, bool $force = false)
+    {
+        $obj = new self('__local__');
+
+        return $obj->addTask(AddonLocalInstall::class, $packageFile, $force)->addTask('refresh')->action();
     }
 
     /**
@@ -148,16 +193,11 @@ class AddonAction
      *
      * @return null|array|mixed
      */
-    public static function upgrade(string $code, bool $force = false)
+    public static function upgrade(string $code, $versionId = 0, bool $force = false)
     {
         $obj = new self($code);
-        // 1、比对版本差异信息
-        // 2、服务端校验在授权范围内可获取的更新信息
-        // 4、备份待更新资源信息
-        // 3、下载更新包
-        // 5、解压更新包
-        // 6、执行更新操作
-        return $obj->addTask(AddonUpgrade::class)->action();
+
+        return $obj->addTask(AddonUpgrade::class, $versionId, $force)->addTask('refresh')->action();
     }
 
     /**
@@ -167,8 +207,21 @@ class AddonAction
      */
     public static function enable($code): void
     {
-        // 1、获取插件目录
-        // 2、执行启用
+        if (!Addon::hasInstalledAddon($code)) {
+            throw new AddonException("插件【{$code}】不存在");
+        }
+        $disableFile = Addon::getAddonPath($code, 'disable');
+        if (!file_exists($disableFile)) {
+            return;
+        }
+
+        $filesystem = new Filesystem();
+        $bootstrap = Addon::getAddonBootstrap($code);
+        if (null !== $bootstrap) {
+            $bootstrap->enable();
+        }
+        $filesystem->delete($disableFile);
+        (new self($code))->refresh();
     }
 
     /**
@@ -178,8 +231,21 @@ class AddonAction
      */
     public static function disable($code): void
     {
-        // 1、获取插件目录
-        // 2、执行禁用
+        if (!Addon::hasInstalledAddon($code)) {
+            throw new AddonException("插件【{$code}】不存在");
+        }
+        $disableFile = Addon::getAddonPath($code, 'disable');
+        if (file_exists($disableFile)) {
+            return;
+        }
+
+        $filesystem = new Filesystem();
+        $bootstrap = Addon::getAddonBootstrap($code);
+        if (null !== $bootstrap) {
+            $bootstrap->disable();
+        }
+        $filesystem->put($disableFile, '');
+        (new self($code))->refresh();
     }
 
     /**
@@ -213,6 +279,9 @@ class AddonAction
     private function refresh(): bool
     {
         Addon::reset();
+        AddonDirectivesManage::getInstance()->reset();
+        AddonInjectsManage::getInstance()->reset();
+        AddonHooksManage::getInstance()->reset();
 
         return true;
     }

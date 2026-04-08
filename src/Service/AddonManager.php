@@ -79,23 +79,12 @@ final class AddonManager
 
     public function getInjects($type = null): array
     {
-        $data = data_get($this->toArray(), '*.inject', []);
-        if (null === $type) {
-            return $data;
-        }
-        $results = [];
-        foreach ($data as $datum) {
-            if (isset($datum[$type])) {
-                $results = array_merge($results, $datum[$type]);
-            }
-        }
-
-        return $results;
+        return AddonInjectsManage::getInstance()->getInjects($type);
     }
 
     public function getInject($addonCode): array
     {
-        return $this->getAddonManager($addonCode)->getInject();
+        return AddonInjectsManage::getInstance()->getInject($addonCode);
     }
 
     public function getResponses(): array
@@ -110,17 +99,22 @@ final class AddonManager
 
     public function getDirectives(): array
     {
-        $data = [];
-        foreach ($this->addonManager as $key => $value) {
-            $data[$key] = $value->getDirectives();
-        }
-
-        return $data;
+        return AddonDirectivesManage::getInstance()->getAll();
     }
 
     public function getDirective($addonCode): array
     {
-        return $this->getAddonManager($addonCode)->getDirectives();
+        return AddonDirectivesManage::getInstance()->getDirectives($addonCode);
+    }
+
+    public function getHooks(): array
+    {
+        return AddonHooksManage::getInstance()->getAll();
+    }
+
+    public function getHook($addonCode): array
+    {
+        return AddonHooksManage::getInstance()->getHooks($addonCode);
     }
 
     public function getAddons(): array
@@ -135,7 +129,16 @@ final class AddonManager
 
     public function getAddonPath($addonCode, $path = null): string
     {
-        return $this->getAddon($addonCode)->getAddonPath($path);
+        if ($this->hasAddon($addonCode)) {
+            return $this->getAddon($addonCode)->getAddonPath($path);
+        }
+
+        $addon = $this->getInstalledAddonConfig($addonCode);
+        if (null === $addon) {
+            throw new AddonException("未定义的插件【{$addonCode}】");
+        }
+
+        return base_path('addons'.\DIRECTORY_SEPARATOR.$addon['base_path'].(null !== $path ? \DIRECTORY_SEPARATOR.$path : ''));
     }
 
     /**
@@ -148,7 +151,21 @@ final class AddonManager
      */
     public function getAddonNamespace($addonCode, $namespace = null): string
     {
-        return $this->getAddon($addonCode)->getAddonNamespace($namespace);
+        if ($this->hasAddon($addonCode)) {
+            return $this->getAddon($addonCode)->getAddonNamespace($namespace);
+        }
+
+        $addon = $this->getInstalledAddonConfig($addonCode);
+        if (null === $addon) {
+            throw new AddonException("未定义的插件【{$addonCode}】");
+        }
+
+        return 'Addon\\'.$addon['base_path'].($namespace ? '\\'.$namespace : '');
+    }
+
+    public function getAddonInstaller($addonCode)
+    {
+        return $this->resolveAddonEntry($addonCode, 'installer', BaseInstaller::class, 'Installer');
     }
 
     /**
@@ -214,7 +231,7 @@ final class AddonManager
     {
         $addon = $this->getAddon($addonCode)->getAddons();
 
-        return $addon['require'] ?? [];
+        return data_get($addon, 'dependencies.plugins', $addon['require'] ?? []);
     }
 
     /**
@@ -228,8 +245,11 @@ final class AddonManager
     {
         $addons = $this->getAddons();
         foreach ($addons as $value) {
-            if (isset($value['require'], $value['require'][$addonCode])) {
-                return true;
+            $required = data_get($value, 'addons.dependencies.plugins', $value['addons']['require'] ?? []);
+            foreach ($required as $key => $dependency) {
+                if ((\is_int($key) && $dependency === $addonCode) || $key === $addonCode) {
+                    return true;
+                }
             }
         }
 
@@ -250,6 +270,13 @@ final class AddonManager
             return true;
         }
         foreach ($required as $key => $val) {
+            if (\is_int($key)) {
+                if (!$this->hasAddon($val)) {
+                    return false;
+                }
+
+                continue;
+            }
             if (!$this->checkAddonVersion($key, $val)) {
                 return false;
             }
@@ -267,7 +294,13 @@ final class AddonManager
      */
     public function getAddonVersion($addonCode): ?string
     {
-        $addon = $this->getAddon($addonCode);
+        if ($this->hasAddon($addonCode)) {
+            $addon = $this->getAddon($addonCode);
+
+            return $addon->getVersion();
+        }
+
+        $addon = $this->getInstalledAddonConfig($addonCode);
 
         return $addon['version'] ?? null;
     }
@@ -295,23 +328,18 @@ final class AddonManager
      */
     public function getAddonBootstrap($addonCode)
     {
-        $path = $this->getAddonPath($addonCode, 'Bootstrap.php');
-        if (!file_exists($path)) {
-            return null;
-        }
-        $class = $this->getAddonNamespace($addonCode, 'Bootstrap');
-        if (is_subclass_of($class, BaseBootstrap::class)) {
-            return new $class();
-        }
-
-        return null;
+        return $this->resolveAddonEntry($addonCode, 'bootstrap', BaseBootstrap::class, 'Bootstrap');
     }
 
     public function toArray(): array
     {
         $data = [];
         foreach ($this->addonManager as $key => $value) {
-            $data[$key] = $value->toArray();
+            $data[$key] = array_merge($value->toArray(), [
+                'inject' => $this->getInject($key),
+                'directives' => $this->getDirective($key),
+                'hooks' => $this->getHook($key),
+            ]);
         }
 
         return $data;
@@ -330,7 +358,12 @@ final class AddonManager
     {
         $this->reset();
         $content = "<?php\nreturn ".$this.';';
-        file_put_contents(AddonUtil::getAddonCacheDir(), $content);
+        $cacheFile = AddonUtil::getAddonCacheDir();
+        $cacheDir = \dirname($cacheFile);
+        if (!is_dir($cacheDir)) {
+            mkdir($cacheDir, 0755, true);
+        }
+        file_put_contents($cacheFile, $content);
     }
 
     public function reset(): void
@@ -355,6 +388,11 @@ final class AddonManager
         }
 
         return $this->addonManager[$addonCode];
+    }
+
+    public function hasInstalledAddon(string $addonCode): bool
+    {
+        return null !== $this->getInstalledAddonConfig($addonCode);
     }
 
     /**
@@ -387,7 +425,7 @@ final class AddonManager
     private function loadCacheConfig($data): void
     {
         foreach ($data as $key => $config) {
-            $this->addonManager[$key] = new AddonConfigManager($config);
+            $this->addonManager[$key] = new AddonConfigManager($config['addons'] ?? $config);
         }
     }
 
@@ -404,5 +442,72 @@ final class AddonManager
         }
 
         $this->loadConfig(AddonUtil::getAddonsDirs());
+    }
+
+    private function getInstalledAddonConfig(string $addonCode): ?array
+    {
+        $addons = $this->getInstalledAddons();
+
+        return $addons[$addonCode] ?? null;
+    }
+
+    private function resolveAddonEntry(string $addonCode, string $entryKey, string $baseClass, string $defaultClass): ?object
+    {
+        $class = $this->getAddonEntryClass($addonCode, $entryKey, $defaultClass);
+        if (null === $class) {
+            return null;
+        }
+
+        $path = $this->getAddonEntryPath($addonCode, $class);
+        if (null !== $path && file_exists($path) && !class_exists($class, false)) {
+            require_once $path;
+        }
+
+        if (is_subclass_of($class, $baseClass)) {
+            return new $class();
+        }
+
+        return null;
+    }
+
+    private function getAddonEntryClass(string $addonCode, string $entryKey, string $defaultClass): ?string
+    {
+        if ($this->hasAddon($addonCode)) {
+            $entry = $this->getAddon($addonCode)->getEntry($entryKey);
+            if (\is_string($entry) && '' !== $entry) {
+                return $entry;
+            }
+
+            return $this->getAddonNamespace($addonCode, $defaultClass);
+        }
+
+        $addon = $this->getInstalledAddonConfig($addonCode);
+        if (null === $addon) {
+            throw new AddonException("未定义的插件【{$addonCode}】");
+        }
+
+        $entry = data_get($addon, 'entry.'.$entryKey);
+        if (\is_string($entry) && '' !== $entry) {
+            return $entry;
+        }
+
+        return 'Addon\\'.$addon['base_path'].'\\'.$defaultClass;
+    }
+
+    private function getAddonEntryPath(string $addonCode, string $class): ?string
+    {
+        $addon = $this->getInstalledAddonConfig($addonCode);
+        if (null === $addon) {
+            return null;
+        }
+
+        $prefix = 'Addon\\'.$addon['base_path'].'\\';
+        if (0 !== strpos($class, $prefix)) {
+            return null;
+        }
+
+        $relative = str_replace('\\', \DIRECTORY_SEPARATOR, substr($class, \strlen($prefix)));
+
+        return $this->getAddonPath($addonCode, $relative.'.php');
     }
 }

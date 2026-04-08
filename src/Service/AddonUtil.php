@@ -40,7 +40,7 @@ class AddonUtil
 
     public static function readAddonConfig($path)
     {
-        $filename = $path.\DIRECTORY_SEPARATOR.'ptadmin.config.json';
+        $filename = $path.\DIRECTORY_SEPARATOR.'manifest.json';
         if (!file_exists($filename)) {
             return null;
         }
@@ -49,13 +49,12 @@ class AddonUtil
             return null;
         }
 
-        $config = @json_decode($content, true);
-        if (null === $config || !isset($config['code'])) {
+        $manifest = @json_decode($content, true);
+        if (null === $manifest || !isset($manifest['code'])) {
             return null;
         }
-        $config['base_path'] = basename($path);
 
-        return $config;
+        return self::normalizeManifest($manifest, basename($path));
     }
 
     /**
@@ -124,5 +123,32 @@ class AddonUtil
     private function excludeMd5($file, $exclude): bool
     {
         return false;
+    }
+
+    private static function normalizeManifest(array $manifest, string $basePath): array
+    {
+        $entry = $manifest['entry'] ?? [];
+        $resources = $manifest['resources'] ?? [];
+
+        return array_merge($manifest, [
+            'id' => $manifest['id'] ?? $manifest['code'],
+            'title' => $manifest['title'] ?? $manifest['name'] ?? $manifest['code'],
+            'name' => $manifest['name'] ?? $manifest['title'] ?? $manifest['code'],
+            'develop' => (bool) ($manifest['develop'] ?? false),
+            'base_path' => $basePath,
+            'entry' => [
+                'installer' => $entry['installer'] ?? 'Addon\\'.$basePath.'\\Installer',
+                'bootstrap' => $entry['bootstrap'] ?? 'Addon\\'.$basePath.'\\Bootstrap',
+            ],
+            'response' => [
+                'asset' => $resources['assets'] ?? data_get($manifest, 'response.asset'),
+                'route' => $resources['routes'] ?? data_get($manifest, 'response.route'),
+                'view' => $resources['views'] ?? data_get($manifest, 'response.view'),
+                'lang' => $resources['lang'] ?? data_get($manifest, 'response.lang'),
+                'config' => $resources['config'] ?? data_get($manifest, 'response.config'),
+                'func' => $resources['functions'] ?? data_get($manifest, 'response.func'),
+            ],
+            'require' => $manifest['require'] ?? data_get($manifest, 'dependencies.plugins', []),
+        ]);
     }
 }

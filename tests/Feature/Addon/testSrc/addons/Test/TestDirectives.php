@@ -23,6 +23,8 @@ declare(strict_types=1);
 
 namespace PTAdmin\AddonTests\Feature\Addon\testSrc\addons\Test;
 
+use PTAdmin\Addon\Service\HookPayload;
+
 class TestDirectives
 {
     public function handle(): array
@@ -36,5 +38,13 @@ class TestDirectives
     public function auth(): bool
     {
         return false;
+    }
+
+    public function paymentSuccess(HookPayload $payload): array
+    {
+        return [
+            'event' => 'payment.success',
+            'order_id' => $payload->get('order_id'),
+        ];
     }
 }

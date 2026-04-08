@@ -61,8 +61,10 @@ abstract class AbstractAddonAction
         if (null !== $this->action) {
             $this->filesystem->deleteDirectory($this->action->getStorePath());
         }
-        Addon::reset();
-        Addon::refreshCache();
+        if (app()->bound('addon')) {
+            Addon::reset();
+            Addon::refreshCache();
+        }
     }
 
     /**

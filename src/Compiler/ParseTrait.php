@@ -138,7 +138,13 @@ trait ParseTrait
     private function addResult($tag, $temp): void
     {
         $tag = trim($tag);
+        if ('id' === $tag && \is_string($temp)) {
+            $temp = trim($temp);
+        }
         $this->result[$tag] = $temp;
+        if ('id' === $tag && '' !== $temp && method_exists($this, 'checkId')) {
+            $this->checkId($tag);
+        }
 
         // 写入数据后需要清理临时数据
         $this->setTemp('');

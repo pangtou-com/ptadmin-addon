@@ -85,7 +85,7 @@ class Parser
      */
     public function isOutput(): bool
     {
-        return $this->result['out'] ?? false;
+        return false !== $this->getAttribute('out', false);
     }
 
     /**
@@ -119,12 +119,19 @@ class Parser
     public function getEmpty(): string
     {
         $empty = $this->getAttribute("empty");
+        if (!\is_string($empty)) {
+            return (string) $empty;
+        }
         $char = mb_substr($empty, 0, 1, 'UTF-8');
         if ('$' === $char) {
             return $empty;
         }
 
-        return "{$empty}";
+        if (Str::contains($empty, ["'"])) {
+            $empty = Str::replace("'", "\\'", $empty);
+        }
+
+        return "'{$empty}'";
     }
 
     /**

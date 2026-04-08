@@ -36,20 +36,6 @@ abstract class BaseBootstrap
     public $admin_parent_menu;
 
     /**
-     * 插件安装.成功后调用.
-     */
-    public function install(): void
-    {
-    }
-
-    /**
-     * 插件卸载.
-     */
-    public function uninstall(): void
-    {
-    }
-
-    /**
      * 插件启用之前调用.
      */
     public function enable(): void
@@ -64,9 +50,25 @@ abstract class BaseBootstrap
     }
 
     /**
-     * 插件升级.
+     * 注册模版指令.
+     *
+     * 插件应在此方法中使用代码注册指令。
      */
-    public function upgrade(): void
+    public function registerDirectives(AddonDirectivesManage $manager): void
+    {
+    }
+
+    /**
+     * 注册插件能力注入.
+     */
+    public function registerInjects(AddonInjectsManage $manager): void
+    {
+    }
+
+    /**
+     * 注册插件 hooks.
+     */
+    public function registerHooks(AddonHooksManage $manager): void
     {
     }
 }

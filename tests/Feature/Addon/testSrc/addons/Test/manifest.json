@@ -1,0 +1,30 @@
+{
+    "id": "test",
+    "code": "test",
+    "name": "演示配置文件",
+    "description": "CMS内容管理系统",
+    "version": "v0.0.1",
+    "develop": false,
+    "type": "module",
+    "keywords": ["cms", "内容管理系统"],
+    "homepage": "https://www.pangtou.com",
+    "docs": "https://www.pangtou.com",
+    "authors": [{"name": "Zane", "email": "873934580@qq.com"}],
+    "providers": "PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestProviderServices",
+    "compatibility": {
+        "ptadmin/admin": ">=1.0",
+        "ptadmin/base": ">=1.0"
+    },
+    "entry": {
+        "installer": "Addon\\Test\\Installer",
+        "bootstrap": "Addon\\Test\\Bootstrap"
+    },
+    "resources": {
+        "assets": "./Assets",
+        "routes": "./Routes",
+        "views": "./Response/views",
+        "lang": "./Response/Lang",
+        "config": "./Config",
+        "functions": "./functions.php"
+    }
+}

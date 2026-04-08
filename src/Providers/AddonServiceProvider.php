@@ -31,7 +31,11 @@ use Illuminate\Support\Str;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Commands\AddonCache;
 use PTAdmin\Addon\Commands\AddonCacheClear;
+use PTAdmin\Addon\Commands\AddonDisable;
+use PTAdmin\Addon\Commands\AddonEnable;
 use PTAdmin\Addon\Commands\AddonInstall;
+use PTAdmin\Addon\Commands\AddonInstallLocal;
+use PTAdmin\Addon\Commands\AddonInit;
 use PTAdmin\Addon\Commands\AddonLogin;
 use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpgrade;
@@ -48,6 +52,7 @@ class AddonServiceProvider extends ServiceProvider
 
     public function register(): void
     {
+        $this->mergeConfigFrom($this->getPath('Config/addon.php'), 'addon');
         $this->app->singleton('addon', function () {
             return new AddonManager();
         });
@@ -66,8 +71,12 @@ class AddonServiceProvider extends ServiceProvider
         $this->registerCompiler();
         $this->commands([
             AddonInstall::class,
+            AddonInstallLocal::class,
+            AddonInit::class,
             AddonUninstall::class,
             AddonUpgrade::class,
+            AddonEnable::class,
+            AddonDisable::class,
             AddonUpload::class,
             AddonCache::class,
             AddonCacheClear::class,

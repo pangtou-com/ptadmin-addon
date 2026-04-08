@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitepress'
 import { getNavBar } from "./nav";
-import { getSideBarGuide, getSideBarExtend } from "./sidebar";
+import { getSideBarApi, getSideBarExamples, getSideBarGuide } from "./sidebar";
 
 
 // https://vitepress.dev/reference/site-config
@@ -15,8 +15,9 @@ export default defineConfig({
         logo: '/favicon.png',
         nav: getNavBar(),
         sidebar: {
-            '/guide': getSideBarGuide(),
-            '/extend': getSideBarExtend(),
+            '/guide/': getSideBarGuide(),
+            '/api/': getSideBarApi(),
+            '/examples/': getSideBarExamples(),
         },
         socialLinks: [
             { icon: 'github', link: 'https://github.com/pangtou-com/ptadmin-addon' },

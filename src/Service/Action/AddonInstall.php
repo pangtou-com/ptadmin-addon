@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service\Action;
 
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\Database;
 
 /**
@@ -31,18 +32,27 @@ use PTAdmin\Addon\Service\Database;
  */
 final class AddonInstall extends AbstractAddonAction
 {
-    private $bootstrap;
+    private $installer;
 
     public function handle(): ?bool
     {
         $this->info('开始安装插件');
-        $this->bootstrap = Addon::getAddonBootstrap($this->code);
-        if (false === $this->beforeInstall()) {
-            return null;
-        }
-        $this->installSql();
-        if (null !== $this->bootstrap) {
-            $this->bootstrap->install();
+        $this->installer = Addon::getAddonInstaller($this->code);
+        try {
+            if (false === $this->beforeInstall()) {
+                return null;
+            }
+            $this->installSql();
+            if (null !== $this->installer) {
+                $this->installer->install();
+                $this->installer->init();
+            }
+        } catch (\Throwable $exception) {
+            $this->rollbackInstalledAddon();
+
+            throw $exception instanceof AddonException
+                ? $exception
+                : new AddonException($exception->getMessage(), 20000, $exception);
         }
         $this->info('插件安装成功');
 
@@ -54,12 +64,10 @@ final class AddonInstall extends AbstractAddonAction
      */
     public function beforeInstall(): bool
     {
-        if (method_exists($this->bootstrap, 'beforeInstall')) {
-            if (false === $this->bootstrap->beforeInstall()) {
-                $this->error('插件安装失败');
+        if (null !== $this->installer && false === $this->installer->beforeInstall()) {
+            $this->error('插件安装失败');
 
-                return false;
-            }
+            return false;
         }
 
         return true;
@@ -75,5 +83,33 @@ final class AddonInstall extends AbstractAddonAction
             $this->info('导入数据');
             app(Database::class)->restoreData($sql);
         }
+    }
+
+    private function rollbackInstalledAddon(): void
+    {
+        $targetPath = null;
+        if (Addon::hasInstalledAddon($this->code)) {
+            $targetPath = Addon::getAddonPath($this->code);
+        } else {
+            $addon = Addon::getInstalledAddons()[$this->code] ?? null;
+            if (null !== $addon) {
+                $targetPath = base_path('addons'.\DIRECTORY_SEPARATOR.$addon['base_path']);
+            }
+        }
+
+        $backupPath = $this->action->findBackupAddonPath();
+        if (null !== $targetPath && is_dir($targetPath)) {
+            $this->filesystem->deleteDirectory($targetPath);
+        }
+        if (null === $backupPath) {
+            Addon::reset();
+
+            return;
+        }
+
+        $restorePath = base_path('addons'.\DIRECTORY_SEPARATOR.basename($backupPath));
+        $this->filesystem->ensureDirectoryExists(\dirname($restorePath));
+        $this->filesystem->moveDirectory($backupPath, $restorePath);
+        Addon::reset();
     }
 }

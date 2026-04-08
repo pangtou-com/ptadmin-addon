@@ -3,45 +3,33 @@
  */
 export function getSideBarGuide() {
     return [
-        { text: 'PTAdmin\/Easy?', link: '/guide/index.md' },
-        { text: '安装', link: '/guide/install.md' },
-        { text: '示例', link: '/guide/example.md' },
-        {
-            text: 'API',
-            collapsible: true,
-            items: [
-                { text: '模型管理', link: '/guide/mod.md' },
-                { text: '模型字段管理', link: '/guide/field.md' },
-                { text: '数据处理', link: '/guide/handler.md' },
-                { text: '渲染处理', link: '/guide/render.md' },
-            ],
-        },
-        { text: '配置说明', link: '/guide/config.md' },
-        { text: '开发计划', link: '/guide/plan.md' },
+        { text: '概览', link: '/guide/index.md' },
+        { text: '快速开始', link: '/guide/quick-start.md' },
+        { text: 'Manifest', link: '/guide/manifest.md' },
+        { text: '生命周期', link: '/guide/lifecycle.md' },
+        { text: '插件样板', link: '/guide/plugin-starter.md' },
     ]
 }
 
-/**
- * 扩展模块左侧菜单
- */
-export function getSideBarExtend() {
+export function getSideBarApi() {
     return [
-        { text: '介绍', link: '/extend/index.md' },
+        { text: '概览', link: '/api/index.md' },
+        { text: '命令行', link: '/api/commands.md' },
+        { text: 'Facade API', link: '/api/facade.md' },
+        { text: '能力接口', link: '/api/contracts.md' },
         {
-            text: '模型扩展',
+            text: '运行期注册',
             collapsible: true,
             items: [
-                { text: '模型字段扩展', link: '/extend/mod.md' },
-                { text: '模型事件处理', link: '/extend/field.md' },
+                { text: 'Bootstrap 与 Installer', link: '/api/runtime.md' },
             ],
         },
-        {
-            text: '组件扩展',
-            collapsible: true,
-            items: [
-                { text: '自定义组件', link: '/extend/mod.md' },
-                { text: '组件规则', link: '/extend/field.md' },
-            ],
-        },
+    ]
+}
+
+export function getSideBarExamples() {
+    return [
+        { text: '概览', link: '/examples/index.md' },
+        { text: '常见场景', link: '/examples/common-scenarios.md' },
     ]
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  *  PTAdmin
  *  ============================================================================
- *  版权所有 2022-2024 重庆胖头网络技术有限公司，并保留所有权利。
+ *  版权所有 2022-2025 重庆胖头网络技术有限公司，并保留所有权利。
  *  网站地址: https://www.pangtou.com
  *  ----------------------------------------------------------------------------
  *  尊敬的用户，
@@ -23,38 +23,177 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Service\Action;
 
+use Illuminate\Support\Facades\Http;
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\AddonApi;
+use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonUtil;
 
 final class AddonUpgrade extends AbstractAddonAction
 {
-    public function handle($force = false): ?bool
+    /** @var int */
+    private $progress = 0;
+
+    /** @var string */
+    private $hash = '';
+
+    public function handle($versionId = 0, $force = false): ?bool
     {
-        // 1、校验插件是否进行过二次开发
-        //  1.1、进行二次开发需要确认是否允许覆盖
-        // 2、获取插件最新版本
-        // 3、比对更新文件，
-        // 4、备份插件文件、
-        // 5、升级插件
-        //  6、升级恢复资源
+        if (!Addon::hasInstalledAddon($this->code)) {
+            throw new AddonException("插件【{$this->code}】不存在");
+        }
         if ($this->isDevelop() && !$force) {
-            $this->error('插件【'.$this->code.'】进行二次开发，请先确认是否允许覆盖');
+            $this->error("插件【{$this->code}】当前处于开发模式，请确认后再使用强制覆盖");
 
             return null;
+        }
+
+        $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
+        $currentPath = Addon::getAddonPath($this->code);
+        $currentVersion = Addon::getAddonVersion($this->code);
+        $disabled = file_exists($currentPath.\DIRECTORY_SEPARATOR.'disable');
+
+        $this->info('开始备份插件');
+        $backupPath = $this->backupAddon($currentPath);
+        $sourceDir = $this->downloadAndUnzip($versionId);
+        $newConfig = AddonUtil::readAddonConfig($sourceDir);
+        if (null === $newConfig || ($newConfig['code'] ?? null) !== $this->code) {
+            throw new AddonException("插件【{$this->code}】升级包无效");
+        }
+
+        try {
+            $this->info("开始升级插件【{$this->code}】");
+            $this->replaceAddon($sourceDir, $currentPath, $disabled);
+
+            $installer = Addon::getAddonInstaller($this->code);
+            if (null !== $installer) {
+                $installer->upgrade($currentVersion, $newConfig['version'] ?? null);
+            }
+            $this->info("插件升级完成：{$currentVersion} -> ".($newConfig['version'] ?? 'unknown'));
+        } catch (\Throwable $exception) {
+            $this->restoreBackup($backupPath, $currentPath, $disabled);
+
+            throw $exception;
         }
 
         return true;
     }
 
     /**
-     * 判断当前应用是否进行二次开发.
-     *
-     * @return bool
+     * 判断当前插件是否处于开发模式.
      */
     protected function isDevelop(): bool
     {
-        $addon = Addon::getAddon($this->code);
-        $data = [];
+        $addons = Addon::getInstalledAddons();
 
-        return false;
+        return (bool) ($addons[$this->code]['develop'] ?? false);
+    }
+
+    private function backupAddon(string $currentPath): string
+    {
+        $backupPath = $this->action->getStorePath('backup'.\DIRECTORY_SEPARATOR.basename($currentPath));
+        $this->filesystem->ensureDirectoryExists(\dirname($backupPath));
+        $this->filesystem->copyDirectory($currentPath, $backupPath);
+
+        return $backupPath;
+    }
+
+    private function restoreBackup(string $backupPath, string $targetPath, bool $disabled): void
+    {
+        $this->filesystem->deleteDirectory($targetPath);
+        $this->filesystem->moveDirectory($backupPath, $targetPath);
+        if ($disabled) {
+            $this->filesystem->put($targetPath.\DIRECTORY_SEPARATOR.'disable', '');
+        }
+    }
+
+    private function replaceAddon(string $sourceDir, string $targetPath, bool $disabled): void
+    {
+        $this->filesystem->deleteDirectory($targetPath);
+        $this->filesystem->ensureDirectoryExists(\dirname($targetPath));
+        if (!$this->filesystem->moveDirectory($sourceDir, $targetPath)) {
+            throw new AddonException("插件【{$this->code}】升级失败，无法替换插件目录");
+        }
+        if ($disabled) {
+            $this->filesystem->put($targetPath.\DIRECTORY_SEPARATOR.'disable', '');
+        }
+    }
+
+    private function downloadAndUnzip($versionId): string
+    {
+        $data = AddonApi::getAddonDownloadUrl([
+            'code' => $this->code,
+            'addon_version_id' => $versionId,
+        ]);
+        if (!isset($data['url']) || '' === $data['url']) {
+            throw new AddonException("插件【{$this->code}】获取下载地址失败");
+        }
+        $this->hash = $data['hash'] ?? '';
+        $this->downloadPackage($data['url']);
+
+        $dirname = $this->getUnzipDirname();
+        if (null === $dirname) {
+            throw new AddonException("插件【{$this->code}】解压失败");
+        }
+
+        return $dirname;
+    }
+
+    private function downloadPackage(string $url): void
+    {
+        $limit = 0;
+        $this->info('开始下载升级包');
+
+        download:
+        $response = Http::withOptions([
+            'progress' => function ($total, $downloaded): void {
+                if ($total > 0) {
+                    $progress = (int) ($downloaded / $total * 100);
+                    if ($progress !== $this->progress) {
+                        $this->progress = $progress;
+                        $this->info("下载进度：【{$progress}%】");
+                    }
+                }
+            },
+        ])->get($url);
+
+        if (!$response->successful()) {
+            throw new AddonException('插件升级包下载失败');
+        }
+
+        $body = $response->body();
+        file_put_contents($this->getDownloadFilename(), $body);
+        if ('' !== $this->hash && md5($body) !== $this->hash) {
+            if ($limit >= 5) {
+                throw new AddonException("插件【{$this->code}】升级包校验失败");
+            }
+            ++$limit;
+
+            goto download;
+        }
+
+        $this->unzip($this->getDownloadFilename(), $this->action->getStorePath('package'));
+    }
+
+    private function getDownloadFilename(): string
+    {
+        return $this->action->getStorePath($this->filename);
+    }
+
+    private function getUnzipDirname(): ?string
+    {
+        clearstatcache();
+        $base = $this->action->getStorePath('package');
+        if (!is_dir($base)) {
+            return null;
+        }
+        $dirs = scandir($base);
+        foreach ($dirs as $dir) {
+            if ('.' !== $dir && '..' !== $dir && is_dir($base.\DIRECTORY_SEPARATOR.$dir)) {
+                return $base.\DIRECTORY_SEPARATOR.$dir;
+            }
+        }
+
+        return null;
     }
 }

@@ -3,25 +3,24 @@
 layout: home
 
 hero:
-  name: "PTAdmin/Easy"
-  tagline: 轻松完成`CURD`
+  name: "PTAdmin/Addon"
+  tagline: 面向低代码平台的插件管理器
   actions:
     - theme: brand
-      text: 开发示例
-      link: /examples
-    - theme: alt
       text: 快速开始
       link: /guide/quick-start
     - theme: alt
-      text: Gitee
-      link: https://gitee.com/ptadmin/ptadmin-easy
+      text: API 文档
+      link: /api/index
+    - theme: alt
+      text: GitHub
+      link: https://github.com/pangtou-com/ptadmin-addon
 
 features:
-  - title: 轻松构建
-    details: 通过配置，快速实现CURD操作
-  - title: 组件丰富
-    details: 内置丰富的组件可完成不同的数据类型支持
-  - title: 可自定义扩展
-    details: 支持组件字段自定义
+  - title: 清晰协议
+    details: 统一使用 manifest、Installer、Bootstrap 三层协议描述插件。
+  - title: 运行期注册
+    details: directives、inject、hooks 全部通过代码注册，便于 IDE 跳转和重构。
+  - title: 安装与回滚
+    details: 支持云端安装、本地 zip 安装、升级、启停、安装失败回滚。
 ---
-
