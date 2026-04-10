@@ -18,6 +18,31 @@ use PTAdmin\AddonTests\Feature\Addon\testSrc\addons\Test\TestPaymentService;
 
 class Bootstrap extends BaseBootstrap
 {
+    public ?string $admin_parent_menu = null;
+
+    public array $admin_menu = [
+        [
+            'name' => 'dashboard',
+            'title' => '测试概览',
+            'icon' => 'layui-icon-home',
+            'route' => '/test',
+            'type' => 'nav',
+            'is_nav' => 1,
+            'weight' => 10,
+            'note' => '测试插件后台入口',
+            'children' => [
+                [
+                    'name' => 'create',
+                    'title' => '新增',
+                    'type' => 'btn',
+                    'is_nav' => 0,
+                    'weight' => 100,
+                    'note' => '测试按钮资源',
+                ],
+            ],
+        ],
+    ];
+
     public function enable(): void
     {
         file_put_contents(base_path('addons/Test/enable.log'), 'enabled');

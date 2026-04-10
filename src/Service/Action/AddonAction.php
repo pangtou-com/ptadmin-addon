@@ -27,6 +27,7 @@ use Illuminate\Support\Str;
 use Illuminate\Filesystem\Filesystem;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonAdminResourceSynchronizer;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
 use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
@@ -220,6 +221,7 @@ class AddonAction
         if (null !== $bootstrap) {
             $bootstrap->enable();
         }
+        app(AddonAdminResourceSynchronizer::class)->sync((string) $code);
         $filesystem->delete($disableFile);
         (new self($code))->refresh();
     }
@@ -244,6 +246,7 @@ class AddonAction
         if (null !== $bootstrap) {
             $bootstrap->disable();
         }
+        app(AddonAdminResourceSynchronizer::class)->disable((string) $code);
         $filesystem->put($disableFile, '');
         (new self($code))->refresh();
     }

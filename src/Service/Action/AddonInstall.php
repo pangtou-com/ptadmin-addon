@@ -25,6 +25,7 @@ namespace PTAdmin\Addon\Service\Action;
 
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonAdminResourceSynchronizer;
 use PTAdmin\Addon\Service\Database;
 
 /**
@@ -47,6 +48,7 @@ final class AddonInstall extends AbstractAddonAction
                 $this->installer->install();
                 $this->installer->init();
             }
+            app(AddonAdminResourceSynchronizer::class)->sync($this->code);
         } catch (\Throwable $exception) {
             $this->rollbackInstalledAddon();
 

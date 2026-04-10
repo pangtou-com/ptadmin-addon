@@ -40,6 +40,31 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use ZipArchive;
 
+class FakeAdminResourceServiceForAddonTest
+{
+    public array $synced = [];
+    public array $disabled = [];
+    public array $deleted = [];
+
+    public function syncAddonResources(string $addonCode, array $definitions): void
+    {
+        $this->synced[] = array(
+            'addon_code' => $addonCode,
+            'definitions' => $definitions,
+        );
+    }
+
+    public function disableAddonResources(string $addonCode): void
+    {
+        $this->disabled[] = $addonCode;
+    }
+
+    public function deleteByAddonCode(string $addonCode): void
+    {
+        $this->deleted[] = $addonCode;
+    }
+}
+
 beforeEach(function (): void {
     $app = $this->app;
     $app->setBasePath(__DIR__.\DIRECTORY_SEPARATOR.'testSrc');
@@ -324,6 +349,8 @@ it('rejects unsupported inject actions', function (): void {
 
 it('disable and enable addon', function (): void {
     $testAddonDir = __DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test';
+    $fakeService = new FakeAdminResourceServiceForAddonTest();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
 
     AddonAction::disable('test');
 
@@ -335,7 +362,14 @@ it('disable and enable addon', function (): void {
 
     expect(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'disable'))->toBeFalse()
         ->and(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'enable.log'))->toBeTrue()
-        ->and(Addon::hasAddon('test'))->toBeTrue();
+        ->and(Addon::hasAddon('test'))->toBeTrue()
+        ->and($fakeService->disabled)->toEqual(['test'])
+        ->and($fakeService->synced)->toHaveCount(1)
+        ->and(data_get($fakeService->synced[0], 'addon_code'))->toEqual('test')
+        ->and(data_get($fakeService->synced[0], 'definitions.0.code'))->toEqual('test')
+        ->and(data_get($fakeService->synced[0], 'definitions.1.code'))->toEqual('test.dashboard')
+        ->and(data_get($fakeService->synced[0], 'definitions.2.code'))->toEqual('test.dashboard.create')
+        ->and(data_get($fakeService->synced[0], 'definitions.2.type'))->toEqual('btn');
 });
 
 it('enable disabled addon without bootstrap', function (): void {
@@ -482,6 +516,8 @@ it('install addon from local zip package', function (): void {
     AddonDirectivesManage::getInstance()->reset();
     AddonInjectsManage::getInstance()->reset();
     AddonHooksManage::getInstance()->reset();
+    $fakeService = new FakeAdminResourceServiceForAddonTest();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
 
     expect(Addon::hasAddon('test'))->toBeFalse();
 
@@ -490,7 +526,12 @@ it('install addon from local zip package', function (): void {
     expect(Addon::hasAddon('test'))->toBeTrue()
         ->and(Addon::getAddonVersion('test'))->toEqual('v0.0.1')
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'install.log'))->toBeTrue()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'init.log'))->toBeTrue();
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'init.log'))->toBeTrue()
+        ->and($fakeService->synced)->toHaveCount(1)
+        ->and(data_get($fakeService->synced[0], 'addon_code'))->toEqual('test')
+        ->and(data_get($fakeService->synced[0], 'definitions.0.code'))->toEqual('test')
+        ->and(data_get($fakeService->synced[0], 'definitions.1.code'))->toEqual('test.dashboard')
+        ->and(data_get($fakeService->synced[0], 'definitions.2.code'))->toEqual('test.dashboard.create');
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -789,11 +830,14 @@ it('run uninstall lifecycle when removing addon', function (): void {
     AddonDirectivesManage::getInstance()->reset();
     AddonInjectsManage::getInstance()->reset();
     AddonHooksManage::getInstance()->reset();
+    $fakeService = new FakeAdminResourceServiceForAddonTest();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
 
     AddonAction::uninstall('test', true);
 
     expect(file_exists($basePath.\DIRECTORY_SEPARATOR.'addon-uninstall.log'))->toBeTrue()
-        ->and(is_dir($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'))->toBeFalse();
+        ->and(is_dir($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'))->toBeFalse()
+        ->and($fakeService->deleted)->toEqual(['test']);
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -820,6 +864,7 @@ it('init addon scaffold with standard development structure', function (): void 
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Bootstrap.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'README.md'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'functions.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Dashboard'.\DIRECTORY_SEPARATOR.'DemoAddonOverviewWidget.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Providers'.\DIRECTORY_SEPARATOR.'DemoAddonServiceProvider.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Models'.\DIRECTORY_SEPARATOR.'DemoAddon.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Service'.\DIRECTORY_SEPARATOR.'DemoAddonService.php'))->toBeTrue()
@@ -837,6 +882,7 @@ it('init addon scaffold with standard development structure', function (): void 
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'index.blade.php'))->toBeTrue()
         ->and($manifest['code'])->toEqual('demo-addon')
         ->and($manifest['develop'])->toBeTrue()
+        ->and(data_get($manifest, 'compatibility.php'))->toEqual('>=7.4')
         ->and(data_get($manifest, 'providers.0'))->toEqual('Addon\\DemoAddon\\Providers\\DemoAddonServiceProvider')
         ->and(data_get($manifest, 'entry.installer'))->toEqual('Addon\\DemoAddon\\Installer')
         ->and(data_get($manifest, 'entry.bootstrap'))->toEqual('Addon\\DemoAddon\\Bootstrap');

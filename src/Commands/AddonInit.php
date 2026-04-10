@@ -40,6 +40,7 @@ class AddonInit extends BaseAddonCommand
         $this->writeConfig($filesystem, $target, $code, $title);
         $this->writeModel($filesystem, $target, $basePath);
         $this->writeService($filesystem, $target, $basePath, $title, $code);
+        $this->writeDashboardWidget($filesystem, $target, $basePath, $title, $code);
         $this->writeControllers($filesystem, $target, $basePath, $title, $code);
         $this->writeViews($filesystem, $target, $title, $code);
         $this->writeReadme($filesystem, $target, $title, $basePath);
@@ -64,6 +65,7 @@ class AddonInit extends BaseAddonCommand
             $target.\DIRECTORY_SEPARATOR.'Database',
             $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Migrations',
             $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Seeders',
+            $target.\DIRECTORY_SEPARATOR.'Dashboard',
             $target.\DIRECTORY_SEPARATOR.'Http',
             $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers',
             $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Admin',
@@ -101,7 +103,7 @@ class AddonInit extends BaseAddonCommand
                 ],
             ],
             'compatibility' => [
-                'php' => '>=8.0',
+                'php' => '>=7.4',
             ],
             'providers' => [
                 'Addon\\'.$basePath.'\\Providers\\'.$basePath.'ServiceProvider',
@@ -153,7 +155,7 @@ declare(strict_types=1);
 
 namespace Addon\\{$basePath};
 
-use PTAdmin\\Admin\\Services\\AdminResourceService;
+use Addon\\{$basePath}\\Dashboard\\{$basePath}OverviewWidget;
 use PTAdmin\\Addon\\Service\\AddonDirectivesManage;
 use PTAdmin\\Addon\\Service\\AddonHooksManage;
 use PTAdmin\\Addon\\Service\\AddonInjectsManage;
@@ -176,18 +178,59 @@ class Bootstrap extends BaseBootstrap
         ],
     ];
 
-    public function enable(): void
+    /**
+     * 返回插件后台仪表盘组件定义。
+     *
+     * 后台会统一收集所有插件注册的组件定义，
+     * 再按需调用 `query_handler` 查询实时数据。
+     *
+     * @param string               \$addonCode
+     * @param array<string, mixed> \$addonInfo
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAdminDashboardWidgetDefinitions(string \$addonCode, array \$addonInfo = array()): array
     {
-        AdminResourceService::addonInstallMenu([
-            'code' => '{$code}',
-            'title' => '{$title}',
-            'description' => '{$title}',
-        ], \$this->admin_menu, \$this->admin_parent_menu);
-    }
-
-    public function disable(): void
-    {
-        AdminResourceService::addonUninstallMenu('{$code}');
+        return array(
+            array(
+                'code' => '{$code}.overview',
+                'title' => '{$title}概览',
+                'type' => 'stats',
+                'group' => 'overview',
+                'icon' => 'layui-icon-chart',
+                'sort' => 100,
+                'resource_code' => '{$code}.dashboard',
+                'description' => '{$title} 后台概览组件',
+                'default_query' => array(
+                    'range' => 'all',
+                ),
+                'capabilities' => array(
+                    'refresh' => true,
+                    'range' => false,
+                    'filters' => false,
+                    'drilldown' => false,
+                ),
+                'actions' => array(
+                    array(
+                        'code' => 'open_dashboard',
+                        'label' => '进入后台',
+                        'type' => 'link',
+                        'target' => '/{$code}',
+                    ),
+                    array(
+                        'code' => 'refresh_overview',
+                        'label' => '刷新统计',
+                        'type' => 'request',
+                        'confirm_text' => '确认刷新当前插件统计吗？',
+                        'meta' => array(
+                            'intent' => 'refresh',
+                        ),
+                    ),
+                ),
+                'query_handler' => {$basePath}OverviewWidget::class,
+                'cache_ttl' => 300,
+            ),
+        );
     }
 
     public function registerDirectives(AddonDirectivesManage \$manager): void
@@ -361,6 +404,95 @@ PHP
         );
     }
 
+    private function writeDashboardWidget(Filesystem $filesystem, string $target, string $basePath, string $title, string $code): void
+    {
+        $serviceProperty = lcfirst($basePath).'Service';
+
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Dashboard'.\DIRECTORY_SEPARATOR.$basePath.'OverviewWidget.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace Addon\\{$basePath}\\Dashboard;
+
+use Addon\\{$basePath}\\Service\\{$basePath}Service;
+use PTAdmin\\Contracts\\AdminDashboardWidgetActionHandlerInterface;
+use PTAdmin\\Contracts\\AdminDashboardWidgetHandlerInterface;
+
+class {$basePath}OverviewWidget implements AdminDashboardWidgetHandlerInterface, AdminDashboardWidgetActionHandlerInterface
+{
+    private {$basePath}Service \${$serviceProperty};
+
+    public function __construct({$basePath}Service \${$serviceProperty})
+    {
+        \$this->{$serviceProperty} = \${$serviceProperty};
+    }
+
+    /**
+     * @param array<string, mixed> \$query
+     * @param array<string, mixed> \$definition
+     * @param array<string, mixed> \$context
+     *
+     * @return array<string, mixed>
+     */
+    public function query(array \$query, array \$definition, array \$context = array()): array
+    {
+        \$dashboard = \$this->{$serviceProperty}->dashboard();
+        \$publicInfo = \$this->{$serviceProperty}->publicInfo();
+
+        return array(
+            'type' => 'stats',
+            'items' => array(
+                array(
+                    'code' => 'plugin_code',
+                    'label' => '插件编码',
+                    'value' => (string) (\$dashboard['code'] ?? '{$code}'),
+                ),
+                array(
+                    'code' => 'version',
+                    'label' => '当前版本',
+                    'value' => (string) (\$publicInfo['version'] ?? '1.0.0'),
+                ),
+                array(
+                    'code' => 'status',
+                    'label' => '开发状态',
+                    'value' => (string) (\$dashboard['status'] ?? 'developing'),
+                ),
+            ),
+            'query' => \$query,
+            'context' => \$context,
+            'definition_code' => (string) (\$definition['code'] ?? '{$code}.overview'),
+        );
+    }
+
+    /**
+     * @param string               \$actionCode
+     * @param array<string, mixed> \$payload
+     * @param array<string, mixed> \$definition
+     * @param array<string, mixed> \$context
+     * @param array<string, mixed> \$actionDefinition
+     *
+     * @return array<string, mixed>
+     */
+    public function executeAction(string \$actionCode, array \$payload, array \$definition, array \$context = array(), array \$actionDefinition = array()): array
+    {
+        return array(
+            'type' => 'action_result',
+            'message' => '插件仪表盘动作执行完成',
+            'action_code' => \$actionCode,
+            'payload' => \$payload,
+            'context' => \$context,
+            'action' => array(
+                'code' => (string) (\$actionDefinition['code'] ?? \$actionCode),
+                'label' => (string) (\$actionDefinition['label'] ?? ''),
+            ),
+        );
+    }
+}
+PHP
+        );
+    }
+
     private function writeControllers(Filesystem $filesystem, string $target, string $basePath, string $title, string $code): void
     {
         $serviceProperty = lcfirst($basePath).'Service';
@@ -480,6 +612,7 @@ BLADE
 
 建议从以下目录开始开发：
 
+- `Dashboard`
 - `Http/Controllers`
 - `Models`
 - `Providers`

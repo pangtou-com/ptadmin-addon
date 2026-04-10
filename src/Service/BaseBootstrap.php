@@ -30,10 +30,73 @@ abstract class BaseBootstrap
 {
     /** @var array 管理后台菜单目录 */
     // ['name' => ''， 'title' => '', 'icon' => '', 'route' => '', 'type' => '', 'is_nav' => 1, 'weight' => 99, 'note' => '']
-    public $admin_menu = [];
+    public array $admin_menu = [];
 
-    /** @var string 管理后台的父级菜单，当父级菜单不存在时则默认为插件为父级菜单 */
-    public $admin_parent_menu;
+    /** @var string|null 管理后台的父级菜单，当父级菜单不存在时则默认为插件为父级菜单 */
+    public ?string $admin_parent_menu = null;
+
+    /**
+     * 返回后台资源定义。
+     *
+     * 默认根据 `$admin_menu` 和 `$admin_parent_menu` 生成资源树，
+     * 插件也可以按需重写该方法输出更细粒度的资源定义。
+     *
+     * @param string               $addonCode
+     * @param array<string, mixed> $addonInfo
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAdminResourceDefinitions(string $addonCode, array $addonInfo = array()): array
+    {
+        $menu = \is_array($this->admin_menu) ? $this->admin_menu : array();
+        if ([] === $menu) {
+            return array();
+        }
+
+        $module = isset($addonInfo['module']) && '' !== (string) $addonInfo['module']
+            ? (string) $addonInfo['module']
+            : $addonCode;
+        $definitions = array();
+        $parentCode = null;
+
+        if (\is_string($this->admin_parent_menu) && '' !== trim($this->admin_parent_menu)) {
+            $parentCode = trim($this->admin_parent_menu);
+        } else {
+            $parentCode = $addonCode;
+            $definitions[] = array(
+                'code' => $parentCode,
+                'name' => (string) ($addonInfo['title'] ?? $addonInfo['name'] ?? $addonCode),
+                'type' => 'dir',
+                'module' => $module,
+                'addon_code' => $addonCode,
+                'is_nav' => 1,
+                'status' => 1,
+                'sort' => 0,
+                'meta_json' => array(
+                    'note' => (string) ($addonInfo['description'] ?? ''),
+                    'controller' => '',
+                ),
+            );
+        }
+
+        return array_merge($definitions, $this->buildChildResourceDefinitions($menu, $addonCode, $parentCode, $module, $addonCode));
+    }
+
+    /**
+     * 返回后台仪表盘组件定义。
+     *
+     * 第一阶段仅负责组件注册定义，不参与实际数据查询。
+     * 查询统一由 `ptadmin/admin` 聚合并调度到插件侧处理器。
+     *
+     * @param string               $addonCode
+     * @param array<string, mixed> $addonInfo
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAdminDashboardWidgetDefinitions(string $addonCode, array $addonInfo = array()): array
+    {
+        return array();
+    }
 
     /**
      * 插件启用之前调用.
@@ -70,5 +133,59 @@ abstract class BaseBootstrap
      */
     public function registerHooks(AddonHooksManage $manager): void
     {
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $menu
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildChildResourceDefinitions(array $menu, string $addonCode, string $parentCode, string $module, string $codePrefix): array
+    {
+        $definitions = array();
+
+        foreach ($menu as $item) {
+            if (!\is_array($item)) {
+                continue;
+            }
+
+            $name = trim((string) ($item['name'] ?? $item['code'] ?? ''));
+            if ('' === $name) {
+                continue;
+            }
+
+            $code = isset($item['code']) && '' !== trim((string) $item['code'])
+                ? trim((string) $item['code'])
+                : $codePrefix.'.'.$name;
+
+            $definitions[] = array(
+                'code' => $code,
+                'name' => (string) ($item['title'] ?? $name),
+                'type' => (string) ($item['type'] ?? 'nav'),
+                'module' => $module,
+                'addon_code' => $addonCode,
+                'parent' => $parentCode,
+                'path' => $item['path'] ?? null,
+                'route' => $item['route'] ?? null,
+                'component' => $item['component'] ?? null,
+                'icon' => $item['icon'] ?? null,
+                'is_nav' => isset($item['is_nav']) ? (int) $item['is_nav'] : 1,
+                'status' => isset($item['status']) ? (int) $item['status'] : 1,
+                'sort' => isset($item['weight']) ? (int) $item['weight'] : 0,
+                'meta_json' => array(
+                    'note' => (string) ($item['note'] ?? ''),
+                    'controller' => (string) ($item['controller'] ?? ''),
+                ),
+            );
+
+            if (isset($item['children']) && \is_array($item['children']) && [] !== $item['children']) {
+                $definitions = array_merge(
+                    $definitions,
+                    $this->buildChildResourceDefinitions($item['children'], $addonCode, $code, $module, $code)
+                );
+            }
+        }
+
+        return $definitions;
     }
 }

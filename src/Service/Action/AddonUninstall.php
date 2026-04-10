@@ -16,6 +16,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service\Action;
 
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\Service\AddonAdminResourceSynchronizer;
 
 final class AddonUninstall extends AbstractAddonAction
 {
@@ -33,6 +34,7 @@ final class AddonUninstall extends AbstractAddonAction
                 return null;
             }
         }
+        app(AddonAdminResourceSynchronizer::class)->delete($this->code);
         $this->info('开始删除插件文件');
         $this->filesystem->deleteDirectory(Addon::getAddonPath($this->code));
         $this->info('插件卸载完成');
