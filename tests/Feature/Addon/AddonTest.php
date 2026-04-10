@@ -798,7 +798,7 @@ it('run uninstall lifecycle when removing addon', function (): void {
     $filesystem->deleteDirectory($basePath);
 });
 
-it('init addon scaffold with manifest installer and bootstrap', function (): void {
+it('init addon scaffold with standard development structure', function (): void {
     $filesystem = new Filesystem();
     $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-init-'.uniqid();
     $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
@@ -818,14 +818,35 @@ it('init addon scaffold with manifest installer and bootstrap', function (): voi
         ->and(file_exists($manifestFile))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Installer.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Bootstrap.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'README.md'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'functions.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Providers'.\DIRECTORY_SEPARATOR.'DemoAddonServiceProvider.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Models'.\DIRECTORY_SEPARATOR.'DemoAddon.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Service'.\DIRECTORY_SEPARATOR.'DemoAddonService.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Admin'.\DIRECTORY_SEPARATOR.'DemoAddonController.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Api'.\DIRECTORY_SEPARATOR.'DemoAddonController.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Home'.\DIRECTORY_SEPARATOR.'DemoAddonController.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Requests'.\DIRECTORY_SEPARATOR.'.gitkeep'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Migrations'.\DIRECTORY_SEPARATOR.'.gitkeep'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Seeders'.\DIRECTORY_SEPARATOR.'.gitkeep'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Routes'.\DIRECTORY_SEPARATOR.'admin.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Routes'.\DIRECTORY_SEPARATOR.'api.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Routes'.\DIRECTORY_SEPARATOR.'web.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Config'.\DIRECTORY_SEPARATOR.'config.php'))->toBeTrue()
-        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'index.blade.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'home'.\DIRECTORY_SEPARATOR.'index.blade.php'))->toBeTrue()
+        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'index.blade.php'))->toBeTrue()
         ->and($manifest['code'])->toEqual('demo-addon')
         ->and($manifest['develop'])->toBeTrue()
+        ->and(data_get($manifest, 'providers.0'))->toEqual('Addon\\DemoAddon\\Providers\\DemoAddonServiceProvider')
         ->and(data_get($manifest, 'entry.installer'))->toEqual('Addon\\DemoAddon\\Installer')
         ->and(data_get($manifest, 'entry.bootstrap'))->toEqual('Addon\\DemoAddon\\Bootstrap');
+
+    $config = include $addonDir.\DIRECTORY_SEPARATOR.'Config'.\DIRECTORY_SEPARATOR.'config.php';
+
+    expect($config['code'])->toEqual('demo-addon')
+        ->and($config['name'])->toEqual('Demo Addon')
+        ->and($config['admin_route_prefix'])->toEqual('demo-addon')
+        ->and($config['api_route_prefix'])->toEqual('api/demo-addon');
 
     $filesystem->deleteDirectory($basePath);
 });

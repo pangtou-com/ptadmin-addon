@@ -33,13 +33,21 @@ class AddonInit extends BaseAddonCommand
         $this->createDirectories($filesystem, $target);
         $this->writeManifest($filesystem, $target, $code, $title, $basePath);
         $this->writeInstaller($filesystem, $target, $basePath);
-        $this->writeBootstrap($filesystem, $target, $basePath);
+        $this->writeBootstrap($filesystem, $target, $basePath, $title, $code);
+        $this->writeProvider($filesystem, $target, $basePath);
         $this->writeFunctions($filesystem, $target);
         $this->writeRoutes($filesystem, $target, $code);
-        $this->writeConfig($filesystem, $target, $code);
-        $this->writeView($filesystem, $target, $title);
+        $this->writeConfig($filesystem, $target, $code, $title);
+        $this->writeModel($filesystem, $target, $basePath);
+        $this->writeService($filesystem, $target, $basePath, $title, $code);
+        $this->writeControllers($filesystem, $target, $basePath, $title, $code);
+        $this->writeViews($filesystem, $target, $title, $code);
+        $this->writeReadme($filesystem, $target, $title, $basePath);
         $this->writeGitkeep($filesystem, $target.\DIRECTORY_SEPARATOR.'Assets'.\DIRECTORY_SEPARATOR.'.gitkeep');
         $this->writeGitkeep($filesystem, $target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Lang'.\DIRECTORY_SEPARATOR.'.gitkeep');
+        $this->writeGitkeep($filesystem, $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Requests'.\DIRECTORY_SEPARATOR.'.gitkeep');
+        $this->writeGitkeep($filesystem, $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Migrations'.\DIRECTORY_SEPARATOR.'.gitkeep');
+        $this->writeGitkeep($filesystem, $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Seeders'.\DIRECTORY_SEPARATOR.'.gitkeep');
 
         $this->info("插件脚手架已创建：{$target}");
 
@@ -53,8 +61,22 @@ class AddonInit extends BaseAddonCommand
             $target.\DIRECTORY_SEPARATOR.'Routes',
             $target.\DIRECTORY_SEPARATOR.'Config',
             $target.\DIRECTORY_SEPARATOR.'Assets',
+            $target.\DIRECTORY_SEPARATOR.'Database',
+            $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Migrations',
+            $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Seeders',
+            $target.\DIRECTORY_SEPARATOR.'Http',
+            $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers',
+            $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Admin',
+            $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Api',
+            $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Home',
+            $target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Requests',
+            $target.\DIRECTORY_SEPARATOR.'Models',
+            $target.\DIRECTORY_SEPARATOR.'Providers',
             $target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views',
+            $target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'home',
+            $target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'ptadmin',
             $target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Lang',
+            $target.\DIRECTORY_SEPARATOR.'Service',
         ];
 
         foreach ($directories as $directory) {
@@ -80,6 +102,9 @@ class AddonInit extends BaseAddonCommand
             ],
             'compatibility' => [
                 'php' => '>=8.0',
+            ],
+            'providers' => [
+                'Addon\\'.$basePath.'\\Providers\\'.$basePath.'ServiceProvider',
             ],
             'entry' => [
                 'installer' => 'Addon\\'.$basePath.'\\Installer',
@@ -119,7 +144,7 @@ PHP
         );
     }
 
-    private function writeBootstrap(Filesystem $filesystem, string $target, string $basePath): void
+    private function writeBootstrap(Filesystem $filesystem, string $target, string $basePath, string $title, string $code): void
     {
         $filesystem->put($target.\DIRECTORY_SEPARATOR.'Bootstrap.php', <<<PHP
 <?php
@@ -128,6 +153,7 @@ declare(strict_types=1);
 
 namespace Addon\\{$basePath};
 
+use PTAdmin\\Admin\\Services\\AdminResourceService;
 use PTAdmin\\Addon\\Service\\AddonDirectivesManage;
 use PTAdmin\\Addon\\Service\\AddonHooksManage;
 use PTAdmin\\Addon\\Service\\AddonInjectsManage;
@@ -135,6 +161,35 @@ use PTAdmin\\Addon\\Service\\BaseBootstrap;
 
 class Bootstrap extends BaseBootstrap
 {
+    public \$admin_parent_menu = null;
+
+    public \$admin_menu = [
+        [
+            'name' => 'dashboard',
+            'title' => '{$basePath}概览',
+            'icon' => 'layui-icon-home',
+            'route' => '/{$code}',
+            'type' => 'nav',
+            'is_nav' => 1,
+            'weight' => 0,
+            'note' => '{$basePath} 插件后台入口',
+        ],
+    ];
+
+    public function enable(): void
+    {
+        AdminResourceService::addonInstallMenu([
+            'code' => '{$code}',
+            'title' => '{$title}',
+            'description' => '{$title}',
+        ], \$this->admin_menu, \$this->admin_parent_menu);
+    }
+
+    public function disable(): void
+    {
+        AdminResourceService::addonUninstallMenu('{$code}');
+    }
+
     public function registerDirectives(AddonDirectivesManage \$manager): void
     {
     }
@@ -145,6 +200,31 @@ class Bootstrap extends BaseBootstrap
 
     public function registerHooks(AddonHooksManage \$manager): void
     {
+    }
+}
+PHP
+        );
+    }
+
+    private function writeProvider(Filesystem $filesystem, string $target, string $basePath): void
+    {
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Providers'.\DIRECTORY_SEPARATOR.$basePath.'ServiceProvider.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace Addon\\{$basePath}\\Providers;
+
+use Addon\\{$basePath}\\Service\\{$basePath}Service;
+use PTAdmin\\Addon\\Providers\\BaseAddonService;
+
+class {$basePath}ServiceProvider extends BaseAddonService
+{
+    protected \$addonCode = '{$this->normalizeCode($basePath)}';
+
+    public function register(): void
+    {
+        \$this->app->singleton({$basePath}Service::class, {$basePath}Service::class);
     }
 }
 PHP
@@ -163,21 +243,56 @@ PHP
 
     private function writeRoutes(Filesystem $filesystem, string $target, string $code): void
     {
+        $basePath = Str::studly($code);
+
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Routes'.\DIRECTORY_SEPARATOR.'admin.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+use Addon\\{$basePath}\\Http\\Controllers\\Admin\\{$basePath}Controller;
+use Illuminate\Support\Facades\Route;
+use PTAdmin\\Foundation\\Auth\\AdminAuth;
+
+Route::group([
+    'prefix' => admin_route_prefix().'/{$code}',
+    'middleware' => ['ptadmin.auth:'.AdminAuth::getGuard()],
+], function (): void {
+    Route::get('/', [{$basePath}Controller::class, 'index']);
+});
+PHP
+        );
+
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Routes'.\DIRECTORY_SEPARATOR.'api.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+use Addon\\{$basePath}\\Http\\Controllers\\Api\\{$basePath}Controller;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('api/{$code}')->group(function (): void {
+    Route::get('/ping', [{$basePath}Controller::class, 'ping']);
+});
+PHP
+        );
+
         $filesystem->put($target.\DIRECTORY_SEPARATOR.'Routes'.\DIRECTORY_SEPARATOR.'web.php', <<<PHP
 <?php
 
 declare(strict_types=1);
 
+use Addon\\{$basePath}\\Http\\Controllers\\Home\\{$basePath}Controller;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('{$code}::index');
+Route::prefix('{$code}')->group(function (): void {
+    Route::get('/', [{$basePath}Controller::class, 'index']);
 });
 PHP
         );
     }
 
-    private function writeConfig(Filesystem $filesystem, string $target, string $code): void
+    private function writeConfig(Filesystem $filesystem, string $target, string $code, string $title): void
     {
         $filesystem->put($target.\DIRECTORY_SEPARATOR.'Config'.\DIRECTORY_SEPARATOR.'config.php', <<<PHP
 <?php
@@ -186,24 +301,207 @@ declare(strict_types=1);
 
 return [
     'code' => '{$code}',
+    'name' => '{$title}',
+    'admin_route_prefix' => '{$code}',
+    'api_route_prefix' => 'api/{$code}',
 ];
 PHP
         );
     }
 
-    private function writeView(Filesystem $filesystem, string $target, string $title): void
+    private function writeModel(Filesystem $filesystem, string $target, string $basePath): void
     {
-        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'index.blade.php', <<<BLADE
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Models'.\DIRECTORY_SEPARATOR.$basePath.'.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace Addon\\{$basePath}\\Models;
+
+use PTAdmin\\Foundation\\Database\\Models\\AbstractModel;
+
+class {$basePath} extends AbstractModel
+{
+    protected \$table = '{$this->toSnakeTable($basePath)}_items';
+}
+PHP
+        );
+    }
+
+    private function writeService(Filesystem $filesystem, string $target, string $basePath, string $title, string $code): void
+    {
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Service'.\DIRECTORY_SEPARATOR.$basePath.'Service.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace Addon\\{$basePath}\\Service;
+
+class {$basePath}Service
+{
+    public function dashboard(): array
+    {
+        return [
+            'code' => '{$code}',
+            'name' => '{$title}',
+            'status' => 'developing',
+        ];
+    }
+
+    public function publicInfo(): array
+    {
+        return [
+            'code' => '{$code}',
+            'name' => '{$title}',
+            'version' => '1.0.0',
+        ];
+    }
+}
+PHP
+        );
+    }
+
+    private function writeControllers(Filesystem $filesystem, string $target, string $basePath, string $title, string $code): void
+    {
+        $serviceProperty = lcfirst($basePath).'Service';
+
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Admin'.\DIRECTORY_SEPARATOR.$basePath.'Controller.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace Addon\\{$basePath}\\Http\\Controllers\\Admin;
+
+use Addon\\{$basePath}\\Service\\{$basePath}Service;
+use PTAdmin\\Foundation\\Response\\AdminResponse;
+
+class {$basePath}Controller
+{
+    private {$basePath}Service \${$serviceProperty};
+
+    public function __construct({$basePath}Service \${$serviceProperty})
+    {
+        \$this->{$serviceProperty} = \${$serviceProperty};
+    }
+
+    public function index(): \Illuminate\\Http\\JsonResponse
+    {
+        return AdminResponse::success(\$this->{$serviceProperty}->dashboard());
+    }
+}
+PHP
+        );
+
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Api'.\DIRECTORY_SEPARATOR.$basePath.'Controller.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace Addon\\{$basePath}\\Http\\Controllers\\Api;
+
+use Addon\\{$basePath}\\Service\\{$basePath}Service;
+use Illuminate\\Http\\JsonResponse;
+
+class {$basePath}Controller
+{
+    private {$basePath}Service \${$serviceProperty};
+
+    public function __construct({$basePath}Service \${$serviceProperty})
+    {
+        \$this->{$serviceProperty} = \${$serviceProperty};
+    }
+
+    public function ping(): JsonResponse
+    {
+        return response()->json([
+            'code' => 0,
+            'message' => 'ok',
+            'data' => \$this->{$serviceProperty}->publicInfo(),
+        ]);
+    }
+}
+PHP
+        );
+
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Http'.\DIRECTORY_SEPARATOR.'Controllers'.\DIRECTORY_SEPARATOR.'Home'.\DIRECTORY_SEPARATOR.$basePath.'Controller.php', <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace Addon\\{$basePath}\\Http\\Controllers\\Home;
+
+use Addon\\{$basePath}\\Service\\{$basePath}Service;
+
+class {$basePath}Controller
+{
+    private {$basePath}Service \${$serviceProperty};
+
+    public function __construct({$basePath}Service \${$serviceProperty})
+    {
+        \$this->{$serviceProperty} = \${$serviceProperty};
+    }
+
+    public function index(): \Illuminate\\Contracts\\View\\View
+    {
+        return view('{$code}::home.index', [
+            'info' => \$this->{$serviceProperty}->publicInfo(),
+        ]);
+    }
+}
+PHP
+        );
+    }
+
+    private function writeViews(Filesystem $filesystem, string $target, string $title, string $code): void
+    {
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'home'.\DIRECTORY_SEPARATOR.'index.blade.php', <<<BLADE
 <div>
     <h1>{$title}</h1>
-    <p>Plugin scaffold created successfully.</p>
+    <p>{$code} plugin home page scaffold created successfully.</p>
 </div>
 BLADE
+        );
+
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'index.blade.php', <<<BLADE
+<div>
+    <h1>{$title} 后台</h1>
+    <p>{$code} plugin admin view scaffold created successfully.</p>
+</div>
+BLADE
+        );
+    }
+
+    private function writeReadme(Filesystem $filesystem, string $target, string $title, string $basePath): void
+    {
+        $filesystem->put($target.\DIRECTORY_SEPARATOR.'README.md', <<<MD
+# {$basePath} Plugin
+
+`{$title}` 插件开发骨架已生成。
+
+建议从以下目录开始开发：
+
+- `Http/Controllers`
+- `Models`
+- `Providers`
+- `Routes`
+- `Service`
+- `Database`
+MD
         );
     }
 
     private function writeGitkeep(Filesystem $filesystem, string $path): void
     {
         $filesystem->put($path, '');
+    }
+
+    private function toSnakeTable(string $basePath): string
+    {
+        return Str::snake($basePath);
+    }
+
+    private function normalizeCode(string $basePath): string
+    {
+        return Str::kebab($basePath);
     }
 }
