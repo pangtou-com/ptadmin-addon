@@ -41,14 +41,12 @@ use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpgrade;
 use PTAdmin\Addon\Commands\AddonUpload;
 use PTAdmin\Addon\Compiler\PTCompiler;
-use PTAdmin\Addon\Controller\InstallController;
 use PTAdmin\Addon\Middleware\AddonMiddleware;
-use PTAdmin\Addon\Middleware\CanInstallMiddleware;
 use PTAdmin\Addon\Service\AddonManager;
 
 class AddonServiceProvider extends ServiceProvider
 {
-    private $addon_booting = [];
+    private array $addon_booting = [];
 
     public function register(): void
     {
@@ -58,9 +56,6 @@ class AddonServiceProvider extends ServiceProvider
         });
         $this->app->singleton('__addon__', function () {
             return new AddonMiddleware();
-        });
-        $this->app->singleton('install', function () {
-            return new CanInstallMiddleware();
         });
         $this->registerProvider($this->app);
     }
@@ -92,9 +87,6 @@ class AddonServiceProvider extends ServiceProvider
             $this->registerConfig($addonCode);
             $this->registerHelper($addonCode);
             $this->registerRoutes($addonCode);
-        }
-        if (!file_exists(storage_path('installed'))) {
-            $this->registerInstaller();
         }
     }
 
@@ -191,18 +183,6 @@ class AddonServiceProvider extends ServiceProvider
                 }
             }
         }
-    }
-
-    private function registerInstaller(): void
-    {
-        $this->mergeConfigFrom($this->getPath('Config/install.php'), 'install');
-        $this->loadViewsFrom($this->getPath('Response/Views'), 'install');
-        Route::group(['prefix' => 'install'], function (): void {
-            Route::get('/', [InstallController::class, 'welcome']);
-            Route::get('/requirements', [InstallController::class, 'requirements']);
-            Route::match(['get', 'post'], '/env', [InstallController::class, 'environment']);
-            Route::match(['post'], '/stream', [InstallController::class, 'stream']);
-        });
     }
 
     private function getPath(string $path): string

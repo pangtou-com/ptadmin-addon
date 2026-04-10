@@ -48,17 +48,9 @@ trait FormatOutputTrait
     protected function output(string $type, $message, $data = []): void
     {
         $data = ['type' => $type, 'message' => $message, 'data' => $data];
-        /*
-         * 标准sse输出格式为：
-         * event: event name\n
-         * data: message \n\n
-         * 这个是标准的输出方式，我不需要这种标准输出，直接输出一个json字符串即可
-         */
+
         echo app()->runningInConsole() ? $message."\n" : json_encode($data)."\n\n";
-        /*
-         * echo 'event:'.$type."\n";
-         * echo 'data:'.$message."\n\n";
-         */
+
         usleep(100000);
     }
 }

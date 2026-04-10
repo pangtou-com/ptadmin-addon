@@ -115,6 +115,8 @@ if (!function_exists('is_addon_running')) {
      * 判断当前是否在插件中运行.
      *
      * @return bool
+     * @throws \Psr\Container\ContainerExceptionInterface
+     * @throws \Psr\Container\NotFoundExceptionInterface
      */
     function is_addon_running(): bool
     {
@@ -128,10 +130,12 @@ if (!function_exists('get_running_addon_info')) {
     /**
      * 获取当前插件信息.
      *
-     * @param $key
-     * @param $default
+     * @param null $key
+     * @param null $default
      *
      * @return null|array|mixed
+     * @throws \Psr\Container\ContainerExceptionInterface
+     * @throws \Psr\Container\NotFoundExceptionInterface
      */
     function get_running_addon_info($key = null, $default = null)
     {
