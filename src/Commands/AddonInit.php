@@ -23,7 +23,7 @@ class AddonInit extends BaseAddonCommand
 
         if ($filesystem->isDirectory($target)) {
             if (!$force) {
-                $this->error("插件目录已存在：{$target}");
+                $this->error(__('ptadmin-addon::messages.command.init_exists', ['path' => $target]));
 
                 return 1;
             }
@@ -50,7 +50,7 @@ class AddonInit extends BaseAddonCommand
         $this->writeGitkeep($filesystem, $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Migrations'.\DIRECTORY_SEPARATOR.'.gitkeep');
         $this->writeGitkeep($filesystem, $target.\DIRECTORY_SEPARATOR.'Database'.\DIRECTORY_SEPARATOR.'Seeders'.\DIRECTORY_SEPARATOR.'.gitkeep');
 
-        $this->info("插件脚手架已创建：{$target}");
+        $this->info(__('ptadmin-addon::messages.command.init_created', ['path' => $target]));
 
         return 0;
     }

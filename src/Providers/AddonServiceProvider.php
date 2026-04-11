@@ -64,6 +64,7 @@ class AddonServiceProvider extends ServiceProvider
     {
         Route::pattern('id', '[1-9][0-9]*');
         $this->registerCompiler();
+        $this->loadTranslationsFrom($this->getPath('..'.\DIRECTORY_SEPARATOR.'lang'), 'ptadmin-addon');
         $this->commands([
             AddonInstall::class,
             AddonInstallLocal::class,
@@ -77,6 +78,13 @@ class AddonServiceProvider extends ServiceProvider
             AddonCacheClear::class,
             AddonLogin::class,
         ]);
+
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                $this->getPath('..'.\DIRECTORY_SEPARATOR.'lang') => resource_path('lang/vendor/ptadmin-addon'),
+            ], 'ptadmin-addon-lang');
+        }
+
         $data = array_keys(Addon::getAddons());
         foreach ($data as $addonCode) {
             if (\in_array($addonCode, $this->addon_booting, true)) {

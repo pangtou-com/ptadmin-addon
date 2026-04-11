@@ -135,7 +135,7 @@ final class AddonManager
 
         $addon = $this->getInstalledAddonConfig($addonCode);
         if (null === $addon) {
-            throw new AddonException("未定义的插件【{$addonCode}】");
+            throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $addonCode]));
         }
 
         return base_path('addons'.\DIRECTORY_SEPARATOR.$addon['base_path'].(null !== $path ? \DIRECTORY_SEPARATOR.$path : ''));
@@ -157,7 +157,7 @@ final class AddonManager
 
         $addon = $this->getInstalledAddonConfig($addonCode);
         if (null === $addon) {
-            throw new AddonException("未定义的插件【{$addonCode}】");
+            throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $addonCode]));
         }
 
         return 'Addon\\'.$addon['base_path'].($namespace ? '\\'.$namespace : '');
@@ -384,7 +384,7 @@ final class AddonManager
     public function getAddonManager(string $addonCode): AddonConfigManager
     {
         if (!$this->hasAddon($addonCode)) {
-            throw new AddonException("未定义的插件【{$addonCode}】");
+            throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $addonCode]));
         }
 
         return $this->addonManager[$addonCode];
@@ -411,7 +411,7 @@ final class AddonManager
                 continue;
             }
             if (isset($this->addonManager[$config['code']])) {
-                throw new AddonException("插件代码【{$config['code']}】重复定义");
+                throw new AddonException(__('ptadmin-addon::messages.addon.code_duplicated', ['code' => $config['code']]));
             }
             $this->addonManager[$config['code']] = new AddonConfigManager($config);
         }
@@ -483,7 +483,7 @@ final class AddonManager
 
         $addon = $this->getInstalledAddonConfig($addonCode);
         if (null === $addon) {
-            throw new AddonException("未定义的插件【{$addonCode}】");
+            throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $addonCode]));
         }
 
         $entry = data_get($addon, 'entry.'.$entryKey);

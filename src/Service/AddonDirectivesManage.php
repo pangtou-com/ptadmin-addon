@@ -201,7 +201,7 @@ class AddonDirectivesManage
             return DirectiveDefinition::make(AddonDirectives::DEFAULT_METHOD)->handler($directive);
         }
         if (!\is_array($directive)) {
-            throw new \InvalidArgumentException('插件指令定义无效');
+            throw new \InvalidArgumentException(__('ptadmin-addon::messages.definition.directive_invalid'));
         }
 
         $definition = DirectiveDefinition::make($directive['name'] ?? $directive['method'] ?? AddonDirectives::DEFAULT_METHOD);

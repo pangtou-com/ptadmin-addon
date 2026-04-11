@@ -58,13 +58,13 @@ final class AddonDownload extends AbstractAddonAction
     {
         $base = $this->getUnzipDirname();
         if (null === $base) {
-            $this->error("插件【{$this->code}】解压失败，请检查插件是否完整或联系官方");
+            $this->error(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
 
             return null;
         }
         $info = AddonUtil::readAddonConfig($base);
         if (null === $info) {
-            $this->error("插件【{$this->code}】未找到配置文件，请检查插件是否完整或联系官方");
+            $this->error(__('ptadmin-addon::messages.package.manifest_not_found'));
 
             return null;
         }
@@ -72,11 +72,11 @@ final class AddonDownload extends AbstractAddonAction
             $this->info($message);
         }))->validate($info);
 
-        $this->info("拷贝资源到插件目录：【{$info['title']}】");
+        $this->info(__('ptadmin-addon::messages.action.copy_target', ['title' => $info['title']]));
         $target = base_path('addons'.\DIRECTORY_SEPARATOR.basename($base));
         if (is_dir($target)) {
             if (!$force) {
-                throw new AddonException("插件【{$info['code']}】已安装，请使用 --force 覆盖安装");
+                throw new AddonException(__('ptadmin-addon::messages.addon.installed_force', ['code' => $info['code']]));
             }
             $this->filesystem->deleteDirectory($target);
         }
@@ -89,7 +89,7 @@ final class AddonDownload extends AbstractAddonAction
     private function downloadAddon($url): void
     {
         $limit = 0;
-        $this->info('开始下载中');
+        $this->info(__('ptadmin-addon::messages.action.download_start'));
         download:
         $response = Http::withOptions([
             'progress' => function ($total, $downloaded): void {
@@ -97,7 +97,7 @@ final class AddonDownload extends AbstractAddonAction
                     $progress = (int) ($downloaded / $total * 100);
                     if ($progress !== $this->progress) {
                         $this->progress = $progress;
-                        $this->info("下载进度：【{$progress}%】");
+                        $this->info(__('ptadmin-addon::messages.action.download_progress', ['progress' => $progress]));
                     }
                 }
             },
@@ -113,9 +113,9 @@ final class AddonDownload extends AbstractAddonAction
             file_put_contents($this->getDownloadFilename(), $body);
             $hash = md5($body);
             if ($hash !== $this->hash) {
-                $this->error("插件下载失败，尝试重新下载【{$limit}】");
+                $this->error(__('ptadmin-addon::messages.action.download_retry', ['attempt' => $limit]));
                 if ($limit > 5) {
-                    $this->error('插件下载失败，请联系官方平台核查');
+                    $this->error(__('ptadmin-addon::messages.action.download_retry_exhausted'));
 
                     return;
                 }
@@ -126,7 +126,12 @@ final class AddonDownload extends AbstractAddonAction
 
             $this->unzip($this->getDownloadFilename(), $this->action->getStorePath());
         } else {
-            $this->error('插件下载失败:'.json_encode($response->json()), $response->json());
+            $this->error(
+                __('ptadmin-addon::messages.action.download_failed_detail', [
+                    'message' => json_encode($response->json(), JSON_UNESCAPED_UNICODE),
+                ]),
+                $response->json()
+            );
         }
     }
 

@@ -47,7 +47,7 @@ abstract class AbstractAddonAction
     public function __construct($code, $obj)
     {
         if (!class_exists('ZipArchive')) {
-            throw new AddonException('ZipArchive类不存在，请检查PHP环境是否开启Zip扩展');
+            throw new AddonException(__('ptadmin-addon::messages.package.ziparchive_missing'));
         }
         $this->code = $code;
         $this->filesystem = new Filesystem();
@@ -76,12 +76,12 @@ abstract class AbstractAddonAction
     protected function unzip($zip_file, $target): void
     {
         if (!file_exists($zip_file)) {
-            $this->error('下载文件不存在');
+            $this->error(__('ptadmin-addon::messages.package.local_not_exists', ['file' => $zip_file]));
 
             return;
         }
 
-        $this->info('开始解压');
+        $this->info(__('ptadmin-addon::messages.action.unpack_local'));
         $zip = new \ZipArchive();
         $zip->open($zip_file);
         $zip->extractTo($target);

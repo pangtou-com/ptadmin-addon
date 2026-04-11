@@ -40,10 +40,10 @@ final class AddonUpgrade extends AbstractAddonAction
     public function handle($versionId = 0, $force = false): ?bool
     {
         if (!Addon::hasInstalledAddon($this->code)) {
-            throw new AddonException("插件【{$this->code}】不存在");
+            throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $this->code]));
         }
         if ($this->isDevelop() && !$force) {
-            $this->error("插件【{$this->code}】当前处于开发模式，请确认后再使用强制覆盖");
+            $this->error(__('ptadmin-addon::messages.addon.develop_force', ['code' => $this->code]));
 
             return null;
         }
@@ -53,23 +53,26 @@ final class AddonUpgrade extends AbstractAddonAction
         $currentVersion = Addon::getAddonVersion($this->code);
         $disabled = file_exists($currentPath.\DIRECTORY_SEPARATOR.'disable');
 
-        $this->info('开始备份插件');
+        $this->info(__('ptadmin-addon::messages.action.backup_start'));
         $backupPath = $this->backupAddon($currentPath);
         $sourceDir = $this->downloadAndUnzip($versionId);
         $newConfig = AddonUtil::readAddonConfig($sourceDir);
         if (null === $newConfig || ($newConfig['code'] ?? null) !== $this->code) {
-            throw new AddonException("插件【{$this->code}】升级包无效");
+            throw new AddonException(__('ptadmin-addon::messages.addon.upgrade_invalid', ['code' => $this->code]));
         }
 
         try {
-            $this->info("开始升级插件【{$this->code}】");
+            $this->info(__('ptadmin-addon::messages.action.upgrade_start', ['code' => $this->code]));
             $this->replaceAddon($sourceDir, $currentPath, $disabled);
 
             $installer = Addon::getAddonInstaller($this->code);
             if (null !== $installer) {
                 $installer->upgrade($currentVersion, $newConfig['version'] ?? null);
             }
-            $this->info("插件升级完成：{$currentVersion} -> ".($newConfig['version'] ?? 'unknown'));
+            $this->info(__('ptadmin-addon::messages.action.upgrade_done', [
+                'from' => $currentVersion,
+                'to' => $newConfig['version'] ?? 'unknown',
+            ]));
         } catch (\Throwable $exception) {
             $this->restoreBackup($backupPath, $currentPath, $disabled);
 
@@ -112,7 +115,7 @@ final class AddonUpgrade extends AbstractAddonAction
         $this->filesystem->deleteDirectory($targetPath);
         $this->filesystem->ensureDirectoryExists(\dirname($targetPath));
         if (!$this->filesystem->moveDirectory($sourceDir, $targetPath)) {
-            throw new AddonException("插件【{$this->code}】升级失败，无法替换插件目录");
+            throw new AddonException(__('ptadmin-addon::messages.addon.replace_failed', ['code' => $this->code]));
         }
         if ($disabled) {
             $this->filesystem->put($targetPath.\DIRECTORY_SEPARATOR.'disable', '');
@@ -126,14 +129,14 @@ final class AddonUpgrade extends AbstractAddonAction
             'addon_version_id' => $versionId,
         ]);
         if (!isset($data['url']) || '' === $data['url']) {
-            throw new AddonException("插件【{$this->code}】获取下载地址失败");
+            throw new AddonException(__('ptadmin-addon::messages.addon.download_url_failed', ['code' => $this->code]));
         }
         $this->hash = $data['hash'] ?? '';
         $this->downloadPackage($data['url']);
 
         $dirname = $this->getUnzipDirname();
         if (null === $dirname) {
-            throw new AddonException("插件【{$this->code}】解压失败");
+            throw new AddonException(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
         }
 
         return $dirname;
@@ -142,7 +145,7 @@ final class AddonUpgrade extends AbstractAddonAction
     private function downloadPackage(string $url): void
     {
         $limit = 0;
-        $this->info('开始下载升级包');
+        $this->info(__('ptadmin-addon::messages.action.download_start'));
 
         download:
         $response = Http::withOptions([
@@ -151,21 +154,21 @@ final class AddonUpgrade extends AbstractAddonAction
                     $progress = (int) ($downloaded / $total * 100);
                     if ($progress !== $this->progress) {
                         $this->progress = $progress;
-                        $this->info("下载进度：【{$progress}%】");
+                        $this->info(__('ptadmin-addon::messages.action.download_progress', ['progress' => $progress]));
                     }
                 }
             },
         ])->get($url);
 
         if (!$response->successful()) {
-            throw new AddonException('插件升级包下载失败');
+            throw new AddonException(__('ptadmin-addon::messages.addon.download_failed'));
         }
 
         $body = $response->body();
         file_put_contents($this->getDownloadFilename(), $body);
         if ('' !== $this->hash && md5($body) !== $this->hash) {
             if ($limit >= 5) {
-                throw new AddonException("插件【{$this->code}】升级包校验失败");
+                throw new AddonException(__('ptadmin-addon::messages.addon.verify_failed', ['code' => $this->code]));
             }
             ++$limit;
 

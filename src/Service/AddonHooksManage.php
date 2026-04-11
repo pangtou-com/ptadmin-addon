@@ -116,7 +116,7 @@ class AddonHooksManage
     private function normalizeDefinition($definition): HookDefinition
     {
         if (!\is_array($definition)) {
-            throw new \InvalidArgumentException('插件 Hook 定义无效');
+            throw new \InvalidArgumentException(__('ptadmin-addon::messages.definition.hook_invalid'));
         }
 
         $result = HookDefinition::make($definition['event'] ?? '');
@@ -135,7 +135,7 @@ class AddonHooksManage
         list($class, $method) = $this->parseHandler($listener['handler'] ?? '');
         $instance = app($class);
         if (!method_exists($instance, $method)) {
-            throw new AddonException("插件 Hook 监听器【{$class}@{$method}】不存在");
+            throw new AddonException(__('ptadmin-addon::messages.definition.hook_listener_missing', ['listener' => $class.'@'.$method]));
         }
 
         $reflection = new \ReflectionMethod($instance, $method);

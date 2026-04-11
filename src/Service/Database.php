@@ -136,7 +136,7 @@ class Database
     public function restoreDirDataAll($dir): void
     {
         if (!is_dir($dir)) {
-            throw new DatabaseBackupException('目录不存在');
+            throw new DatabaseBackupException(__('ptadmin-addon::messages.filesystem.directory_not_exists'));
         }
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {

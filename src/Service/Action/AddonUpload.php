@@ -29,7 +29,7 @@ final class AddonUpload extends AbstractAddonAction
 {
     public function handle()
     {
-        $this->info('开始权限校验');
+        $this->info(__('ptadmin-addon::messages.action.upload_permission_check'));
         if (!$this->checkUploadPermission()) {
             return null;
         }
@@ -39,17 +39,17 @@ final class AddonUpload extends AbstractAddonAction
 
     private function checkUploadPermission(): bool
     {
-        $this->error('权限校验，未做任何处理');
+        $this->error(__('ptadmin-addon::messages.action.upload_permission_pending'));
 
         return true;
     }
 
     private function pack(): self
     {
-        $this->info('开始打包插件');
+        $this->info(__('ptadmin-addon::messages.action.pack_start'));
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
         $this->zipDir($this->action->getAddonPath(), $this->action->getStorePath($this->filename));
-        $this->info('插件打包完成');
+        $this->info(__('ptadmin-addon::messages.action.pack_done'));
 
         return $this;
     }
@@ -59,7 +59,7 @@ final class AddonUpload extends AbstractAddonAction
      */
     private function upload()
     {
-        $this->info('开始上传插件');
+        $this->info(__('ptadmin-addon::messages.action.upload_start'));
         $filename = $this->action->getStorePath($this->filename);
         $data = [];
         $data['code'] = $this->code;

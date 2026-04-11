@@ -76,7 +76,7 @@ class AddonInjectsManage
             }
         }
 
-        throw new AddonException("未定义的插件注入【{$group}:{$code}】");
+        throw new AddonException(__('ptadmin-addon::messages.definition.inject_missing', ['target' => $group.':'.$code]));
     }
 
     public function getDefinitionByAddonCode(string $group, string $addonCode): array
@@ -85,7 +85,7 @@ class AddonInjectsManage
             return ['addon_code' => $addonCode] + $definition;
         }
 
-        throw new AddonException("未定义的插件注入【{$group}:{$addonCode}】");
+        throw new AddonException(__('ptadmin-addon::messages.definition.inject_missing', ['target' => $group.':'.$addonCode]));
     }
 
     public function getDefinitionByAddonAndCode(string $group, string $addonCode, string $code): array
@@ -96,7 +96,7 @@ class AddonInjectsManage
             }
         }
 
-        throw new AddonException("未定义的插件注入【{$group}:{$addonCode}:{$code}】");
+        throw new AddonException(__('ptadmin-addon::messages.definition.inject_missing', ['target' => $group.':'.$addonCode.':'.$code]));
     }
 
     public function getDefinitionsByAddonCode(string $group, string $addonCode): array
@@ -151,7 +151,7 @@ class AddonInjectsManage
     private function normalizeDefinition($definition): InjectDefinition
     {
         if (!\is_array($definition)) {
-            throw new \InvalidArgumentException('插件注入定义无效');
+            throw new \InvalidArgumentException(__('ptadmin-addon::messages.definition.inject_invalid'));
         }
 
         $result = InjectDefinition::make($definition['code'] ?? '');

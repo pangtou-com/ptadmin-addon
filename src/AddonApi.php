@@ -122,7 +122,7 @@ class AddonApi
     {
         $results = (new static())->send('download', $data);
         if (!isset($results['url'])) {
-            throw new AddonException('获取下载地址失败');
+            throw new AddonException(__('ptadmin-addon::messages.api.download_url_failed'));
         }
 
         return $results;
@@ -248,14 +248,17 @@ class AddonApi
         }
         file_put_contents(base_path('test.html'), $res->body());
 
-        throw new AddonException("请求失败,状态值为：【{$res->status()}】错误信息：【{$res->json('message')}】");
+        throw new AddonException(__('ptadmin-addon::messages.api.request_failed', [
+            'status' => $res->status(),
+            'message' => $res->json('message'),
+        ]));
     }
 
     private function getToken(): string
     {
         $data = Cache::get(self::TOKEN_KEY);
         if (blank($data)) {
-            throw new Exception\AddonException('未登录平台，请先登录平台后操作');
+            throw new Exception\AddonException(__('ptadmin-addon::messages.api.login_required'));
         }
         $data = unserialize($data);
 

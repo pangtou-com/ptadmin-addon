@@ -53,7 +53,10 @@ class AddonDirectives
         $target = $this->getMethodTarget($method);
         $instance = app($target['class']);
         if (!method_exists($instance, $target['method'])) {
-            throw new AddonException("插件【{$this->addon_name}】未定义方法【{$target['method']}】");
+            throw new AddonException(__('ptadmin-addon::messages.addon.method_missing', [
+                'addon' => $this->addon_name,
+                'method' => $target['method'],
+            ]));
         }
         $param = $this->getClassMethodParams($instance, $target['method']);
 
@@ -125,7 +128,10 @@ class AddonDirectives
         try {
             $reflection = new \ReflectionMethod($class, $method);
         } catch (\ReflectionException $e) {
-            throw new AddonException("插件【{$this->addon_name}】未定义方法【{$method}】");
+            throw new AddonException(__('ptadmin-addon::messages.addon.method_missing', [
+                'addon' => $this->addon_name,
+                'method' => $method,
+            ]));
         }
         $params = $reflection->getParameters();
         $result = [];
@@ -188,7 +194,10 @@ class AddonDirectives
                 case 'callable':
                     $val = $dto->getAttribute($param['name'], $param['default']);
                     if (!\is_callable($val)) {
-                        throw new AddonException("插件【{$this->addon_name}】参数【{$param['name']}】必须为函数");
+                        throw new AddonException(__('ptadmin-addon::messages.definition.directive_param_callable', [
+                            'addon' => $this->addon_name,
+                            'param' => $param['name'],
+                        ]));
                     }
                     $result[$param['position']] = $val;
 
@@ -310,7 +319,10 @@ class AddonDirectives
                 }
             }
 
-            throw new AddonException("插件【{$this->addon_name}】未定义方法【{$method}】");
+            throw new AddonException(__('ptadmin-addon::messages.addon.method_missing', [
+                'addon' => $this->addon_name,
+                'method' => $method,
+            ]));
         }
 
         return $target;

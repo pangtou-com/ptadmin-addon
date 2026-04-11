@@ -86,7 +86,7 @@ class AddonAction
             return $this->addon_path = $addons[$this->getCode()]['base_path'];
         }
 
-        throw new AddonException("插件【{$this->code}】不存在");
+        throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $this->code]));
     }
 
     public function getCode(): string
@@ -140,7 +140,7 @@ class AddonAction
     public static function install(string $code, $versionId = 0, bool $force = false)
     {
         if (Addon::hasInstalledAddon($code) && !$force) {
-            throw new AddonException("插件【{$code}】已安装，请使用 --force 覆盖安装");
+            throw new AddonException(__('ptadmin-addon::messages.addon.installed_force', ['code' => $code]));
         }
 
         $obj = new self($code);
@@ -209,7 +209,7 @@ class AddonAction
     public static function enable($code): void
     {
         if (!Addon::hasInstalledAddon($code)) {
-            throw new AddonException("插件【{$code}】不存在");
+            throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $code]));
         }
         $disableFile = Addon::getAddonPath($code, 'disable');
         if (!file_exists($disableFile)) {
@@ -234,7 +234,7 @@ class AddonAction
     public static function disable($code): void
     {
         if (!Addon::hasInstalledAddon($code)) {
-            throw new AddonException("插件【{$code}】不存在");
+            throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $code]));
         }
         $disableFile = Addon::getAddonPath($code, 'disable');
         if (file_exists($disableFile)) {
@@ -273,7 +273,7 @@ class AddonAction
     protected function checkRequired(): bool
     {
         if (Addon::hasAddonRequired($this->getCode())) {
-            throw new AddonException("插件【{$this->code}】依赖插件，请先卸载依赖插件,或使用 --force 参数强制卸载插件");
+            throw new AddonException(__('ptadmin-addon::messages.addon.dependency_uninstall_first', ['code' => $this->code]));
         }
 
         return true;

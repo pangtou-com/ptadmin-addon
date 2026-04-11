@@ -68,6 +68,7 @@ abstract class BaseBootstrap
                 'name' => (string) ($addonInfo['title'] ?? $addonInfo['name'] ?? $addonCode),
                 'type' => 'dir',
                 'module' => $module,
+                'page_key' => null,
                 'addon_code' => $addonCode,
                 'is_nav' => 1,
                 'status' => 1,
@@ -96,6 +97,50 @@ abstract class BaseBootstrap
     public function getAdminDashboardWidgetDefinitions(string $addonCode, array $addonInfo = array()): array
     {
         return array();
+    }
+
+    /**
+     * 返回后台前端模块定义。
+     *
+     * 当前能力用于前后端分离场景下的插件前端引导。
+     * 后台会统一收集所有插件声明的模块信息，并提供给前端启动阶段读取。
+     *
+     * 推荐插件在 `manifest.json` 中使用如下结构声明：
+     *
+     * `frontend.admin.entry`   后台前端模块入口
+     * `frontend.admin.preload` 是否在后台启动时预加载
+     * `frontend.admin.cache`   是否启用前端缓存，或提供更细粒度缓存配置
+     *
+     * 也可以在插件中重写本方法，根据运行时状态动态返回。
+     *
+     * @param string               $addonCode
+     * @param array<string, mixed> $addonInfo
+     *
+     * @return array<string, mixed>
+     */
+    public function getAdminFrontendModuleDefinition(string $addonCode, array $addonInfo = array()): array
+    {
+        $definition = array();
+
+        if (isset($addonInfo['admin_frontend']) && \is_array($addonInfo['admin_frontend'])) {
+            $definition = $addonInfo['admin_frontend'];
+        } elseif (\is_array(data_get($addonInfo, 'frontend.admin'))) {
+            $definition = (array) data_get($addonInfo, 'frontend.admin', array());
+        }
+
+        if ([] === $definition) {
+            return array();
+        }
+
+        if (!isset($definition['code']) || '' === trim((string) $definition['code'])) {
+            $definition['code'] = $addonCode;
+        }
+
+        if (!isset($definition['title']) || '' === trim((string) $definition['title'])) {
+            $definition['title'] = (string) ($addonInfo['title'] ?? $addonInfo['name'] ?? $addonCode);
+        }
+
+        return $definition;
     }
 
     /**
@@ -163,11 +208,11 @@ abstract class BaseBootstrap
                 'name' => (string) ($item['title'] ?? $name),
                 'type' => (string) ($item['type'] ?? 'nav'),
                 'module' => $module,
+                'page_key' => $this->resolvePageKeyFromMenuItem($item),
                 'addon_code' => $addonCode,
                 'parent' => $parentCode,
                 'path' => $item['path'] ?? null,
                 'route' => $item['route'] ?? null,
-                'component' => $item['component'] ?? null,
                 'icon' => $item['icon'] ?? null,
                 'is_nav' => isset($item['is_nav']) ? (int) $item['is_nav'] : 1,
                 'status' => isset($item['status']) ? (int) $item['status'] : 1,
@@ -187,5 +232,20 @@ abstract class BaseBootstrap
         }
 
         return $definitions;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function resolvePageKeyFromMenuItem(array $item): ?string
+    {
+        $type = (string) ($item['type'] ?? 'nav');
+        if (!\in_array($type, ['nav', 'link'], true)) {
+            return null;
+        }
+
+        $pageKey = trim((string) ($item['page_key'] ?? $item['name'] ?? ''));
+
+        return '' === $pageKey ? null : $pageKey;
     }
 }

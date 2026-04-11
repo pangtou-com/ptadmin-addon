@@ -16,10 +16,13 @@ class AddonInjectsActuator
         list($class, $method) = self::parseHandler($definition['class'] ?? '', $action);
         $instance = app($class);
         if (!blank($action) && $instance instanceof CapabilityInterface && !$instance->supports($method)) {
-            throw new AddonException("插件注入能力【{$group}:{$code}】不支持动作【{$method}】");
+            throw new AddonException(__('ptadmin-addon::messages.definition.inject_action_unsupported', [
+                'target' => $group.':'.$code,
+                'method' => $method,
+            ]));
         }
         if (!method_exists($instance, $method)) {
-            throw new AddonException("插件注入处理器【{$class}@{$method}】不存在");
+            throw new AddonException(__('ptadmin-addon::messages.definition.inject_handler_missing', ['handler' => $class.'@'.$method]));
         }
 
         $injectPayload = InjectPayload::make($payload);

@@ -33,7 +33,7 @@ class AddonCacheClear extends BaseAddonCommand
     public function handle(): int
     {
         Addon::clearCache();
-        $this->info('插件缓存清理成功');
+        $this->info(__('ptadmin-addon::messages.command.cache_cleared'));
 
         return 0;
     }

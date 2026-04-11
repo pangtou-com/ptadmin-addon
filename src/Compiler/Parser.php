@@ -226,7 +226,7 @@ class Parser
         $val = $this->result['id'];
         $reg = '/^[A-Za-z_]\w*$/';
         if (!preg_match($reg, $val)) {
-            throw new DirectivesException("表达式中【{$this->expression}】【id】参数无效，必须由字母、数字和下划线组成，且不能以数字开头");
+            throw new DirectivesException(__('ptadmin-addon::messages.definition.parser_id_invalid', ['expression' => $this->expression]));
         }
     }
 

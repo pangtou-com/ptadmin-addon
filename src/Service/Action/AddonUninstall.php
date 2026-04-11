@@ -22,22 +22,22 @@ final class AddonUninstall extends AbstractAddonAction
 {
     public function handle(): ?bool
     {
-        $this->info('开始卸载插件');
+        $this->info(__('ptadmin-addon::messages.action.uninstall_start'));
         $installer = Addon::getAddonInstaller($this->code);
         if (null !== $installer) {
             try {
                 $installer->uninstall();
             } catch (\Exception $exception) {
-                $this->error('插件卸载失败，请检查插件是否正确安装');
+                $this->error(__('ptadmin-addon::messages.action.uninstall_failed'));
                 $this->error($exception->getMessage());
 
                 return null;
             }
         }
         app(AddonAdminResourceSynchronizer::class)->delete($this->code);
-        $this->info('开始删除插件文件');
+        $this->info(__('ptadmin-addon::messages.action.delete_files'));
         $this->filesystem->deleteDirectory(Addon::getAddonPath($this->code));
-        $this->info('插件卸载完成');
+        $this->info(__('ptadmin-addon::messages.action.uninstall_done'));
 
         return true;
     }

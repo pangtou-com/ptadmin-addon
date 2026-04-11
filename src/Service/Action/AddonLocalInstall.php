@@ -17,20 +17,20 @@ final class AddonLocalInstall extends AbstractAddonAction
     public function handle(string $packageFile, bool $force = false): ?string
     {
         if (!is_file($packageFile)) {
-            throw new AddonException("本地安装包不存在：{$packageFile}");
+            throw new AddonException(__('ptadmin-addon::messages.package.local_not_exists', ['file' => $packageFile]));
         }
         if (!\in_array(strtolower((string) pathinfo($packageFile, PATHINFO_EXTENSION)), ['zip'], true)) {
-            throw new AddonException('本地安装仅支持 zip 压缩包');
+            throw new AddonException(__('ptadmin-addon::messages.package.local_zip_only'));
         }
 
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath('package'));
-        $this->info('开始解压本地安装包');
+        $this->info(__('ptadmin-addon::messages.action.unpack_local'));
         $this->unzip($packageFile, $this->action->getStorePath('package'));
 
         $sourceDir = $this->resolveSourceDir();
         $config = AddonUtil::readAddonConfig($sourceDir);
         if (null === $config) {
-            throw new AddonException('本地安装包缺少有效 manifest.json');
+            throw new AddonException(__('ptadmin-addon::messages.package.manifest_missing'));
         }
 
         $code = (string) $config['code'];
@@ -39,20 +39,20 @@ final class AddonLocalInstall extends AbstractAddonAction
 
         if (Addon::hasInstalledAddon($code)) {
             if (!$force) {
-                throw new AddonException("插件【{$code}】已安装，请使用 --force 覆盖安装");
+                throw new AddonException(__('ptadmin-addon::messages.addon.installed_force', ['code' => $code]));
             }
-            $this->info("检测到插件【{$code}】已安装，开始覆盖安装");
+            $this->info(__('ptadmin-addon::messages.action.overwrite_start', ['code' => $code]));
             $this->action->backupCurrentAddon($code);
         }
 
         $target = base_path('addons'.\DIRECTORY_SEPARATOR.$config['base_path']);
-        $this->info("开始复制插件到目录：【{$target}】");
+        $this->info(__('ptadmin-addon::messages.addon.copy_target', ['path' => $target]));
         if (is_dir($target)) {
             $this->filesystem->deleteDirectory($target);
         }
         $this->filesystem->ensureDirectoryExists(\dirname($target));
         if (!$this->filesystem->moveDirectory($sourceDir, $target)) {
-            throw new AddonException("插件【{$code}】安装失败，无法写入插件目录");
+            throw new AddonException(__('ptadmin-addon::messages.addon.write_failed', ['code' => $code]));
         }
 
         $this->refreshAddonState();
@@ -77,7 +77,7 @@ final class AddonLocalInstall extends AbstractAddonAction
             }
         }
 
-        throw new AddonException('本地安装包解压后未找到 manifest.json');
+        throw new AddonException(__('ptadmin-addon::messages.package.manifest_not_found'));
     }
 
     private function validatePackageIntegrity(string $packageFile, array $config): void
@@ -97,13 +97,13 @@ final class AddonLocalInstall extends AbstractAddonAction
         list($algorithm, $hash) = array_pad(explode(':', $checksum, 2), 2, null);
         $algorithm = $algorithm ?: 'sha256';
         if (null === $hash || '' === $hash) {
-            throw new AddonException('本地安装包 checksum 格式无效');
+            throw new AddonException(__('ptadmin-addon::messages.package.checksum_format_invalid'));
         }
         if (!\in_array($algorithm, hash_algos(), true)) {
-            throw new AddonException("不支持的 checksum 算法：{$algorithm}");
+            throw new AddonException(__('ptadmin-addon::messages.package.checksum_algorithm_unsupported', ['algorithm' => $algorithm]));
         }
         if (hash_file($algorithm, $packageFile) !== $hash) {
-            throw new AddonException('本地安装包完整性校验失败');
+            throw new AddonException(__('ptadmin-addon::messages.package.checksum_failed'));
         }
     }
 

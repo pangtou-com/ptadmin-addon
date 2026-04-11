@@ -131,10 +131,13 @@ class PaymentGateway
         $definition = $this->resolveDefinition();
         $instance = app($definition['class']);
         if (!$instance instanceof PaymentInterface) {
-            throw new AddonException("插件注入能力【payment:{$definition['addon_code']}】必须实现 PaymentInterface");
+            throw new AddonException(__('ptadmin-addon::messages.definition.payment_interface_required', ['target' => 'payment:'.$definition['addon_code']]));
         }
         if (!$instance->supports($method)) {
-            throw new AddonException("插件注入能力【payment:{$definition['addon_code']}】不支持动作【{$method}】");
+            throw new AddonException(__('ptadmin-addon::messages.definition.payment_method_unsupported', [
+                'target' => 'payment:'.$definition['addon_code'],
+                'method' => $method,
+            ]));
         }
 
         return $instance->{$method}($payload);
@@ -150,7 +153,7 @@ class PaymentGateway
         if (!blank($this->addonCode)) {
             $definitions = $manager->getDefinitionsByAddonCode('payment', $this->addonCode);
             if ([] === $definitions) {
-                throw new AddonException("未定义的插件注入【payment:{$this->addonCode}】");
+                throw new AddonException(__('ptadmin-addon::messages.definition.payment_missing', ['target' => 'payment:'.$this->addonCode]));
             }
 
             return $definitions[0];
@@ -166,7 +169,7 @@ class PaymentGateway
 
         $definitions = $manager->getDefinitionsByGroup('payment');
         if ([] === $definitions) {
-            throw new AddonException('未定义可用的支付插件');
+            throw new AddonException(__('ptadmin-addon::messages.definition.payment_none'));
         }
 
         $configured = config('addon.defaults.payment');
@@ -191,7 +194,10 @@ class PaymentGateway
         if ([] !== $supported && !\in_array($channel, $supported, true)) {
             $addonCode = $this->resolveDefinition()['addon_code'] ?? 'unknown';
             $code = $this->resolveDefinition()['code'] ?? 'unknown';
-            throw new AddonException("支付能力【{$addonCode}:{$code}】不支持渠道【{$channel}】");
+            throw new AddonException(__('ptadmin-addon::messages.definition.payment_channel_unsupported', [
+                'target' => $addonCode.':'.$code,
+                'channel' => $channel,
+            ]));
         }
     }
 

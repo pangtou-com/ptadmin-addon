@@ -33,7 +33,7 @@ class AddonCache extends BaseAddonCommand
     public function handle(): int
     {
         Addon::refreshCache();
-        $this->info('插件缓存刷新成功');
+        $this->info(__('ptadmin-addon::messages.command.cache_refreshed'));
 
         return 0;
     }

@@ -37,7 +37,7 @@ final class AddonInstall extends AbstractAddonAction
 
     public function handle(): ?bool
     {
-        $this->info('开始安装插件');
+        $this->info(__('ptadmin-addon::messages.action.install_start'));
         $this->installer = Addon::getAddonInstaller($this->code);
         try {
             if (false === $this->beforeInstall()) {
@@ -56,7 +56,7 @@ final class AddonInstall extends AbstractAddonAction
                 ? $exception
                 : new AddonException($exception->getMessage(), 20000, $exception);
         }
-        $this->info('插件安装成功');
+        $this->info(__('ptadmin-addon::messages.action.install_success'));
 
         return true;
     }
@@ -67,7 +67,7 @@ final class AddonInstall extends AbstractAddonAction
     public function beforeInstall(): bool
     {
         if (null !== $this->installer && false === $this->installer->beforeInstall()) {
-            $this->error('插件安装失败');
+            $this->error(__('ptadmin-addon::messages.action.install_failed'));
 
             return false;
         }
@@ -82,7 +82,7 @@ final class AddonInstall extends AbstractAddonAction
     {
         $sql = Addon::getAddonPath($this->code, 'install.sql');
         if (is_file($sql) && file_exists($sql)) {
-            $this->info('导入数据');
+            $this->info(__('ptadmin-addon::messages.action.import_data'));
             app(Database::class)->restoreData($sql);
         }
     }

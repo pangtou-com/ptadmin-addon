@@ -344,7 +344,10 @@ it('calls another payment implementation in same addon', function (): void {
 it('rejects unsupported inject actions', function (): void {
     expect(fn () => Addon::executeInject('storage', 'oss_storage', [
         'path' => 'uploads/demo.png',
-    ], 'chat'))->toThrow(AddonException::class, '不支持动作');
+    ], 'chat'))->toThrow(AddonException::class, __('ptadmin-addon::messages.definition.inject_action_unsupported', [
+        'target' => 'storage:oss_storage',
+        'method' => 'chat',
+    ]));
 });
 
 it('disable and enable addon', function (): void {
@@ -565,7 +568,10 @@ it('prevent local install when php compatibility is not satisfied', function ():
     AddonHooksManage::getInstance()->reset();
 
     expect(fn () => AddonAction::installLocal($zipFile))
-        ->toThrow(AddonException::class, 'PHP 版本满足 >=99.0.0');
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.validator.php_constraint_failed', [
+            'code' => 'test',
+            'constraint' => '>=99.0.0',
+        ]));
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -602,7 +608,12 @@ it('prevent local install when configured host version is not satisfied', functi
     AddonHooksManage::getInstance()->reset();
 
     expect(fn () => AddonAction::installLocal($zipFile))
-        ->toThrow(AddonException::class, '依赖【ptadmin/admin】版本满足 >=2.0.0');
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.validator.host_constraint_failed', [
+            'code' => 'test',
+            'target' => 'ptadmin/admin',
+            'constraint' => '>=2.0.0',
+            'version' => '1.0.0',
+        ]));
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -636,7 +647,10 @@ it('prevent local install when dependency addon is missing', function (): void {
     AddonHooksManage::getInstance()->reset();
 
     expect(fn () => AddonAction::installLocal($zipFile))
-        ->toThrow(AddonException::class, '依赖插件【missing-addon】未安装或未启用');
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.validator.dependency_missing', [
+            'code' => 'test',
+            'target' => 'missing-addon',
+        ]));
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -736,7 +750,9 @@ it('prevent local install when official addon is not purchased', function (): vo
     })->andReturn($verifyResponse);
 
     expect(fn () => AddonAction::installLocal($zipFile))
-        ->toThrow(AddonException::class, '未购买，无法安装');
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.validator.purchase_required', [
+            'code' => 'test',
+        ]));
 
     $filesystem->deleteDirectory($basePath);
 });

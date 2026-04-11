@@ -39,7 +39,10 @@ final class AddonPackageValidator
 
             if ('php' === $target) {
                 if (!$this->satisfies(PHP_VERSION, $constraint)) {
-                    throw new AddonException("插件【{$manifest['code']}】要求 PHP 版本满足 {$constraint}，当前为 ".PHP_VERSION);
+                    throw new AddonException(__('ptadmin-addon::messages.validator.php_constraint_failed', [
+                        'code' => $manifest['code'],
+                        'constraint' => $constraint,
+                    ]));
                 }
 
                 continue;
@@ -47,13 +50,18 @@ final class AddonPackageValidator
 
             $installedVersion = $this->detectComposerPackageVersion((string) $target);
             if (null === $installedVersion) {
-                $this->info("未解析到宿主依赖【{$target}】版本，跳过兼容性校验");
+                $this->info(__('ptadmin-addon::messages.validator.host_version_skip', ['target' => $target]));
 
                 continue;
             }
 
             if (!$this->satisfies($installedVersion, $constraint)) {
-                throw new AddonException("插件【{$manifest['code']}】要求依赖【{$target}】版本满足 {$constraint}，当前为 {$installedVersion}");
+                throw new AddonException(__('ptadmin-addon::messages.validator.host_constraint_failed', [
+                    'code' => $manifest['code'],
+                    'target' => $target,
+                    'constraint' => $constraint,
+                    'version' => $installedVersion,
+                ]));
             }
         }
     }
@@ -64,17 +72,27 @@ final class AddonPackageValidator
         foreach ($plugins as $code => $constraint) {
             if (\is_int($code)) {
                 if (!Addon::hasAddon((string) $constraint)) {
-                    throw new AddonException("插件【{$manifest['code']}】依赖插件【{$constraint}】未安装或未启用");
+                    throw new AddonException(__('ptadmin-addon::messages.validator.dependency_missing', [
+                        'code' => $manifest['code'],
+                        'target' => $constraint,
+                    ]));
                 }
 
                 continue;
             }
 
             if (!Addon::hasAddon((string) $code)) {
-                throw new AddonException("插件【{$manifest['code']}】依赖插件【{$code}】未安装或未启用");
+                throw new AddonException(__('ptadmin-addon::messages.validator.dependency_missing', [
+                    'code' => $manifest['code'],
+                    'target' => $code,
+                ]));
             }
             if (\is_string($constraint) && '' !== trim($constraint) && !Addon::checkAddonVersion((string) $code, $constraint)) {
-                throw new AddonException("插件【{$manifest['code']}】依赖插件【{$code}】版本需满足 {$constraint}");
+                throw new AddonException(__('ptadmin-addon::messages.validator.dependency_version_failed', [
+                    'code' => $manifest['code'],
+                    'target' => $code,
+                    'constraint' => $constraint,
+                ]));
             }
         }
     }
@@ -83,14 +101,14 @@ final class AddonPackageValidator
     {
         $marketplace = (array) ($manifest['marketplace'] ?? []);
         if ([] === $marketplace) {
-            $this->info("插件【{$manifest['code']}】未声明云端市场信息，跳过云端登记与购买校验");
+            $this->info(__('ptadmin-addon::messages.validator.marketplace_skip', ['code' => $manifest['code']]));
 
             return;
         }
 
         try {
             if (!AddonApi::getAddonCodeExists((string) $manifest['code'])) {
-                $this->info("插件【{$manifest['code']}】未在云端登记，按本地插件继续安装，跳过购买校验");
+                $this->info(__('ptadmin-addon::messages.validator.cloud_unregistered_skip', ['code' => $manifest['code']]));
 
                 return;
             }
@@ -107,16 +125,18 @@ final class AddonPackageValidator
                 ?? data_get($result, 'purchase_url')
                 ?? data_get($result, 'url')
                 ?? '');
-            $message = "插件【{$manifest['code']}】未购买，无法安装";
-            if ('' !== $buyUrl) {
-                $message .= "，请前往购买：{$buyUrl}";
-            }
+            $message = '' !== $buyUrl
+                ? __('ptadmin-addon::messages.validator.purchase_required_with_url', [
+                    'code' => $manifest['code'],
+                    'url' => $buyUrl,
+                ])
+                : __('ptadmin-addon::messages.validator.purchase_required', ['code' => $manifest['code']]);
 
             throw new AddonException($message);
         } catch (AddonException $exception) {
             throw $exception;
         } catch (\Throwable $exception) {
-            $this->info("插件【{$manifest['code']}】未完成云端登记校验，按本地插件继续安装");
+            $this->info(__('ptadmin-addon::messages.validator.cloud_verify_skip', ['code' => $manifest['code']]));
         }
     }
 
