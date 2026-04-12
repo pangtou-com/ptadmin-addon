@@ -80,9 +80,20 @@ class AddonServiceProvider extends ServiceProvider
         ]);
 
         if ($this->app->runningInConsole()) {
-            $this->publishes([
+            $configPaths = [
+                $this->getPath('Config/addon.php') => config_path('addon.php'),
+            ];
+            $langPaths = [
                 $this->getPath('..'.\DIRECTORY_SEPARATOR.'lang') => resource_path('lang/vendor/ptadmin-addon'),
-            ], 'ptadmin-addon-lang');
+            ];
+
+            $this->publishes($configPaths, 'ptadmin');
+            $this->publishes($configPaths, 'ptadmin-config');
+            $this->publishes($configPaths, 'ptadmin-addon-config');
+
+            $this->publishes($langPaths, 'ptadmin');
+            $this->publishes($langPaths, 'ptadmin-lang');
+            $this->publishes($langPaths, 'ptadmin-addon-lang');
         }
 
         $data = array_keys(Addon::getAddons());
