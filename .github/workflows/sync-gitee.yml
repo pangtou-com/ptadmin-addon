@@ -22,7 +22,7 @@ jobs:
                   GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
                   GITEE_USER: ${{ secrets.GITEE_USER }}
               run: |
-                  if [ -z "${GITEE_TOKEN}" ] || [ -z "${GITEE_USER}" ]; then
+                  if [ -z "${GITEE_TOKEN}" ]; then
                     echo "Missing GITEE_TOKEN or GITEE_USER secret"
                     exit 1
                   fi
