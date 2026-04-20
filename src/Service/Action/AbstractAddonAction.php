@@ -76,15 +76,22 @@ abstract class AbstractAddonAction
     protected function unzip($zip_file, $target): void
     {
         if (!file_exists($zip_file)) {
-            $this->error(__('ptadmin-addon::messages.package.local_not_exists', ['file' => $zip_file]));
-
-            return;
+            throw new AddonException(__('ptadmin-addon::messages.package.local_not_exists', ['file' => $zip_file]));
         }
 
         $this->info(__('ptadmin-addon::messages.action.unpack_local'));
         $zip = new \ZipArchive();
-        $zip->open($zip_file);
-        $zip->extractTo($target);
+        $result = $zip->open($zip_file);
+        if (true !== $result) {
+            throw new AddonException(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
+        }
+
+        if (true !== $zip->extractTo($target)) {
+            $zip->close();
+
+            throw new AddonException(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
+        }
+
         $zip->close();
     }
 

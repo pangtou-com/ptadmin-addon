@@ -33,6 +33,8 @@ use PTAdmin\Addon\Commands\AddonCache;
 use PTAdmin\Addon\Commands\AddonCacheClear;
 use PTAdmin\Addon\Commands\AddonDisable;
 use PTAdmin\Addon\Commands\AddonEnable;
+use PTAdmin\Addon\Commands\AddonFrontendBuild;
+use PTAdmin\Addon\Commands\AddonFrontendPull;
 use PTAdmin\Addon\Commands\AddonInstall;
 use PTAdmin\Addon\Commands\AddonInstallLocal;
 use PTAdmin\Addon\Commands\AddonInit;
@@ -69,6 +71,8 @@ class AddonServiceProvider extends ServiceProvider
             AddonInstall::class,
             AddonInstallLocal::class,
             AddonInit::class,
+            AddonFrontendBuild::class,
+            AddonFrontendPull::class,
             AddonUninstall::class,
             AddonUpgrade::class,
             AddonEnable::class,

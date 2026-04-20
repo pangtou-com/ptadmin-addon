@@ -46,7 +46,7 @@ final class AddonDownload extends AbstractAddonAction
             'addon_version_id' => $versionId,
         ]);
         if (!isset($data['url']) || '' === $data['url']) {
-            return null;
+            throw new AddonException(__('ptadmin-addon::messages.addon.download_url_failed', ['code' => $this->code]));
         }
         $this->hash = $data['hash'] ?? '';
         $this->downloadAddon($data['url']);
@@ -58,15 +58,11 @@ final class AddonDownload extends AbstractAddonAction
     {
         $base = $this->getUnzipDirname();
         if (null === $base) {
-            $this->error(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
-
-            return null;
+            throw new AddonException(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
         }
         $info = AddonUtil::readAddonConfig($base);
         if (null === $info) {
-            $this->error(__('ptadmin-addon::messages.package.manifest_not_found'));
-
-            return null;
+            throw new AddonException(__('ptadmin-addon::messages.package.manifest_not_found'));
         }
         (new AddonPackageValidator(function (string $message): void {
             $this->info($message);
@@ -101,24 +97,26 @@ final class AddonDownload extends AbstractAddonAction
                     }
                 }
             },
+            'curl' => [
+                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                CURLOPT_RESOLVE => [
+                    'www.pangtou.com:443:61.147.93.222',
+                ],
+            ],
         ])->get($url);
         if ($response->successful()) {
             $data = $response->json();
             if (null !== $data) {
-                $this->error($data['message']);
-
-                return;
+                throw new AddonException((string) ($data['message'] ?? __('ptadmin-addon::messages.addon.download_failed')));
             }
             $body = $response->body();
             file_put_contents($this->getDownloadFilename(), $body);
             $hash = md5($body);
             if ($hash !== $this->hash) {
-                $this->error(__('ptadmin-addon::messages.action.download_retry', ['attempt' => $limit]));
                 if ($limit > 5) {
-                    $this->error(__('ptadmin-addon::messages.action.download_retry_exhausted'));
-
-                    return;
+                    throw new AddonException(__('ptadmin-addon::messages.addon.verify_failed', ['code' => $this->code]));
                 }
+                $this->error(__('ptadmin-addon::messages.action.download_retry', ['attempt' => $limit]));
                 ++$limit;
 
                 goto download;
@@ -126,11 +124,10 @@ final class AddonDownload extends AbstractAddonAction
 
             $this->unzip($this->getDownloadFilename(), $this->action->getStorePath());
         } else {
-            $this->error(
+            throw new AddonException(
                 __('ptadmin-addon::messages.action.download_failed_detail', [
                     'message' => json_encode($response->json(), JSON_UNESCAPED_UNICODE),
-                ]),
-                $response->json()
+                ])
             );
         }
     }

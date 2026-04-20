@@ -159,6 +159,42 @@ class AddonAction
     }
 
     /**
+     * 初始化插件开发脚手架.
+     *
+     * @return null|array|mixed
+     */
+    public static function init(string $code, string $title = '', bool $force = false)
+    {
+        $obj = new self($code);
+
+        return $obj->addTask(AddonInitAction::class, $title, $force)->action();
+    }
+
+    /**
+     * 拉取插件前端开发模板.
+     *
+     * @return null|array|mixed
+     */
+    public static function pullFrontend(string $code, string $template = 'module', string $ref = 'main', string $source = '', bool $force = false)
+    {
+        $obj = new self($code);
+
+        return $obj->addTask(AddonFrontendPullAction::class, $template, $ref, $source, $force)->action();
+    }
+
+    /**
+     * 构建插件前端资源.
+     *
+     * @return null|array|mixed
+     */
+    public static function buildFrontend(string $code, string $packageManager = '', string $script = 'build', bool $skipInstall = false)
+    {
+        $obj = new self($code);
+
+        return $obj->addTask(AddonFrontendBuildAction::class, $packageManager, $script, $skipInstall)->action();
+    }
+
+    /**
      * 登录平台.
      *
      * @param $user

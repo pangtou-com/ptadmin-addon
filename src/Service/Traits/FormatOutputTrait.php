@@ -51,6 +51,14 @@ trait FormatOutputTrait
 
         echo app()->runningInConsole() ? $message."\n" : json_encode($data)."\n\n";
 
+        if (!app()->runningInConsole()) {
+            if (ob_get_level() > 0) {
+                ob_flush();
+            }
+
+            flush();
+        }
+
         usleep(100000);
     }
 }

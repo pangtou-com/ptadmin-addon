@@ -24,11 +24,13 @@ declare(strict_types=1);
 namespace PTAdmin\AddonTests\Feature\Addon;
 
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use FilesystemIterator;
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\AddonApi;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonConfigManager;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
@@ -469,6 +471,87 @@ it('upgrade addon from downloaded package', function (): void {
     $filesystem->deleteDirectory($basePath);
 });
 
+it('stops cloud install immediately when downloaded package cannot be unzipped', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-install-cloud-invalid-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2');
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+
+    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+
+    $postResponse = new class
+    {
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function json($key = null)
+        {
+            $data = [
+                'code' => 0,
+                'data' => [
+                    'url' => 'https://example.com/test-invalid.zip',
+                    'hash' => md5('not-a-zip-file'),
+                ],
+            ];
+
+            return null === $key ? $data : data_get($data, $key);
+        }
+
+        public function body(): string
+        {
+            return (string) json_encode($this->json(), JSON_UNESCAPED_UNICODE);
+        }
+    };
+
+    $getResponse = new class
+    {
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function body(): string
+        {
+            return 'not-a-zip-file';
+        }
+
+        public function json($key = null)
+        {
+            return null;
+        }
+    };
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->once()->with('test-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
+        return 'https://www.pangtou.com/api-addon/download' === $url;
+    })->andReturn($postResponse);
+    Http::shouldReceive('get')->once()->with('https://example.com/test-invalid.zip')->andReturn($getResponse);
+
+    expect(fn () => AddonAction::install('test'))
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.addon.unzip_failed', ['code' => 'test']));
+
+    expect(Addon::hasInstalledAddon('test'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'install.log'))->toBeFalse();
+
+    $filesystem->deleteDirectory($basePath);
+});
+
 it('prevent upgrade when addon is in develop mode without force', function (): void {
     $filesystem = new Filesystem();
     $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-develop-'.uniqid();
@@ -858,26 +941,31 @@ it('run uninstall lifecycle when removing addon', function (): void {
     $filesystem->deleteDirectory($basePath);
 });
 
-it('init addon scaffold with standard development structure', function (): void {
+it('init addon scaffold with standard development structure via addon action', function (): void {
     $filesystem = new Filesystem();
     $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-init-'.uniqid();
     $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
 
     $this->app->setBasePath($basePath);
 
-    expect(Artisan::call('addon:init', [
-        'code' => 'demo-addon',
-        '--title' => 'Demo Addon',
-    ]))->toEqual(0);
+    $result = AddonAction::init('demo-addon', 'Demo Addon');
 
     $addonDir = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon';
     $manifestFile = $addonDir.\DIRECTORY_SEPARATOR.'manifest.json';
     $manifest = json_decode(file_get_contents($manifestFile), true, 512, JSON_THROW_ON_ERROR);
+    $bootstrapFile = $addonDir.\DIRECTORY_SEPARATOR.'Bootstrap.php';
+    $bootstrapContent = (string) file_get_contents($bootstrapFile);
 
     expect(is_dir($addonDir))->toBeTrue()
         ->and(file_exists($manifestFile))->toBeTrue()
+        ->and($result)->toMatchArray([
+            'code' => 'demo-addon',
+            'title' => 'Demo Addon',
+            'base_path' => 'DemoAddon',
+            'path' => $addonDir,
+        ])
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Installer.php'))->toBeTrue()
-        ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Bootstrap.php'))->toBeTrue()
+        ->and(file_exists($bootstrapFile))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'README.md'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'functions.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Dashboard'.\DIRECTORY_SEPARATOR.'DemoAddonOverviewWidget.php'))->toBeTrue()
@@ -896,6 +984,8 @@ it('init addon scaffold with standard development structure', function (): void 
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Config'.\DIRECTORY_SEPARATOR.'config.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'home'.\DIRECTORY_SEPARATOR.'index.blade.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Response'.\DIRECTORY_SEPARATOR.'Views'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'index.blade.php'))->toBeTrue()
+        ->and($bootstrapContent)->toContain('public ?string $admin_parent_menu = null;')
+        ->and($bootstrapContent)->toContain('public array $admin_menu = [')
         ->and($manifest['code'])->toEqual('demo-addon')
         ->and($manifest['develop'])->toBeTrue()
         ->and(data_get($manifest, 'compatibility.php'))->toEqual('>=7.4')
@@ -941,6 +1031,224 @@ it('force recreate addon scaffold', function (): void {
     $filesystem->deleteDirectory($basePath);
 });
 
+it('pulls frontend template via addon action with regional fallback order', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    config()->set('app.locale', 'zh-cn');
+    config()->set('app.timezone', 'Asia/Shanghai');
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'module',
+        'region' => 'cn',
+        'primary_sources' => [
+            'cn' => 'gitee',
+            'global' => 'github',
+        ],
+        'templates' => [
+            'module' => [
+                'sources' => [
+                    'gitee' => [
+                        'archive_url' => 'https://gitee.example.com/module/{ref}.zip',
+                    ],
+                    'github' => [
+                        'archive_url' => '',
+                    ],
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/module/{ref}.zip',
+                    ],
+                ],
+            ],
+            'micro-app' => [
+                'sources' => [
+                    'gitee' => [
+                        'archive_url' => 'https://gitee.example.com/micro-app/{ref}.zip',
+                    ],
+                    'github' => [
+                        'archive_url' => 'https://github.example.com/micro-app/{ref}.zip',
+                    ],
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/micro-app/{ref}.zip',
+                    ],
+                ],
+            ],
+        ],
+        'sources' => [
+            'gitee' => [
+                'archive_url' => 'https://gitee.example.com/{template}/{ref}.zip',
+            ],
+            'github' => [
+                'archive_url' => 'https://github.example.com/{template}/{ref}.zip',
+            ],
+            'official' => [
+                'archive_url' => 'https://official.example.com/{template}/{ref}.zip',
+            ],
+        ],
+    ]);
+
+    expect(Artisan::call('addon:init', [
+        'code' => 'demo-addon',
+        '--title' => 'Demo Addon',
+    ]))->toEqual(0);
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template.zip';
+    buildFrontendTemplateZip($zipFile, [
+        'package.json' => "{\"name\":\"demo-addon-frontend\"}\n",
+        'src/main.ts' => "console.log('demo-addon');\n",
+        'README.md' => "# Demo Frontend\n",
+    ]);
+    $zipBody = file_get_contents($zipFile);
+
+    $failedResponse = new class
+    {
+        public function successful(): bool
+        {
+            return false;
+        }
+
+        public function status(): int
+        {
+            return 500;
+        }
+
+        public function body(): string
+        {
+            return 'upstream error';
+        }
+    };
+
+    $successResponse = new class($zipBody)
+    {
+        private string $body;
+
+        public function __construct(string $body)
+        {
+            $this->body = $body;
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+
+    $requestedUrls = [];
+    Http::shouldReceive('withOptions')->times(3)->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->times(3)->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->times(3)->withArgs(function (string $url) use (&$requestedUrls): bool {
+        $requestedUrls[] = $url;
+
+        return true;
+    })->andReturn($failedResponse, $failedResponse, $successResponse);
+
+    $result = AddonAction::pullFrontend('demo-addon', 'module', 'main');
+
+    expect($requestedUrls)->toEqual([
+        'https://gitee.example.com/module/main.zip',
+        'https://github.example.com/module/main.zip',
+        'https://official.example.com/module/main.zip',
+    ]);
+    expect($result)->toMatchArray([
+        'source' => 'official',
+        'template' => 'module',
+        'ref' => 'main',
+    ]);
+
+    $frontendPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend';
+    expect(is_dir($frontendPath))->toBeTrue()
+        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'package.json'))->toBeTrue()
+        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
+        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'template-root'))->toBeFalse()
+        ->and(data_get($result, 'path'))->toEqual($frontendPath);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('builds frontend assets and generates module manifest via addon action', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-build-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+
+    AddonAction::init('demo-addon', 'Demo Addon');
+
+    $frontendPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend';
+    $filesystem->ensureDirectoryExists($frontendPath);
+    file_put_contents($frontendPath.\DIRECTORY_SEPARATOR.'package.json', (string) json_encode([
+        'name' => 'demo-addon-frontend',
+        'version' => '1.0.0',
+        'ptadmin-addon' => [
+            'install_command' => 'php -r "file_put_contents(\'install.marker\', \'ok\');"',
+            'build_command' => 'php -r "if (!is_dir(\'dist\')) { mkdir(\'dist\', 0777, true); } file_put_contents(\'dist/index.js\', \'console.log(\\\'demo-addon\\\');\'); file_put_contents(\'dist/index.css\', \'body{color:#000;}\');"',
+            'module' => [
+                'meta' => [
+                    'order' => 30,
+                ],
+            ],
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    $result = AddonAction::buildFrontend('demo-addon');
+
+    $assetPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin';
+    $moduleManifestPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'frontend.json';
+    $moduleManifest = json_decode(file_get_contents($moduleManifestPath), true, 512, JSON_THROW_ON_ERROR);
+
+    expect(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'install.marker'))->toBeTrue()
+        ->and(is_dir($assetPath))->toBeTrue()
+        ->and(file_exists($assetPath.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($assetPath.\DIRECTORY_SEPARATOR.'index.css'))->toBeTrue()
+        ->and(file_exists($moduleManifestPath))->toBeTrue()
+        ->and($result)->toMatchArray([
+            'code' => 'demo-addon',
+            'package_manager' => 'npm',
+            'script' => 'build',
+            'asset_path' => $assetPath,
+            'module_manifest' => $moduleManifestPath,
+        ])
+        ->and(data_get($result, 'entry.js'))->toEqual('dist/admin/index.js')
+        ->and(data_get($result, 'entry.css'))->toEqual(['dist/admin/index.css'])
+        ->and(data_get($moduleManifest, 'modules.0.key'))->toEqual('demo-addon')
+        ->and(data_get($moduleManifest, 'modules.0.title'))->toEqual('Demo Addon')
+        ->and(data_get($moduleManifest, 'modules.0.route_base'))->toEqual('/demo-addon')
+        ->and(data_get($moduleManifest, 'modules.0.meta.order'))->toEqual(30)
+        ->and(data_get($moduleManifest, 'modules.0.entry.local.js'))->toEqual('dist/admin/index.js')
+        ->and(data_get($moduleManifest, 'modules.0.entry.local.css'))->toEqual(['dist/admin/index.css'])
+        ->and(data_get($moduleManifest, 'modules.0.pages.0.path'))->toEqual('/demo-addon');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('wraps marketplace connection failures as addon exceptions with configured host', function (): void {
+    Cache::flush();
+    config()->set('addon.marketplace.base_url', 'https://addons.example.test/api-addon/');
+    Cache::put('ptadmin:addon_user_keys', serialize([
+        'token' => 'Bearer test-token',
+    ]));
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->once()->with('test-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->once()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
+        return 'https://addons.example.test/api-addon/addon-exists/test' === $url;
+    })->andThrow(new ConnectionException('cURL error 6: Could not resolve host: addons.example.test'));
+
+    expect(fn () => AddonApi::getAddonCodeExists('test'))
+        ->toThrow(AddonException::class, 'addons.example.test');
+});
+
 function buildAddonPackageZip(string $sourceDir, string $zipFilename): void
 {
     $zip = new ZipArchive();
@@ -963,4 +1271,21 @@ function buildAddonPackageZip(string $sourceDir, string $zipFilename): void
     }
 
     $zip->close();
+}
+
+function buildFrontendTemplateZip(string $zipFilename, array $files): void
+{
+    $filesystem = new Filesystem();
+    $sourceDir = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-template-src-'.uniqid();
+    $rootDir = $sourceDir.\DIRECTORY_SEPARATOR.'template-root';
+    $filesystem->ensureDirectoryExists($rootDir);
+
+    foreach ($files as $path => $content) {
+        $targetFile = $rootDir.\DIRECTORY_SEPARATOR.ltrim((string) $path, '/');
+        $filesystem->ensureDirectoryExists(\dirname($targetFile));
+        file_put_contents($targetFile, (string) $content);
+    }
+
+    buildAddonPackageZip($rootDir, $zipFilename);
+    $filesystem->deleteDirectory($sourceDir);
 }

@@ -26,6 +26,7 @@ namespace PTAdmin\Addon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Http\Client\ConnectionException;
 use PTAdmin\Addon\Exception\AddonException;
 
 /**
@@ -39,7 +40,7 @@ use PTAdmin\Addon\Exception\AddonException;
  */
 class AddonApi
 {
-    private const BASE_URL = 'https://www.pangtou.com/api-addon/';
+    private const DEFAULT_BASE_URL = 'https://www.pangtou.com/api-addon/';
     private const TOKEN_KEY = 'ptadmin:addon_user_keys';
 
     /**
@@ -202,7 +203,12 @@ class AddonApi
         $res = $res->withOptions([
             'verify' => false,
         ]);
-        $res = $res->post($obj->getUrl('addon-upload'), $obj->addonArgsEncrypt($data));
+
+        try {
+            $res = $res->post($obj->getUrl('addon-upload'), $obj->addonArgsEncrypt($data));
+        } catch (ConnectionException $e) {
+            throw $obj->networkException('addon-upload', $e);
+        }
 
         return $obj->response($res);
     }
@@ -227,8 +233,20 @@ class AddonApi
         }
         $res = $res->withOptions([
             'verify' => false,
+            'timeout' => 5,
+            'curl' => [
+                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                CURLOPT_RESOLVE => [
+                    'www.pangtou.com:443:61.147.93.222',
+                ],
+            ],
         ]);
-        $res = $res->post($this->getUrl($method), $this->addonArgsEncrypt($data));
+        try {
+            $res = $res->post($this->getUrl($method), $this->addonArgsEncrypt($data));
+        } catch (ConnectionException $e) {
+
+            throw $this->networkException($method, $e);
+        }
 
         return $this->response($res);
     }
@@ -267,7 +285,7 @@ class AddonApi
 
     private function getUrl($method): string
     {
-        return self::BASE_URL.$method;
+        return rtrim((string) config('addon.marketplace.base_url', self::DEFAULT_BASE_URL), '/').'/'.$method;
     }
 
     private function addonArgsEncrypt(array $param = []): array
@@ -277,5 +295,13 @@ class AddonApi
         $param['sign'] = \PTAdmin\Addon\AesUtil::encrypt($param);
 
         return $param;
+    }
+
+    private function networkException(string $method, ConnectionException $e): AddonException
+    {
+        return new AddonException(__('ptadmin-addon::messages.api.network_failed', [
+            'host' => parse_url($this->getUrl($method), PHP_URL_HOST) ?: '',
+            'message' => $e->getMessage(),
+        ]), 20000, $e);
     }
 }
