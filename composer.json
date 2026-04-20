@@ -2,11 +2,22 @@
     "name": "ptadmin/addon",
     "description": "ptadmin 管理平台插件应用管理包，需要搭配PTAdmin 管理平台使用",
     "license": "Apache-2.0",
-    "keywords": ["HTML", "admin", "管理后台", "插件应用", "低代码平台", "addon", "PTAdmin"],
+    "keywords": [
+        "HTML",
+        "admin",
+        "管理后台",
+        "插件应用",
+        "低代码平台",
+        "addon",
+        "PTAdmin"
+    ],
     "type": "library",
     "homepage": "https://github.com/pangtou-com/ptadmin-addon",
     "authors": [
-        {"name": "Zane", "email": "873934580@qq.com"}
+        {
+            "name": "Zane",
+            "email": "873934580@qq.com"
+        }
     ],
     "require": {
         "php": "^7.4 || ^8.0",
@@ -54,5 +65,6 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true
         }
-    }
+    },
+    "version": "1.0.6"
 }
