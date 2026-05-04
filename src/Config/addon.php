@@ -23,51 +23,57 @@ return [
     |
     | 插件前端模板拉取配置。
     | region=auto 时会根据当前 locale / timezone 推断优先区域：
-    | - cn      优先 gitee
-    | - global  优先 github
+    | - cn      优先 official
+    | - global  优先 official
     |
-    | 当主源拉取失败后，会自动回退到 official。
+    | 当主源拉取失败后，会自动回退到 github。
     |
     */
     'frontend_templates' => [
         'default_template' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE', 'module'),
         'region' => env('PTADMIN_ADDON_FRONTEND_REGION', 'auto'),
+        'manifest' => [
+            'module' => [
+                'route_base' => env('PTADMIN_ADDON_FRONTEND_MODULE_ROUTE_BASE', '/{code}'),
+                'remote_name' => env('PTADMIN_ADDON_FRONTEND_MODULE_REMOTE_NAME', '{code_snake}_remote'),
+                'develop_entry' => env('PTADMIN_ADDON_FRONTEND_MODULE_DEVELOP_ENTRY', 'http://localhost:4179/assets/remoteEntry.js'),
+                'deploy_entry' => env('PTADMIN_ADDON_FRONTEND_MODULE_DEPLOY_ENTRY', '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js'),
+                'expose' => env('PTADMIN_ADDON_FRONTEND_MODULE_EXPOSE', './module'),
+            ],
+            'micro-app' => [
+                'route_base' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_ROUTE_BASE', '/{code}'),
+                'app_name' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_NAME', '{code_snake}'),
+                'develop_url' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_DEVELOP_URL', 'http://localhost:5182/'),
+                'deploy_url' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_DEPLOY_URL', '{app_url}/addons/{code}/dist/admin/'),
+            ],
+        ],
         'primary_sources' => [
-            'cn' => 'gitee',
-            'global' => 'github',
+            'cn' => 'official',
+            'global' => 'official',
         ],
         'templates' => [
             'module' => [
                 'sources' => [
-                    'gitee' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_GITEE_ARCHIVE_URL', ''),
-                    ],
                     'github' => [
                         'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_GITHUB_ARCHIVE_URL', 'https://github.com/pangtou-com/ptadmin-addon-module/archive/refs/heads/{ref}.zip'),
                     ],
                     'official' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', '')),
+                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', 'http://dev.pangtou.com/addon-templates/module/{ref}.zip')),
                     ],
                 ],
             ],
             'micro-app' => [
                 'sources' => [
-                    'gitee' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_GITEE_ARCHIVE_URL', ''),
-                    ],
                     'github' => [
                         'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_GITHUB_ARCHIVE_URL', 'https://github.com/pangtou-com/ptadmin-addon-micro-app/archive/refs/heads/{ref}.zip'),
                     ],
                     'official' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', '')),
+                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', 'http://dev.pangtou.com/addon-templates/micro-app/{ref}.zip')),
                     ],
                 ],
             ],
         ],
         'sources' => [
-            'gitee' => [
-                'archive_url' => env('PTADMIN_ADDON_FRONTEND_GITEE_ARCHIVE_URL', ''),
-            ],
             'github' => [
                 'archive_url' => env('PTADMIN_ADDON_FRONTEND_GITHUB_ARCHIVE_URL', ''),
             ],

@@ -31,6 +31,7 @@ class DirectiveDefinition
     public const TYPE_LOOP = 'loop';
     public const TYPE_IF = 'if';
     public const TYPE_OUTPUT = 'output';
+    public const CONTEXT_PAGE = 'page';
 
     /** @var string */
     private $name;
@@ -49,6 +50,9 @@ class DirectiveDefinition
 
     /** @var bool */
     private $cacheable = true;
+
+    /** @var string|null */
+    private $context;
 
     private function __construct(string $name)
     {
@@ -102,6 +106,13 @@ class DirectiveDefinition
         return $this;
     }
 
+    public function context(string $context): self
+    {
+        $this->context = $this->normalizeContext($context);
+
+        return $this;
+    }
+
     public function getName(): string
     {
         return $this->name;
@@ -132,6 +143,11 @@ class DirectiveDefinition
         return $this->cacheable;
     }
 
+    public function getContext(): ?string
+    {
+        return blank($this->context) ? null : $this->context;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -143,6 +159,9 @@ class DirectiveDefinition
         ];
         if (null !== $this->getTitle()) {
             $result['title'] = $this->getTitle();
+        }
+        if (null !== $this->getContext()) {
+            $result['context'] = $this->getContext();
         }
 
         return $result;
@@ -159,5 +178,12 @@ class DirectiveDefinition
         }
 
         return $type;
+    }
+
+    private function normalizeContext(string $context): ?string
+    {
+        $context = strtolower(trim($context));
+
+        return '' === $context ? null : $context;
     }
 }

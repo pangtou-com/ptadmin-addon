@@ -77,6 +77,29 @@ class AddonUtil
         return $addons;
     }
 
+    public static function buildAddonCacheSignature(): string
+    {
+        $entries = [];
+
+        foreach (self::scanAddonsPath() as $dir) {
+            $addonPath = base_path(self::ADDON_DIR.\DIRECTORY_SEPARATOR.$dir);
+            $manifestPath = $addonPath.\DIRECTORY_SEPARATOR.'manifest.json';
+            $disablePath = $addonPath.\DIRECTORY_SEPARATOR.'disable';
+
+            $entries[] = [
+                'dir' => $dir,
+                'manifest_exists' => file_exists($manifestPath),
+                'manifest_mtime' => file_exists($manifestPath) ? (int) @filemtime($manifestPath) : 0,
+                'manifest_size' => file_exists($manifestPath) ? (int) @filesize($manifestPath) : 0,
+                'disable_exists' => file_exists($disablePath),
+                'disable_mtime' => file_exists($disablePath) ? (int) @filemtime($disablePath) : 0,
+                'disable_size' => file_exists($disablePath) ? (int) @filesize($disablePath) : 0,
+            ];
+        }
+
+        return md5((string) json_encode($entries, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
     /**
      * 扫描插件目录.
      *

@@ -184,11 +184,24 @@ class Parser
      */
     public function getExpression(): string
     {
-        if ($this->isParamEmpty()) {
+        return $this->buildExpression();
+    }
+
+    /**
+     * @param array<string, mixed> $extraAttributes
+     */
+    public function buildExpression(array $extraAttributes = []): string
+    {
+        if ($this->isParamEmpty() && [] === $extraAttributes) {
             return '\\PTAdmin\\Addon\\Service\\DirectivesDTO::build()';
         }
         $result = '';
         $data = $this->toArray();
+        if ($this->hasAttribute('current') && !isset($extraAttributes['__pt_context'])) {
+            $data['__pt_context'] = $this->buildCurrentContextExpression();
+        }
+        $data = array_merge($data, $extraAttributes);
+
         foreach ($data as $key => $str) {
             if (\is_string($str) && !Str::startsWith($str, ['$', '[', 'false', 'true'])) {
                 if (Str::contains($str, ["'"])) {
@@ -203,6 +216,11 @@ class Parser
         }
 
         return "\\PTAdmin\\Addon\\Service\\DirectivesDTO::build([{$result}])";
+    }
+
+    private function buildCurrentContextExpression(): string
+    {
+        return "['page' => \$page ?? null, 'resolved' => \$resolved ?? null, 'route' => \$route ?? null]";
     }
 
     /**

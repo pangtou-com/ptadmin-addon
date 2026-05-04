@@ -53,3 +53,19 @@ it('supports unregistering bootstrapped directives', function (): void {
         ->and($manage->getDirectives('test'))->toHaveKey('lists')
         ->and($manage->getDirectives('test'))->not->toHaveKey('auth');
 });
+
+it('persists directive context definitions', function (): void {
+    AddonDirectivesManage::getInstance()->register(
+        'test',
+        DirectiveDefinition::make('page_lists')
+            ->handler(TestRuntimeDirectives::class)
+            ->method('arc')
+            ->type('loop')
+            ->context(DirectiveDefinition::CONTEXT_PAGE)
+    );
+
+    $definition = AddonDirectivesManage::getInstance()->getDirective('test', 'page_lists');
+
+    expect($definition)->toBeArray()
+        ->and($definition['context'] ?? null)->toBe(DirectiveDefinition::CONTEXT_PAGE);
+});

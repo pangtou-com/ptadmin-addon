@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonUtil;
 
 final class AddonFrontendPullAction extends AbstractAddonAction
 {
@@ -67,6 +68,8 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                     throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_move_failed', ['path' => $targetPath]));
                 }
 
+                $this->postProcessTemplate($targetPath, $template, $addonPath);
+
                 $this->success(__('ptadmin-addon::messages.command.frontend_pull_created', [
                     'source' => $currentSource,
                     'path' => $targetPath,
@@ -112,10 +115,9 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         }
 
         $region = $this->resolveRegion();
-        $primary = (string) config('addon.frontend_templates.primary_sources.'.$region, 'github');
-        $secondary = $this->resolveMirrorSource($primary);
+        $primary = (string) config('addon.frontend_templates.primary_sources.'.$region, self::OFFICIAL_SOURCE);
 
-        return array_values(array_unique([$primary, $secondary, self::OFFICIAL_SOURCE]));
+        return array_values(array_unique([$primary, 'github']));
     }
 
     private function resolveRegion(): string
@@ -161,11 +163,6 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         }
 
         return strtolower(trim((string) config('addon.frontend_templates.default_template', 'module'))) ?: 'module';
-    }
-
-    private function resolveMirrorSource(string $primary): string
-    {
-        return 'gitee' === strtolower(trim($primary)) ? 'github' : 'gitee';
     }
 
     private function downloadArchive(string $url, string $downloadFile): void
@@ -224,5 +221,183 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         }
 
         return $extractPath;
+    }
+
+    private function postProcessTemplate(string $targetPath, string $template, string $addonPath): void
+    {
+        if ('module' === $template) {
+            $this->rewriteModuleFrontendManifest($targetPath, $addonPath);
+
+            return;
+        }
+
+        if ('micro-app' === $template) {
+            $this->rewriteMicroAppFrontendManifest($targetPath, $addonPath);
+        }
+    }
+
+    private function rewriteModuleFrontendManifest(string $targetPath, string $addonPath): void
+    {
+        [$manifestPath, $payload, $addonManifest] = $this->loadFrontendManifest($targetPath, $addonPath);
+        if (null === $manifestPath || null === $payload || null === $addonManifest) {
+            return;
+        }
+
+        $code = strtolower(trim((string) ($addonManifest['code'] ?? $this->code)));
+        $routeBase = $this->resolveModuleRouteBase($code);
+        $entry = $this->resolveModuleEntry($code, (bool) ($addonManifest['develop'] ?? false), (array) ($payload['entry'] ?? []));
+
+        $payload['id'] = $code;
+        $payload['code'] = $code;
+        $payload['name'] = $code;
+        $payload['routeBase'] = $routeBase;
+        $payload['entry'] = $entry;
+
+        $this->filesystem->put(
+            $manifestPath,
+            (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    private function rewriteMicroAppFrontendManifest(string $targetPath, string $addonPath): void
+    {
+        [$manifestPath, $payload, $addonManifest] = $this->loadFrontendManifest($targetPath, $addonPath);
+        if (null === $manifestPath || null === $payload || null === $addonManifest) {
+            return;
+        }
+
+        $code = strtolower(trim((string) ($addonManifest['code'] ?? $this->code)));
+        $routeBase = $this->resolveMicroAppRouteBase($code);
+        $entry = $this->resolveMicroAppEntry($code, (bool) ($addonManifest['develop'] ?? false), (array) ($payload['entry'] ?? []));
+
+        $payload['id'] = $code;
+        $payload['code'] = $code;
+        $payload['name'] = $code;
+        $payload['routeBase'] = $routeBase;
+        $payload['entry'] = $entry;
+
+        $this->filesystem->put(
+            $manifestPath,
+            (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    /**
+     * @return array{0: string|null, 1: array<string, mixed>|null, 2: array<string, mixed>|null}
+     */
+    private function loadFrontendManifest(string $targetPath, string $addonPath): array
+    {
+        $manifestPath = $targetPath.\DIRECTORY_SEPARATOR.'frontend.json';
+        if (!$this->filesystem->exists($manifestPath)) {
+            return [null, null, null];
+        }
+
+        $addonManifest = AddonUtil::readAddonConfig($addonPath);
+        if (null === $addonManifest) {
+            return [null, null, null];
+        }
+
+        $content = @file_get_contents($manifestPath);
+        $payload = \is_string($content) ? @json_decode($content, true) : null;
+        if (!\is_array($payload)) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_build_module_invalid'));
+        }
+
+        return [$manifestPath, $payload, $addonManifest];
+    }
+
+    private function resolveModuleRouteBase(string $code): string
+    {
+        $pattern = trim((string) config('addon.frontend_templates.manifest.module.route_base', '/{code}'));
+
+        return $this->replaceManifestPlaceholders($pattern, $code);
+    }
+
+    private function resolveMicroAppRouteBase(string $code): string
+    {
+        $pattern = trim((string) config('addon.frontend_templates.manifest.micro-app.route_base', '/{code}'));
+
+        return $this->replaceManifestPlaceholders($pattern, $code);
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveModuleEntry(string $code, bool $develop, array $entry): array
+    {
+        $federation = \is_array($entry['federation'] ?? null) ? $entry['federation'] : [];
+
+        return [
+            'federation' => [
+                'remote' => $this->replaceManifestPlaceholders(
+                    (string) config('addon.frontend_templates.manifest.module.remote_name', '{code_snake}_remote'),
+                    $code
+                ),
+                'entry' => $this->replaceManifestPlaceholders(
+                    (string) config(
+                        'addon.frontend_templates.manifest.module.'.($develop ? 'develop_entry' : 'deploy_entry'),
+                        $develop ? 'http://localhost:4179/assets/remoteEntry.js' : '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js'
+                    ),
+                    $code
+                ),
+                'expose' => (string) ($federation['expose'] ?? config('addon.frontend_templates.manifest.module.expose', './module')),
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveMicroAppEntry(string $code, bool $develop, array $entry): array
+    {
+        $wujie = \is_array($entry['wujie'] ?? null) ? $entry['wujie'] : [];
+
+        return [
+            'wujie' => [
+                'name' => $this->replaceManifestPlaceholders(
+                    (string) config('addon.frontend_templates.manifest.micro-app.app_name', '{code_snake}'),
+                    $code
+                ),
+                'url' => $this->normalizeMicroAppUrl($this->replaceManifestPlaceholders(
+                    (string) config(
+                        'addon.frontend_templates.manifest.micro-app.'.($develop ? 'develop_url' : 'deploy_url'),
+                        $develop ? 'http://localhost:5182/' : '{app_url}/addons/{code}/dist/admin/'
+                    ),
+                    $code
+                )),
+                'alive' => (bool) ($wujie['alive'] ?? false),
+                'degrade' => (bool) ($wujie['degrade'] ?? false),
+                'sync' => (bool) ($wujie['sync'] ?? false),
+            ],
+        ];
+    }
+
+    private function replaceManifestPlaceholders(string $pattern, string $code): string
+    {
+        $appUrl = rtrim((string) config('app.url', ''), '/');
+        if ('' === $appUrl) {
+            $appUrl = 'http://localhost';
+        }
+
+        return strtr($pattern, [
+            '{code}' => $code,
+            '{code_kebab}' => $code,
+            '{code_snake}' => str_replace('-', '_', $code),
+            '{app_url}' => $appUrl,
+        ]);
+    }
+
+    private function normalizeMicroAppUrl(string $url): string
+    {
+        $normalized = trim($url);
+        if ('' === $normalized) {
+            return $normalized;
+        }
+
+        return rtrim($normalized, '/').'/';
     }
 }

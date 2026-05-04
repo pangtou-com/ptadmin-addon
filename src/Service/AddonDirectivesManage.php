@@ -160,6 +160,13 @@ class AddonDirectivesManage
         return $this->definitions[$addonCode] ?? [];
     }
 
+    public function getDirective(string $addonCode, string $name): ?array
+    {
+        $this->bootstrap($addonCode);
+
+        return $this->definitions[$addonCode][$name] ?? null;
+    }
+
     public function getAll(): array
     {
         $data = [];
@@ -219,6 +226,9 @@ class AddonDirectivesManage
         }
         if (isset($directive['cache'])) {
             $definition->cacheable(false !== (bool) $directive['cache']);
+        }
+        if (isset($directive['context'])) {
+            $definition->context((string) $directive['context']);
         }
 
         return $definition;

@@ -8,6 +8,8 @@ export function getSideBarGuide() {
         { text: 'Manifest', link: '/guide/manifest.md' },
         { text: '生命周期', link: '/guide/lifecycle.md' },
         { text: '插件样板', link: '/guide/plugin-starter.md' },
+        { text: '模板上下文协议', link: '/guide/template-context.md' },
+        { text: '宿主接入清单', link: '/guide/host-context-checklist.md' },
     ]
 }
 

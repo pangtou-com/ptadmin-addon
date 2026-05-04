@@ -23,13 +23,56 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Service;
 
+use PTAdmin\Addon\Exception\AddonException;
+
 /**
  * 插件启动基类.
  */
 abstract class BaseBootstrap
 {
-    /** @var array 管理后台菜单目录 */
-    // ['name' => ''， 'title' => '', 'icon' => '', 'route' => '', 'type' => '', 'is_nav' => 1, 'weight' => 99, 'note' => '']
+    /**
+     * 管理后台资源定义。
+     *
+     * `admin_menu` 现在直接使用资源服务协议，不再是旧菜单协议。
+     *
+     * 推荐最小结构：
+     *
+     * ```php
+     * public array $admin_menu = [
+     *     [
+     *         'name' => 'test.dashboard',
+     *         'title' => '测试概览',
+     *         'type' => 'nav',
+     *         'module' => 'test',
+     *         'page_key' => 'test.page.home',
+     *         'addon_code' => 'test',
+     *         'parent' => 'test',
+     *         'route' => '/test',
+     *         'icon' => 'HomeFilled',
+     *         'is_nav' => 1,
+     *         'status' => 1,
+     *         'sort' => 10,
+     *         'meta' => [
+     *             'note' => '测试插件后台入口',
+     *             'keep_alive' => 1,
+     *             'hidden' => 0,
+     *         ],
+     *     ],
+     * ];
+     * ```
+     *
+     * 协议要点：
+     * - `name` 是资源唯一标识，不是显示名称
+     * - `title` 是显示名称
+     * - `type` 仅支持：`dir`、`nav`、`link`、`btn`、`field`
+     * - `nav/link` 必须包含：`module`、`page_key`、`route`
+     * - `btn/field` 必须包含：`module`
+     * - 菜单型子资源的父级必须是 `dir`
+     * - 推荐统一使用 `parent => 父资源name`
+     * - 当 `admin_parent_menu = null` 且未显式声明根资源时，会自动补一个插件根目录资源
+     *
+     * @var array<int, array<string, mixed>>
+     */
     public array $admin_menu = [];
 
     /** @var string|null 管理后台的父级菜单，当父级菜单不存在时则默认为插件为父级菜单 */
@@ -38,8 +81,16 @@ abstract class BaseBootstrap
     /**
      * 返回后台资源定义。
      *
-     * 默认根据 `$admin_menu` 和 `$admin_parent_menu` 生成资源树，
-     * 插件也可以按需重写该方法输出更细粒度的资源定义。
+     * 默认直接返回 `admin_menu` 中声明的资源协议，并在需要时自动补齐插件根目录资源。
+     * 如果插件有更复杂的资源结构，也可以按需重写该方法，直接返回标准资源协议数组。
+     *
+     * 该方法返回的数据会被以下链路直接消费：
+     * - 安装时资源同步
+     * - 启用时资源同步
+     * - `addon:resources:sync`
+     * - 开发态 `auth/resources` 动态合并
+     *
+     * 因此这里的定义必须严格满足资源服务协议。
      *
      * @param string               $addonCode
      * @param array<string, mixed> $addonInfo
@@ -53,34 +104,46 @@ abstract class BaseBootstrap
             return array();
         }
 
-        $module = isset($addonInfo['module']) && '' !== (string) $addonInfo['module']
-            ? (string) $addonInfo['module']
-            : $addonCode;
-        $definitions = array();
         $parentCode = null;
+        $definitions = $this->flattenResourceDefinitions($menu, $addonCode, $addonInfo);
 
         if (\is_string($this->admin_parent_menu) && '' !== trim($this->admin_parent_menu)) {
             $parentCode = trim($this->admin_parent_menu);
         } else {
             $parentCode = $addonCode;
-            $definitions[] = array(
-                'code' => $parentCode,
-                'name' => (string) ($addonInfo['title'] ?? $addonInfo['name'] ?? $addonCode),
-                'type' => 'dir',
-                'module' => $module,
-                'page_key' => null,
-                'addon_code' => $addonCode,
-                'is_nav' => 1,
-                'status' => 1,
-                'sort' => 0,
-                'meta_json' => array(
-                    'note' => (string) ($addonInfo['description'] ?? ''),
-                    'controller' => '',
-                ),
-            );
+            if (!$this->hasResourceDefinition($definitions, $parentCode)) {
+                array_unshift($definitions, array(
+                    'name' => $parentCode,
+                    'title' => (string) ($addonInfo['title'] ?? $addonInfo['name'] ?? $addonCode),
+                    'type' => 'dir',
+                    'addon_code' => $addonCode,
+                    'is_nav' => 1,
+                    'status' => 1,
+                    'sort' => 0,
+                    'meta' => array(
+                        'note' => (string) ($addonInfo['description'] ?? ''),
+                        'controller' => '',
+                        'hidden' => 0,
+                        'keep_alive' => 0,
+                    ),
+                ));
+            }
         }
 
-        return array_merge($definitions, $this->buildChildResourceDefinitions($menu, $addonCode, $parentCode, $module, $addonCode));
+        foreach ($definitions as &$definition) {
+            if (
+                $definition['name'] !== $parentCode
+                && (!isset($definition['parent']) || '' === trim((string) $definition['parent']))
+                && null !== $parentCode
+            ) {
+                $definition['parent'] = $parentCode;
+            }
+        }
+        unset($definition);
+
+        $this->validateResourceDefinitions($definitions, $addonCode);
+
+        return array_values($definitions);
     }
 
     /**
@@ -180,72 +243,183 @@ abstract class BaseBootstrap
     {
     }
 
+    private function hasResourceDefinition(array $definitions, string $name): bool
+    {
+        foreach ($definitions as $definition) {
+            if (\is_array($definition) && $name === trim((string) ($definition['name'] ?? ''))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
-     * @param array<int, array<string, mixed>> $menu
+     * @param array<int, array<string, mixed>> $definitions
      *
      * @return array<int, array<string, mixed>>
      */
-    private function buildChildResourceDefinitions(array $menu, string $addonCode, string $parentCode, string $module, string $codePrefix): array
+    private function flattenResourceDefinitions(array $definitions, string $addonCode, array $addonInfo, ?string $inheritedParent = null): array
     {
-        $definitions = array();
+        $results = array();
 
-        foreach ($menu as $item) {
+        foreach ($definitions as $item) {
             if (!\is_array($item)) {
                 continue;
             }
 
-            $name = trim((string) ($item['name'] ?? $item['code'] ?? ''));
+            $name = trim((string) ($item['name'] ?? ''));
             if ('' === $name) {
                 continue;
             }
 
-            $code = isset($item['code']) && '' !== trim((string) $item['code'])
-                ? trim((string) $item['code'])
-                : $codePrefix.'.'.$name;
+            $definition = $item;
+            unset($definition['children']);
 
-            $definitions[] = array(
-                'code' => $code,
-                'name' => (string) ($item['title'] ?? $name),
-                'type' => (string) ($item['type'] ?? 'nav'),
-                'module' => $module,
-                'page_key' => $this->resolvePageKeyFromMenuItem($item),
-                'addon_code' => $addonCode,
-                'parent' => $parentCode,
-                'path' => $item['path'] ?? null,
-                'route' => $item['route'] ?? null,
-                'icon' => $item['icon'] ?? null,
-                'is_nav' => isset($item['is_nav']) ? (int) $item['is_nav'] : 1,
-                'status' => isset($item['status']) ? (int) $item['status'] : 1,
-                'sort' => isset($item['weight']) ? (int) $item['weight'] : 0,
-                'meta_json' => array(
-                    'note' => (string) ($item['note'] ?? ''),
-                    'controller' => (string) ($item['controller'] ?? ''),
-                ),
-            );
+            if (!isset($definition['title']) || '' === trim((string) $definition['title'])) {
+                $definition['title'] = $name;
+            }
+            if (!isset($definition['addon_code']) || '' === trim((string) $definition['addon_code'])) {
+                $definition['addon_code'] = $addonCode;
+            }
+            if (
+                !isset($definition['parent'])
+                && null !== $inheritedParent
+                && $name !== $inheritedParent
+            ) {
+                $definition['parent'] = $inheritedParent;
+            }
+            if (
+                !isset($definition['module'])
+                && 'dir' !== (string) ($definition['type'] ?? 'nav')
+                && isset($addonInfo['module'])
+                && '' !== trim((string) $addonInfo['module'])
+            ) {
+                $definition['module'] = (string) $addonInfo['module'];
+            }
+            if (!isset($definition['sort']) && isset($definition['weight'])) {
+                $definition['sort'] = (int) $definition['weight'];
+            }
+            if (!isset($definition['meta']) && !isset($definition['meta_json'])) {
+                $meta = array();
+                if (isset($definition['note'])) {
+                    $meta['note'] = (string) $definition['note'];
+                }
+                if (isset($definition['controller'])) {
+                    $meta['controller'] = (string) $definition['controller'];
+                }
+                if ([] !== $meta) {
+                    $definition['meta'] = $meta;
+                }
+            }
+
+            $results[] = $definition;
 
             if (isset($item['children']) && \is_array($item['children']) && [] !== $item['children']) {
-                $definitions = array_merge(
-                    $definitions,
-                    $this->buildChildResourceDefinitions($item['children'], $addonCode, $code, $module, $code)
+                $results = array_merge(
+                    $results,
+                    $this->flattenResourceDefinitions($item['children'], $addonCode, $addonInfo, $name)
                 );
             }
         }
 
-        return $definitions;
+        return $results;
     }
 
     /**
-     * @param array<string, mixed> $item
+     * @param array<int, array<string, mixed>> $definitions
      */
-    private function resolvePageKeyFromMenuItem(array $item): ?string
+    private function validateResourceDefinitions(array $definitions, string $addonCode): void
     {
-        $type = (string) ($item['type'] ?? 'nav');
-        if (!\in_array($type, ['nav', 'link'], true)) {
-            return null;
+        $allowedTypes = array('dir', 'nav', 'link', 'btn', 'field');
+        $definitionMap = array();
+
+        foreach ($definitions as $definition) {
+            if (!\is_array($definition)) {
+                continue;
+            }
+
+            $name = trim((string) ($definition['name'] ?? ''));
+            $title = trim((string) ($definition['title'] ?? ''));
+            $type = trim((string) ($definition['type'] ?? 'nav'));
+
+            if ('' === $name) {
+                throw new AddonException(__('ptadmin-addon::messages.definition.resource_name_required', [
+                    'addon' => $addonCode,
+                ]));
+            }
+
+            if ('' === $title) {
+                throw new AddonException(__('ptadmin-addon::messages.definition.resource_title_required', [
+                    'addon' => $addonCode,
+                    'resource' => $name,
+                ]));
+            }
+
+            if (!\in_array($type, $allowedTypes, true)) {
+                throw new AddonException(__('ptadmin-addon::messages.definition.resource_type_invalid', [
+                    'addon' => $addonCode,
+                    'resource' => $name,
+                    'type' => $type,
+                ]));
+            }
+
+            $missingFields = array();
+            if (\in_array($type, array('nav', 'link'), true)) {
+                foreach (array('module', 'page_key', 'route') as $field) {
+                    if (!isset($definition[$field]) || '' === trim((string) $definition[$field])) {
+                        $missingFields[] = $field;
+                    }
+                }
+            } elseif (\in_array($type, array('btn', 'field'), true)) {
+                if (!isset($definition['module']) || '' === trim((string) $definition['module'])) {
+                    $missingFields[] = 'module';
+                }
+            }
+
+            if ([] !== $missingFields) {
+                throw new AddonException(__('ptadmin-addon::messages.definition.resource_required_fields', [
+                    'addon' => $addonCode,
+                    'resource' => $name,
+                    'type' => $type,
+                    'fields' => implode('、', $missingFields),
+                ]));
+            }
+
+            $definitionMap[$name] = $definition;
         }
 
-        $pageKey = trim((string) ($item['page_key'] ?? $item['name'] ?? ''));
+        foreach ($definitionMap as $name => $definition) {
+            $parent = isset($definition['parent']) ? trim((string) $definition['parent']) : '';
+            if ('' !== $parent && !isset($definitionMap[$parent])) {
+                throw new AddonException(__('ptadmin-addon::messages.definition.resource_parent_missing', [
+                    'addon' => $addonCode,
+                    'resource' => $name,
+                    'parent' => $parent,
+                ]));
+            }
+        }
 
-        return '' === $pageKey ? null : $pageKey;
+        foreach ($definitionMap as $name => $definition) {
+            $parent = isset($definition['parent']) ? trim((string) $definition['parent']) : '';
+            if ('' === $parent || !isset($definitionMap[$parent])) {
+                continue;
+            }
+
+            $childType = trim((string) ($definition['type'] ?? 'nav'));
+            if ('btn' === $childType) {
+                continue;
+            }
+
+            $parentType = trim((string) ($definitionMap[$parent]['type'] ?? 'nav'));
+            if ('dir' !== $parentType) {
+                throw new AddonException(__('ptadmin-addon::messages.definition.resource_parent_type_invalid', [
+                    'addon' => $addonCode,
+                    'resource' => $parent,
+                    'child' => $name,
+                    'type' => $parentType,
+                ]));
+            }
+        }
     }
 }

@@ -37,6 +37,7 @@ use PTAdmin\Addon\Service\AddonDirectivesManage;
 use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
 use PTAdmin\Addon\Service\AddonManager;
+use PTAdmin\Addon\Service\BaseBootstrap;
 use PTAdmin\Addon\Service\Action\AddonAction;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -223,6 +224,68 @@ it('get addon hooks', function (): void {
     ]);
 });
 
+it('auto refresh addon cache when debug cache signature is stale', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-cache-signature-'.uniqid();
+    $addonsPath = $basePath.\DIRECTORY_SEPARATOR.'addons';
+    $cacheFile = $basePath.\DIRECTORY_SEPARATOR.'bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php';
+
+    $filesystem->ensureDirectoryExists($addonsPath);
+    $this->app->setBasePath($basePath);
+    config()->set('app.debug', true);
+
+    $writeManifest = static function (string $base, string $dir, string $code, string $title): void {
+        $path = $base.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.$dir;
+        if (!is_dir($path)) {
+            mkdir($path, 0755, true);
+        }
+
+        file_put_contents($path.\DIRECTORY_SEPARATOR.'manifest.json', (string) json_encode([
+            'id' => $code,
+            'code' => $code,
+            'name' => $title,
+            'version' => '1.0.0',
+            'develop' => true,
+            'type' => 'module',
+            'description' => $title,
+            'entry' => [
+                'installer' => 'Addon\\'.$dir.'\\Installer',
+                'bootstrap' => 'Addon\\'.$dir.'\\Bootstrap',
+            ],
+            'resources' => [
+                'assets' => './Assets',
+                'routes' => './Routes',
+                'views' => './Response/Views',
+                'lang' => './Response/Lang',
+                'config' => './Config',
+                'functions' => './functions.php',
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    };
+
+    $writeManifest($basePath, 'Cms', 'cms', 'Cms');
+
+    $manager = new AddonManager();
+    $initialCache = require $cacheFile;
+
+    expect($manager->hasAddon('cms'))->toBeTrue()
+        ->and(array_key_exists('__meta', $initialCache))->toBeTrue()
+        ->and(array_key_exists('cms', $initialCache))->toBeTrue()
+        ->and(array_key_exists('test', $initialCache))->toBeFalse();
+
+    $writeManifest($basePath, 'Test', 'test', 'Test');
+
+    $reloaded = new AddonManager();
+    $updatedCache = require $cacheFile;
+
+    expect($reloaded->hasAddon('cms'))->toBeTrue()
+        ->and($reloaded->hasAddon('test'))->toBeTrue()
+        ->and(array_key_exists('test', $updatedCache))->toBeTrue()
+        ->and(data_get($updatedCache, '__meta.signature'))->not->toEqual(data_get($initialCache, '__meta.signature'));
+
+    $filesystem->deleteDirectory($basePath);
+});
+
 it('dispatch addon hooks', function (): void {
     expect(Addon::triggerHook('payment.success', ['order_id' => 1001]))->toEqual([
         [
@@ -354,26 +417,32 @@ it('rejects unsupported inject actions', function (): void {
 
 it('disable and enable addon', function (): void {
     $testAddonDir = __DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test';
+    $cacheFile = __DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php';
     $fakeService = new FakeAdminResourceServiceForAddonTest();
     app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
 
     AddonAction::disable('test');
+    $disabledCache = file_exists($cacheFile) ? require $cacheFile : [];
 
     expect(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'disable'))->toBeTrue()
         ->and(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'disable.log'))->toBeTrue()
-        ->and(Addon::hasAddon('test'))->toBeFalse();
+        ->and(Addon::hasAddon('test'))->toBeFalse()
+        ->and(file_exists($cacheFile))->toBeTrue()
+        ->and(array_key_exists('test', $disabledCache))->toBeFalse();
 
     AddonAction::enable('test');
+    $enabledCache = file_exists($cacheFile) ? require $cacheFile : [];
 
     expect(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'disable'))->toBeFalse()
         ->and(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'enable.log'))->toBeTrue()
         ->and(Addon::hasAddon('test'))->toBeTrue()
+        ->and(array_key_exists('test', $enabledCache))->toBeTrue()
         ->and($fakeService->disabled)->toEqual(['test'])
         ->and($fakeService->synced)->toHaveCount(1)
         ->and(data_get($fakeService->synced[0], 'addon_code'))->toEqual('test')
-        ->and(data_get($fakeService->synced[0], 'definitions.0.code'))->toEqual('test')
-        ->and(data_get($fakeService->synced[0], 'definitions.1.code'))->toEqual('test.dashboard')
-        ->and(data_get($fakeService->synced[0], 'definitions.2.code'))->toEqual('test.dashboard.create')
+        ->and(data_get($fakeService->synced[0], 'definitions.0.name'))->toEqual('test')
+        ->and(data_get($fakeService->synced[0], 'definitions.1.name'))->toEqual('test.dashboard')
+        ->and(data_get($fakeService->synced[0], 'definitions.2.name'))->toEqual('test.dashboard.create')
         ->and(data_get($fakeService->synced[0], 'definitions.2.type'))->toEqual('btn');
 });
 
@@ -387,6 +456,93 @@ it('enable disabled addon without bootstrap', function (): void {
 
     expect(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'disable'))->toBeFalse()
         ->and(Addon::hasAddon('test2'))->toBeTrue();
+});
+
+it('sync addon resources through addon action', function (): void {
+    $fakeService = new FakeAdminResourceServiceForAddonTest();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
+
+    $result = AddonAction::syncResources('test');
+
+    expect($result)->toMatchArray([
+        'code' => 'test',
+        'synced' => true,
+    ])
+        ->and($fakeService->synced)->toHaveCount(1)
+        ->and(data_get($fakeService->synced[0], 'addon_code'))->toEqual('test');
+});
+
+it('throws clear exception when nav resource misses required fields', function (): void {
+    $bootstrap = new class() extends BaseBootstrap
+    {
+        public array $admin_menu = [
+            [
+                'name' => 'test.invalid-nav',
+                'title' => '无效导航',
+                'type' => 'nav',
+                'module' => 'test',
+                'addon_code' => 'test',
+                'parent' => 'test',
+                'route' => '/test/invalid',
+                'is_nav' => 1,
+                'status' => 1,
+                'sort' => 10,
+            ],
+        ];
+    };
+
+    expect(fn () => $bootstrap->getAdminResourceDefinitions('test', [
+        'title' => 'Test',
+    ]))->toThrow(AddonException::class, __('ptadmin-addon::messages.definition.resource_required_fields', [
+        'addon' => 'test',
+        'resource' => 'test.invalid-nav',
+        'type' => 'nav',
+        'fields' => 'page_key',
+    ]));
+});
+
+it('throws clear exception when menu parent is not dir', function (): void {
+    $bootstrap = new class() extends BaseBootstrap
+    {
+        public array $admin_menu = [
+            [
+                'name' => 'test.parent',
+                'title' => '错误父级',
+                'type' => 'nav',
+                'module' => 'test',
+                'page_key' => 'test.page.parent',
+                'addon_code' => 'test',
+                'parent' => 'test',
+                'route' => '/test/parent',
+                'is_nav' => 1,
+                'status' => 1,
+                'sort' => 10,
+                'children' => [
+                    [
+                        'name' => 'test.parent.child',
+                        'title' => '子菜单',
+                        'type' => 'nav',
+                        'module' => 'test',
+                        'page_key' => 'test.page.child',
+                        'addon_code' => 'test',
+                        'route' => '/test/child',
+                        'is_nav' => 1,
+                        'status' => 1,
+                        'sort' => 20,
+                    ],
+                ],
+            ],
+        ];
+    };
+
+    expect(fn () => $bootstrap->getAdminResourceDefinitions('test', [
+        'title' => 'Test',
+    ]))->toThrow(AddonException::class, __('ptadmin-addon::messages.definition.resource_parent_type_invalid', [
+        'addon' => 'test',
+        'resource' => 'test.parent',
+        'child' => 'test.parent.child',
+        'type' => 'nav',
+    ]));
 });
 
 it('upgrade addon from downloaded package', function (): void {
@@ -615,9 +771,9 @@ it('install addon from local zip package', function (): void {
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'init.log'))->toBeTrue()
         ->and($fakeService->synced)->toHaveCount(1)
         ->and(data_get($fakeService->synced[0], 'addon_code'))->toEqual('test')
-        ->and(data_get($fakeService->synced[0], 'definitions.0.code'))->toEqual('test')
-        ->and(data_get($fakeService->synced[0], 'definitions.1.code'))->toEqual('test.dashboard')
-        ->and(data_get($fakeService->synced[0], 'definitions.2.code'))->toEqual('test.dashboard.create');
+        ->and(data_get($fakeService->synced[0], 'definitions.0.name'))->toEqual('test')
+        ->and(data_get($fakeService->synced[0], 'definitions.1.name'))->toEqual('test.dashboard')
+        ->and(data_get($fakeService->synced[0], 'definitions.2.name'))->toEqual('test.dashboard.create');
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -952,9 +1108,11 @@ it('init addon scaffold with standard development structure via addon action', f
 
     $addonDir = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon';
     $manifestFile = $addonDir.\DIRECTORY_SEPARATOR.'manifest.json';
+    $cacheFile = $basePath.\DIRECTORY_SEPARATOR.'bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php';
     $manifest = json_decode(file_get_contents($manifestFile), true, 512, JSON_THROW_ON_ERROR);
     $bootstrapFile = $addonDir.\DIRECTORY_SEPARATOR.'Bootstrap.php';
     $bootstrapContent = (string) file_get_contents($bootstrapFile);
+    $cachePayload = file_exists($cacheFile) ? require $cacheFile : [];
 
     expect(is_dir($addonDir))->toBeTrue()
         ->and(file_exists($manifestFile))->toBeTrue()
@@ -991,7 +1149,10 @@ it('init addon scaffold with standard development structure via addon action', f
         ->and(data_get($manifest, 'compatibility.php'))->toEqual('>=7.4')
         ->and(data_get($manifest, 'providers.0'))->toEqual('Addon\\DemoAddon\\Providers\\DemoAddonServiceProvider')
         ->and(data_get($manifest, 'entry.installer'))->toEqual('Addon\\DemoAddon\\Installer')
-        ->and(data_get($manifest, 'entry.bootstrap'))->toEqual('Addon\\DemoAddon\\Bootstrap');
+        ->and(data_get($manifest, 'entry.bootstrap'))->toEqual('Addon\\DemoAddon\\Bootstrap')
+        ->and(file_exists($cacheFile))->toBeTrue()
+        ->and(array_key_exists('demo-addon', $cachePayload))->toBeTrue()
+        ->and(Addon::hasInstalledAddon('demo-addon'))->toBeTrue();
 
     $config = include $addonDir.\DIRECTORY_SEPARATOR.'Config'.\DIRECTORY_SEPARATOR.'config.php';
 
@@ -1042,18 +1203,30 @@ it('pulls frontend template via addon action with regional fallback order', func
     config()->set('addon.frontend_templates', [
         'default_template' => 'module',
         'region' => 'cn',
+        'manifest' => [
+            'module' => [
+                'route_base' => '/{code}',
+                'remote_name' => '{code_snake}_remote',
+                'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'expose' => './module',
+            ],
+            'micro-app' => [
+                'route_base' => '/{code}',
+                'app_name' => '{code_snake}',
+                'develop_url' => 'http://localhost:5182/',
+                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+            ],
+        ],
         'primary_sources' => [
-            'cn' => 'gitee',
-            'global' => 'github',
+            'cn' => 'official',
+            'global' => 'official',
         ],
         'templates' => [
             'module' => [
                 'sources' => [
-                    'gitee' => [
-                        'archive_url' => 'https://gitee.example.com/module/{ref}.zip',
-                    ],
                     'github' => [
-                        'archive_url' => '',
+                        'archive_url' => 'https://github.example.com/module/{ref}.zip',
                     ],
                     'official' => [
                         'archive_url' => 'https://official.example.com/module/{ref}.zip',
@@ -1062,9 +1235,6 @@ it('pulls frontend template via addon action with regional fallback order', func
             ],
             'micro-app' => [
                 'sources' => [
-                    'gitee' => [
-                        'archive_url' => 'https://gitee.example.com/micro-app/{ref}.zip',
-                    ],
                     'github' => [
                         'archive_url' => 'https://github.example.com/micro-app/{ref}.zip',
                     ],
@@ -1075,9 +1245,6 @@ it('pulls frontend template via addon action with regional fallback order', func
             ],
         ],
         'sources' => [
-            'gitee' => [
-                'archive_url' => 'https://gitee.example.com/{template}/{ref}.zip',
-            ],
             'github' => [
                 'archive_url' => 'https://github.example.com/{template}/{ref}.zip',
             ],
@@ -1095,6 +1262,23 @@ it('pulls frontend template via addon action with regional fallback order', func
     $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template.zip';
     buildFrontendTemplateZip($zipFile, [
         'package.json' => "{\"name\":\"demo-addon-frontend\"}\n",
+        'frontend.json' => (string) json_encode([
+            'id' => 'your-plugin',
+            'code' => 'your-plugin',
+            'name' => '示例插件',
+            'version' => '0.1.0',
+            'enabled' => true,
+            'kind' => 'module',
+            'runtime' => 'federation',
+            'routeBase' => '/your-plugin',
+            'entry' => [
+                'federation' => [
+                    'remote' => 'your_plugin_remote',
+                    'entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                    'expose' => './module',
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
         'src/main.ts' => "console.log('demo-addon');\n",
         'README.md' => "# Demo Frontend\n",
     ]);
@@ -1144,33 +1328,388 @@ it('pulls frontend template via addon action with regional fallback order', func
     };
 
     $requestedUrls = [];
-    Http::shouldReceive('withOptions')->times(3)->with(['verify' => false])->andReturnSelf();
-    Http::shouldReceive('timeout')->times(3)->with(60)->andReturnSelf();
-    Http::shouldReceive('get')->times(3)->withArgs(function (string $url) use (&$requestedUrls): bool {
+    Http::shouldReceive('withOptions')->times(2)->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->times(2)->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->times(2)->withArgs(function (string $url) use (&$requestedUrls): bool {
         $requestedUrls[] = $url;
 
         return true;
-    })->andReturn($failedResponse, $failedResponse, $successResponse);
+    })->andReturn($failedResponse, $successResponse);
 
     $result = AddonAction::pullFrontend('demo-addon', 'module', 'main');
 
     expect($requestedUrls)->toEqual([
-        'https://gitee.example.com/module/main.zip',
-        'https://github.example.com/module/main.zip',
         'https://official.example.com/module/main.zip',
+        'https://github.example.com/module/main.zip',
     ]);
     expect($result)->toMatchArray([
-        'source' => 'official',
+        'source' => 'github',
         'template' => 'module',
         'ref' => 'main',
     ]);
 
     $frontendPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend';
+    $frontendManifest = json_decode(file_get_contents($frontendPath.\DIRECTORY_SEPARATOR.'frontend.json'), true, 512, JSON_THROW_ON_ERROR);
     expect(is_dir($frontendPath))->toBeTrue()
         ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'package.json'))->toBeTrue()
         ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
         ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'template-root'))->toBeFalse()
-        ->and(data_get($result, 'path'))->toEqual($frontendPath);
+        ->and(data_get($result, 'path'))->toEqual($frontendPath)
+        ->and(data_get($frontendManifest, 'id'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'code'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'name'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/demo-addon')
+        ->and(data_get($frontendManifest, 'entry.federation.remote'))->toEqual('demo_addon_remote')
+        ->and(data_get($frontendManifest, 'entry.federation.entry'))->toEqual('http://localhost:4179/assets/remoteEntry.js');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('rewrites module frontend manifest entry with deploy url when addon is not in develop mode', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-deploy-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    config()->set('app.locale', 'zh-cn');
+    config()->set('app.timezone', 'Asia/Shanghai');
+    config()->set('app.url', 'https://demo.example.com');
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'module',
+        'region' => 'cn',
+        'manifest' => [
+            'module' => [
+                'route_base' => '/{code}',
+                'remote_name' => '{code_snake}_remote',
+                'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'expose' => './module',
+            ],
+            'micro-app' => [
+                'route_base' => '/{code}',
+                'app_name' => '{code_snake}',
+                'develop_url' => 'http://localhost:5182/',
+                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+            ],
+        ],
+        'primary_sources' => [
+            'cn' => 'official',
+            'global' => 'official',
+        ],
+        'templates' => [
+            'module' => [
+                'sources' => [
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/module/{ref}.zip',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    expect(Artisan::call('addon:init', [
+        'code' => 'demo-addon',
+        '--title' => 'Demo Addon',
+    ]))->toEqual(0);
+
+    $addonManifestPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'manifest.json';
+    $addonManifest = json_decode(file_get_contents($addonManifestPath), true, 512, JSON_THROW_ON_ERROR);
+    $addonManifest['develop'] = false;
+    file_put_contents($addonManifestPath, (string) json_encode($addonManifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template-deploy.zip';
+    buildFrontendTemplateZip($zipFile, [
+        'frontend.json' => (string) json_encode([
+            'id' => 'your-plugin',
+            'code' => 'your-plugin',
+            'name' => '示例插件',
+            'version' => '0.1.0',
+            'enabled' => true,
+            'kind' => 'module',
+            'runtime' => 'federation',
+            'routeBase' => '/your-plugin',
+            'entry' => [
+                'federation' => [
+                    'remote' => 'your_plugin_remote',
+                    'entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                    'expose' => './module',
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
+    ]);
+    $zipBody = file_get_contents($zipFile);
+
+    $successResponse = new class($zipBody)
+    {
+        private string $body;
+
+        public function __construct(string $body)
+        {
+            $this->body = $body;
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+
+    Http::shouldReceive('withOptions')->once()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->once()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->once()->with('https://official.example.com/module/main.zip')->andReturn($successResponse);
+
+    AddonAction::pullFrontend('demo-addon', 'module', 'main', 'official');
+
+    $frontendManifest = json_decode(
+        file_get_contents($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'),
+        true,
+        512,
+        JSON_THROW_ON_ERROR
+    );
+
+    expect(data_get($frontendManifest, 'entry.federation.entry'))
+        ->toEqual('https://demo.example.com/addons/demo-addon/dist/admin/assets/remoteEntry.js');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('rewrites micro app frontend manifest entry with develop url when addon is in develop mode', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-micro-app-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    config()->set('app.locale', 'zh-cn');
+    config()->set('app.timezone', 'Asia/Shanghai');
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'micro-app',
+        'region' => 'cn',
+        'manifest' => [
+            'micro-app' => [
+                'route_base' => '/{code}',
+                'app_name' => '{code_snake}',
+                'develop_url' => 'http://localhost:5182/',
+                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+            ],
+        ],
+        'primary_sources' => [
+            'cn' => 'official',
+            'global' => 'official',
+        ],
+        'templates' => [
+            'micro-app' => [
+                'sources' => [
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/micro-app/{ref}.zip',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    expect(Artisan::call('addon:init', [
+        'code' => 'demo-addon',
+        '--title' => 'Demo Addon',
+    ]))->toEqual(0);
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template-micro-app.zip';
+    buildFrontendTemplateZip($zipFile, [
+        'frontend.json' => (string) json_encode([
+            'id' => 'your-micro-app',
+            'code' => 'your-micro-app',
+            'name' => '示例微应用',
+            'version' => '0.1.2',
+            'enabled' => true,
+            'kind' => 'micro-app',
+            'runtime' => 'wujie',
+            'routeBase' => '/your-micro-app',
+            'entry' => [
+                'wujie' => [
+                    'name' => 'your_micro_app',
+                    'url' => 'http://localhost:5182/',
+                    'alive' => true,
+                    'degrade' => false,
+                    'sync' => true,
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
+    ]);
+    $zipBody = file_get_contents($zipFile);
+
+    $successResponse = new class($zipBody)
+    {
+        private string $body;
+
+        public function __construct(string $body)
+        {
+            $this->body = $body;
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+
+    Http::shouldReceive('withOptions')->once()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->once()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->once()->with('https://official.example.com/micro-app/main.zip')->andReturn($successResponse);
+
+    AddonAction::pullFrontend('demo-addon', 'micro-app', 'main', 'official');
+
+    $frontendManifest = json_decode(
+        file_get_contents($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'),
+        true,
+        512,
+        JSON_THROW_ON_ERROR
+    );
+
+    expect(data_get($frontendManifest, 'id'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'code'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'name'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/demo-addon')
+        ->and(data_get($frontendManifest, 'entry.wujie.name'))->toEqual('demo_addon')
+        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('http://localhost:5182/')
+        ->and(data_get($frontendManifest, 'entry.wujie.alive'))->toBeTrue()
+        ->and(data_get($frontendManifest, 'entry.wujie.degrade'))->toBeFalse()
+        ->and(data_get($frontendManifest, 'entry.wujie.sync'))->toBeTrue();
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('rewrites micro app frontend manifest entry with deploy url when addon is not in develop mode', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-micro-app-deploy-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    config()->set('app.locale', 'zh-cn');
+    config()->set('app.timezone', 'Asia/Shanghai');
+    config()->set('app.url', 'https://demo.example.com');
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'micro-app',
+        'region' => 'cn',
+        'manifest' => [
+            'micro-app' => [
+                'route_base' => '/{code}',
+                'app_name' => '{code_snake}',
+                'develop_url' => 'http://localhost:5182/',
+                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+            ],
+        ],
+        'primary_sources' => [
+            'cn' => 'official',
+            'global' => 'official',
+        ],
+        'templates' => [
+            'micro-app' => [
+                'sources' => [
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/micro-app/{ref}.zip',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    expect(Artisan::call('addon:init', [
+        'code' => 'demo-addon',
+        '--title' => 'Demo Addon',
+    ]))->toEqual(0);
+
+    $addonManifestPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'manifest.json';
+    $addonManifest = json_decode(file_get_contents($addonManifestPath), true, 512, JSON_THROW_ON_ERROR);
+    $addonManifest['develop'] = false;
+    file_put_contents($addonManifestPath, (string) json_encode($addonManifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template-micro-app-deploy.zip';
+    buildFrontendTemplateZip($zipFile, [
+        'frontend.json' => (string) json_encode([
+            'id' => 'your-micro-app',
+            'code' => 'your-micro-app',
+            'name' => '示例微应用',
+            'version' => '0.1.2',
+            'enabled' => true,
+            'kind' => 'micro-app',
+            'runtime' => 'wujie',
+            'routeBase' => '/your-micro-app',
+            'entry' => [
+                'wujie' => [
+                    'name' => 'your_micro_app',
+                    'url' => 'http://localhost:5182',
+                    'alive' => true,
+                    'degrade' => false,
+                    'sync' => true,
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
+    ]);
+    $zipBody = file_get_contents($zipFile);
+
+    $successResponse = new class($zipBody)
+    {
+        private string $body;
+
+        public function __construct(string $body)
+        {
+            $this->body = $body;
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+
+    Http::shouldReceive('withOptions')->once()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->once()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->once()->with('https://official.example.com/micro-app/main.zip')->andReturn($successResponse);
+
+    AddonAction::pullFrontend('demo-addon', 'micro-app', 'main', 'official');
+
+    $frontendManifest = json_decode(
+        file_get_contents($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'),
+        true,
+        512,
+        JSON_THROW_ON_ERROR
+    );
+
+    expect(data_get($frontendManifest, 'id'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'code'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'name'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/demo-addon')
+        ->and(data_get($frontendManifest, 'entry.wujie.name'))->toEqual('demo_addon')
+        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('https://demo.example.com/addons/demo-addon/dist/admin/');
 
     $filesystem->deleteDirectory($basePath);
 });

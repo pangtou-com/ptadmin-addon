@@ -168,6 +168,87 @@ class PTCompiler extends BladeCompiler
     }
 
     /**
+     * SEO 标题指令。
+     */
+    protected function PTCompileTitle(array $match): string
+    {
+        return $this->compileHostSeoEchoDirective($match, 'seo_title', true);
+    }
+
+    /**
+     * SEO keywords 指令。
+     */
+    protected function PTCompileKeywords(array $match): string
+    {
+        return $this->compileHostSeoEchoDirective($match, 'seo_meta_keywords');
+    }
+
+    /**
+     * SEO description 指令。
+     */
+    protected function PTCompileDescription(array $match): string
+    {
+        return $this->compileHostSeoEchoDirective($match, 'seo_meta_description');
+    }
+
+    /**
+     * SEO canonical 指令。
+     */
+    protected function PTCompileCanonical(array $match): string
+    {
+        return $this->compileHostSeoEchoDirective($match, 'seo_link_canonical');
+    }
+
+    /**
+     * SEO robots 指令。
+     */
+    protected function PTCompileRobots(array $match): string
+    {
+        return $this->compileHostSeoEchoDirective($match, 'seo_meta_robots');
+    }
+
+    /**
+     * SEO 聚合指令。
+     */
+    protected function PTCompileSeo(array $match): string
+    {
+        $action = $this->parserAction($match[1] ?? '');
+        $method = strtolower((string) ($action['method'] ?? ''));
+        $parse = Parser::make(Arr::get($match, 5));
+
+        if ('social' === $method) {
+            return $parse->isParamEmpty()
+                ? "<?php echo \\seo_social(); ?>"
+                : "<?php echo \\seo_social({$this->buildHostSeoOverrideExpression($parse)}); ?>";
+        }
+
+        if ('jsonld' === $method) {
+            return $parse->isParamEmpty()
+                ? "<?php echo \\seo_jsonld_render(); ?>"
+                : "<?php echo \\seo_jsonld_render({$this->buildHostSeoOverrideExpression($parse)}); ?>";
+        }
+
+        if ('head' === $method) {
+            if ($parse->isParamEmpty()) {
+                return "<?php echo \\seo_meta_keywords(); ?>\n<?php echo \\seo_meta_description(); ?>\n<?php echo \\seo_link_canonical(); ?>\n<?php echo \\seo_meta_robots(); ?>\n<?php echo \\seo_social(); ?>\n<?php echo \\seo_jsonld_render(); ?>";
+            }
+
+            $overrides = $this->buildHostSeoOverrideExpression($parse);
+            $overrideVar = '$__ptSeoHead';
+
+            return "<?php {$overrideVar} = {$overrides}; ?>\n"
+                ."<?php if (data_get({$overrideVar}, 'with_keywords', true)) echo \\seo_meta_keywords(data_get({$overrideVar}, 'keywords'), ['mode' => data_get({$overrideVar}, 'keywords_mode', 'append')]); ?>\n"
+                ."<?php if (data_get({$overrideVar}, 'with_description', true)) echo \\seo_meta_description(data_get({$overrideVar}, 'description'), ['mode' => data_get({$overrideVar}, 'description_mode', 'replace')]); ?>\n"
+                ."<?php if (data_get({$overrideVar}, 'with_canonical', true)) echo \\seo_link_canonical(data_get({$overrideVar}, 'canonical'), ['mode' => data_get({$overrideVar}, 'canonical_mode', 'replace')]); ?>\n"
+                ."<?php if (data_get({$overrideVar}, 'with_robots', true)) echo \\seo_meta_robots(data_get({$overrideVar}, 'robots'), ['mode' => data_get({$overrideVar}, 'robots_mode', 'replace')]); ?>\n"
+                ."<?php if (data_get({$overrideVar}, 'with_social', true)) echo \\seo_social({$overrideVar}); ?>\n"
+                ."<?php if (data_get({$overrideVar}, 'with_jsonld', true)) echo \\seo_jsonld_render({$overrideVar}); ?>";
+        }
+
+        return "<?php \\apply_seo_overrides({$this->buildHostSeoOverrideExpression($parse)}); ?>";
+    }
+
+    /**
      * 解析出是否为结束标签.
      *
      * @pt:end // 简介默认为foreach关闭
@@ -225,6 +306,93 @@ class PTCompiler extends BladeCompiler
         return ['name' => $name, 'method' => $method];
     }
 
+    private function compileHostSeoEchoDirective(array $match, string $helper, bool $escape = false): string
+    {
+        $parse = Parser::make(Arr::get($match, 5));
+        $call = $this->buildHostSeoHelperCall($parse, $helper);
+
+        if ($escape) {
+            return "<?php echo e({$call}); ?>";
+        }
+
+        return "<?php echo {$call}; ?>";
+    }
+
+    private function buildHostSeoHelperCall(Parser $parse, string $helper): string
+    {
+        if ($parse->isParamEmpty()) {
+            return '\\'.$helper.'()';
+        }
+
+        $valueExpression = $parse->hasAttribute('value')
+            ? $this->normalizeHostDirectiveValue($parse->getAttribute('value'))
+            : 'null';
+
+        $options = [];
+        foreach (['mode'] as $key) {
+            if (!$parse->hasAttribute($key)) {
+                continue;
+            }
+
+            $options[] = "'".$key."' => ".$this->normalizeHostDirectiveValue($parse->getAttribute($key));
+        }
+
+        $optionsExpression = [] === $options ? '[]' : '['.implode(', ', $options).']';
+
+        return '\\'.$helper.'('.$valueExpression.', '.$optionsExpression.')';
+    }
+
+    private function buildHostSeoOverrideExpression(Parser $parse): string
+    {
+        $attributes = [];
+        foreach ($parse->getAll() as $key => $value) {
+            $attributes[] = "'".$key."' => ".$this->normalizeHostDirectiveValue($value);
+        }
+
+        return [] === $attributes ? '[]' : '['.implode(', ', $attributes).']';
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalizeHostDirectiveValue($value): string
+    {
+        if (\is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (null === $value) {
+            return 'null';
+        }
+
+        if (\is_int($value) || \is_float($value)) {
+            return (string) $value;
+        }
+
+        $string = trim((string) $value);
+        if ('' === $string) {
+            return "''";
+        }
+
+        if (preg_match('/^-?\d+(?:\.\d+)?$/', $string) === 1) {
+            return $string;
+        }
+
+        if (Str::startsWith($string, ['$', '['])) {
+            return $string;
+        }
+
+        if (\in_array(strtolower($string), ['true', 'false', 'null'], true)) {
+            return strtolower($string);
+        }
+
+        if (Str::contains($string, ["'"])) {
+            $string = Str::replace("'", "\\'", $string);
+        }
+
+        return "'".$string."'";
+    }
+
     /**
      * 编译为循环语句.
      *
@@ -235,8 +403,9 @@ class PTCompiler extends BladeCompiler
      */
     protected function loopCompile(Parser $parse, $name): string
     {
-        $name = $this->wrapName($name);
-        $initLoop = "<?php \$__currentLoopData = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()}); \$__env->addLoop(\$__currentLoopData);?>";
+        $directiveName = $name;
+        $name = $this->wrapName($directiveName);
+        $initLoop = "<?php \$__currentLoopData = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); \$__env->addLoop(\$__currentLoopData);?>";
 
         $iterateLoop = '$__env->incrementLoopIndices(); $loop = $__env->getLastLoop();';
         $empty = '';
@@ -257,9 +426,10 @@ class PTCompiler extends BladeCompiler
      */
     protected function outputCompile(Parser $parse, $name): string
     {
-        $name = $this->wrapName($name);
+        $directiveName = $name;
+        $name = $this->wrapName($directiveName);
 
-        return "<?php {$parse->getOutput()} = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()}); ?>";
+        return "<?php {$parse->getOutput()} = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); ?>";
     }
 
     /**
@@ -272,9 +442,91 @@ class PTCompiler extends BladeCompiler
      */
     protected function ifCompile(Parser $parse, $name): string
     {
-        $name = $this->wrapName($name);
+        $directiveName = $name;
+        $name = $this->wrapName($directiveName);
 
-        return "<?php if(\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$parse->getExpression()})): ?>";
+        return "<?php if(\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)})): ?>";
+    }
+
+    /**
+     * @param array{name:string|null, method:string|null} $name
+     */
+    private function buildDirectiveExpression(Parser $parse, array $name): string
+    {
+        $extraAttributes = [];
+        $context = $this->resolveDirectiveContext((string) ($name['name'] ?? ''), (string) ($name['method'] ?? ''));
+        if (null !== $context) {
+            $extraAttributes['__pt_context'] = $this->buildDirectiveContextExpression($context);
+        }
+
+        return $parse->buildExpression($extraAttributes);
+    }
+
+    private function resolveDirectiveContext(string $addonCode, string $method): ?string
+    {
+        if ('' === $addonCode || '' === $method) {
+            return null;
+        }
+
+        $definition = AddonDirectivesManage::getInstance()->getDirective($addonCode, $method);
+        if (!\is_array($definition)) {
+            return null;
+        }
+
+        $context = trim((string) ($definition['context'] ?? ''));
+
+        return '' === $context ? null : $context;
+    }
+
+    private function buildDirectiveContextExpression(string $context): string
+    {
+        if ('page' === $context) {
+            return $this->buildPageContextExpression();
+        }
+
+        return 'null';
+    }
+
+    private function buildPageContextExpression(): string
+    {
+        return "[
+            'version' => 1,
+            'route' => \$route ?? null,
+            'resolved' => [
+                'type' => data_get(\$resolved ?? [], 'type'),
+            ],
+            'page' => [
+                'id' => data_get(\$page ?? [], 'id'),
+                'title' => data_get(\$page ?? [], 'title'),
+                'subtitle' => data_get(\$page ?? [], 'subtitle'),
+                'description' => data_get(\$page ?? [], 'description'),
+                'keyword' => data_get(\$page ?? [], 'keyword'),
+                'breadcrumb' => data_get(\$page ?? [], 'breadcrumb', []),
+                'category' => data_get(\$page ?? [], 'category', []),
+                'archive' => data_get(\$page ?? [], 'archive', data_get(\$page ?? [], 'page_archive', [])),
+                'tag' => data_get(\$page ?? [], 'tag', []),
+                'tags' => data_get(\$page ?? [], 'tags', []),
+                'special' => data_get(\$page ?? [], 'special', []),
+                'prev' => data_get(\$page ?? [], 'prev', []),
+                'next' => data_get(\$page ?? [], 'next', []),
+                'pagination' => [
+                    'total' => data_get(\$page ?? [], 'total', data_get(\$page ?? [], 'pagination.total')),
+                    'last_page' => data_get(\$page ?? [], 'last_page', data_get(\$page ?? [], 'pagination.last_page')),
+                    'current_page' => data_get(\$page ?? [], 'current_page', data_get(\$page ?? [], 'pagination.current_page')),
+                    'per_page' => data_get(\$page ?? [], 'per_page', data_get(\$page ?? [], 'pagination.per_page')),
+                ],
+            ],
+            'seo' => [
+                'title' => data_get(\$page ?? [], 'seo.title'),
+                'keywords' => data_get(\$page ?? [], 'seo.keywords'),
+                'description' => data_get(\$page ?? [], 'seo.description'),
+                'canonical' => data_get(\$page ?? [], 'canonical'),
+                'robots' => data_get(\$page ?? [], 'robots', data_get(\$page ?? [], 'meta.robots')),
+                'open_graph' => data_get(\$page ?? [], 'open_graph', []),
+                'twitter' => data_get(\$page ?? [], 'twitter', []),
+                'structured_data' => data_get(\$page ?? [], 'structured_data', []),
+            ],
+        ]";
     }
 
     /**

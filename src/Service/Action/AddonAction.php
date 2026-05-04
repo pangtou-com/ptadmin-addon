@@ -167,7 +167,10 @@ class AddonAction
     {
         $obj = new self($code);
 
-        return $obj->addTask(AddonInitAction::class, $title, $force)->action();
+        $result = $obj->addTask(AddonInitAction::class, $title, $force)->action();
+        $obj->refreshCache();
+
+        return $result;
     }
 
     /**
@@ -192,6 +195,16 @@ class AddonAction
         $obj = new self($code);
 
         return $obj->addTask(AddonFrontendBuildAction::class, $packageManager, $script, $skipInstall)->action();
+    }
+
+    /**
+     * 同步插件后台资源定义.
+     */
+    public static function syncResources(string $code)
+    {
+        $obj = new self($code);
+
+        return $obj->addTask(AddonResourcesSyncAction::class)->action();
     }
 
     /**
@@ -259,7 +272,7 @@ class AddonAction
         }
         app(AddonAdminResourceSynchronizer::class)->sync((string) $code);
         $filesystem->delete($disableFile);
-        (new self($code))->refresh();
+        (new self($code))->refreshCache();
     }
 
     /**
@@ -284,7 +297,7 @@ class AddonAction
         }
         app(AddonAdminResourceSynchronizer::class)->disable((string) $code);
         $filesystem->put($disableFile, '');
-        (new self($code))->refresh();
+        (new self($code))->refreshCache();
     }
 
     /**
@@ -323,6 +336,13 @@ class AddonAction
         AddonHooksManage::getInstance()->reset();
 
         return true;
+    }
+
+    private function refreshCache(): bool
+    {
+        Addon::refreshCache();
+
+        return $this->refresh();
     }
 
     private function addTask($class, ...$params): self

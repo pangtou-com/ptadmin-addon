@@ -59,9 +59,18 @@ $manager->register(
         ->handler(ListsDirective::class)
         ->method('handle')
         ->type('loop')
+        ->context(DirectiveDefinition::CONTEXT_PAGE)
         ->cacheable(true)
 );
 ```
+
+如果指令需要读取宿主当前页面、分页、SEO、详情上下篇等信息，应显式声明：
+
+- `context(DirectiveDefinition::CONTEXT_PAGE)`
+
+声明后，编译器会把宿主模板里的 `$route`、`$resolved`、`$page` 收敛为统一的 `__pt_context` 传给指令。
+
+相关规范见：[模板上下文协议](/guide/template-context.md)
 
 ## Inject 注册
 

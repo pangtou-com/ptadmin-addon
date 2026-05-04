@@ -39,6 +39,7 @@ use PTAdmin\Addon\Commands\AddonInstall;
 use PTAdmin\Addon\Commands\AddonInstallLocal;
 use PTAdmin\Addon\Commands\AddonInit;
 use PTAdmin\Addon\Commands\AddonLogin;
+use PTAdmin\Addon\Commands\AddonResourcesSync;
 use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpgrade;
 use PTAdmin\Addon\Commands\AddonUpload;
@@ -73,6 +74,7 @@ class AddonServiceProvider extends ServiceProvider
             AddonInit::class,
             AddonFrontendBuild::class,
             AddonFrontendPull::class,
+            AddonResourcesSync::class,
             AddonUninstall::class,
             AddonUpgrade::class,
             AddonEnable::class,
@@ -122,7 +124,19 @@ class AddonServiceProvider extends ServiceProvider
     {
         $path = Addon::getResponsePath($addonCode, 'view', 'Response/Views');
         if (is_dir($path)) {
-            $this->loadViewsFrom($path, $addonCode);
+            $overridePath = resource_path('views'.\DIRECTORY_SEPARATOR.'vendor'.\DIRECTORY_SEPARATOR.$addonCode);
+
+            $this->loadViewsFrom([$overridePath, $path], $addonCode);
+
+            $this->publishes([
+                $path => $overridePath,
+            ], 'ptadmin');
+            $this->publishes([
+                $path => $overridePath,
+            ], 'ptadmin-view');
+            $this->publishes([
+                $path => $overridePath,
+            ], 'ptadmin-addon-view');
         }
     }
 

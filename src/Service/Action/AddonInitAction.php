@@ -183,16 +183,30 @@ class Bootstrap extends BaseBootstrap
 {
     public ?string \$admin_parent_menu = null;
 
+    // admin_menu 直接使用资源服务协议：
+    // - name 是资源唯一标识
+    // - title 是显示名称
+    // - nav/link 必须配置 module、page_key、route
+    // - 菜单型子资源的父级必须是 dir
     public array \$admin_menu = [
         [
-            'name' => 'dashboard',
+            'name' => '{$code}.dashboard',
             'title' => '{$basePath}概览',
-            'icon' => 'layui-icon-home',
-            'route' => '/{$code}',
             'type' => 'nav',
+            'module' => '{$code}',
+            'page_key' => '{$code}.page.home',
+            'addon_code' => '{$code}',
+            'parent' => '{$code}',
+            'route' => '/{$code}',
+            'icon' => 'HomeFilled',
             'is_nav' => 1,
-            'weight' => 0,
-            'note' => '{$basePath} 插件后台入口',
+            'status' => 1,
+            'sort' => 10,
+            'meta' => [
+                'note' => '{$basePath} 插件后台入口',
+                'keep_alive' => 1,
+                'hidden' => 0,
+            ],
         ],
     ];
 

@@ -22,23 +22,36 @@ class Bootstrap extends BaseBootstrap
 
     public array $admin_menu = [
         [
-            'name' => 'dashboard',
+            'name' => 'test.dashboard',
             'title' => '测试概览',
-            'icon' => 'layui-icon-home',
-            'route' => '/test',
             'type' => 'nav',
+            'module' => 'test',
+            'page_key' => 'test.page.home',
+            'addon_code' => 'test',
+            'parent' => 'test',
+            'route' => '/test',
+            'icon' => 'HomeFilled',
             'is_nav' => 1,
-            'weight' => 10,
-            'note' => '测试插件后台入口',
-            'children' => [
-                [
-                    'name' => 'create',
-                    'title' => '新增',
-                    'type' => 'btn',
-                    'is_nav' => 0,
-                    'weight' => 100,
-                    'note' => '测试按钮资源',
-                ],
+            'status' => 1,
+            'sort' => 10,
+            'meta' => [
+                'note' => '测试插件后台入口',
+                'keep_alive' => 1,
+                'hidden' => 0,
+            ],
+        ],
+        [
+            'name' => 'test.dashboard.create',
+            'title' => '新增',
+            'type' => 'btn',
+            'module' => 'test',
+            'addon_code' => 'test',
+            'parent' => 'test.dashboard',
+            'is_nav' => 0,
+            'status' => 1,
+            'sort' => 100,
+            'meta' => [
+                'note' => '测试按钮资源',
             ],
         ],
     ];

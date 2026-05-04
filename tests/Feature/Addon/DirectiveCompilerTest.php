@@ -12,7 +12,98 @@ use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\DirectiveDefinition;
 use PTAdmin\AddonTests\Feature\Addon\testSrc\addons\Test\TestRuntimeDirectives;
 
+function registerGlobalSeoDirectiveStubs(): void
+{
+    if (!\function_exists('seo_title')) {
+        eval(<<<'PHP'
+function seo_title(?string $value = null, array $options = []): string {
+    $base = 'shared title';
+    if (null === $value) {
+        return $base;
+    }
+
+    return 'append' === ($options['mode'] ?? 'replace')
+        ? trim($base.' '.$value)
+        : $value;
+}
+PHP);
+    }
+
+    if (!\function_exists('seo_meta_keywords')) {
+        eval(<<<'PHP'
+function seo_meta_keywords(?string $value = null, array $options = []): string {
+    $content = null === $value ? 'cms,ptadmin' : ('append' === ($options['mode'] ?? 'append') ? 'cms,ptadmin, '.$value : $value);
+
+    return '<meta name="keywords" content="'.$content.'">';
+}
+PHP);
+    }
+
+    if (!\function_exists('seo_meta_description')) {
+        eval(<<<'PHP'
+function seo_meta_description(?string $value = null, array $options = []): string {
+    $content = null === $value ? 'shared description' : ('append' === ($options['mode'] ?? 'replace') ? 'shared description '.$value : $value);
+
+    return '<meta name="description" content="'.$content.'">';
+}
+PHP);
+    }
+
+    if (!\function_exists('seo_link_canonical')) {
+        eval(<<<'PHP'
+function seo_link_canonical(?string $value = null, array $options = []): string {
+    $content = null === $value ? '/cms' : $value;
+
+    return '<link rel="canonical" href="'.$content.'">';
+}
+PHP);
+    }
+
+    if (!\function_exists('seo_meta_robots')) {
+        eval(<<<'PHP'
+function seo_meta_robots(?string $value = null, array $options = []): string {
+    $content = null === $value ? 'index,follow' : $value;
+
+    return '<meta name="robots" content="'.$content.'">';
+}
+PHP);
+    }
+
+    if (!\function_exists('seo_social')) {
+        eval(<<<'PHP'
+function seo_social(array $overrides = []): string {
+    $title = (string) ($overrides['title'] ?? 'shared title');
+
+    return '<meta property="og:title" content="'.$title.'">'.PHP_EOL
+        .'<meta name="twitter:card" content="summary">';
+}
+PHP);
+    }
+
+    if (!\function_exists('seo_jsonld_render')) {
+        eval(<<<'PHP'
+function seo_jsonld_render(array $overrides = []): string {
+    $type = (string) data_get($overrides, 'structured_data.0.@type', 'WebPage');
+
+    return '<script type="application/ld+json">{"@type":"'.$type.'"}</script>';
+}
+PHP);
+    }
+
+    if (!\function_exists('apply_seo_overrides')) {
+        eval(<<<'PHP'
+function apply_seo_overrides(array $overrides, bool $share = true): array {
+    $GLOBALS['ptadmin_test_seo_overrides'] = $overrides;
+
+    return $overrides;
+}
+PHP);
+    }
+}
+
 beforeEach(function (): void {
+    registerGlobalSeoDirectiveStubs();
+
     $app = $this->app;
     $app->setBasePath(__DIR__.\DIRECTORY_SEPARATOR.'testSrc');
     $app->forgetInstance('addon');
@@ -30,6 +121,7 @@ beforeEach(function (): void {
             ->handler(TestRuntimeDirectives::class)
             ->method('arc')
             ->type('loop')
+            ->context(DirectiveDefinition::CONTEXT_PAGE)
             ->cacheable(false)
     );
 });
@@ -74,6 +166,29 @@ it('renders plugin loop directives and executes directive handler', function ():
         ->and($output)->toContain('arc-2|');
 });
 
+it('uses $field as the default loop variable when id is omitted', function (): void {
+    $compiled = app('blade.compiler')->compileString(
+        "@pt:test::arc(limit=2)\n{{ \$field['title'] }}\n@pt:end"
+    );
+
+    expect($compiled)->toContain('foreach($__currentLoopData as $field)')
+        ->and($compiled)->not->toContain('foreach($__currentLoopData as $arc)')
+        ->and($compiled)->toContain("'__pt_context' => [")
+        ->and($compiled)->toContain("'version' => 1")
+        ->and($compiled)->toContain("'resolved' => [")
+        ->and($compiled)->toContain("'archive' => data_get(\$page ?? [], 'archive', data_get(\$page ?? [], 'page_archive', []))")
+        ->and($compiled)->toContain("'pagination' => [");
+});
+
+it('renders plugin loop directives with the default $field variable', function (): void {
+    $output = renderBladeSnippet(
+        "@pt:test::arc(limit=2)\n{{ \$field[0]['title'] ?? \$field['title'] }}|\n@pt:end"
+    );
+
+    expect($output)->toContain('arc-1|')
+        ->and($output)->toContain('arc-2|');
+});
+
 it('compiles plugin directives to assigned output variables', function (): void {
     $compiled = app('blade.compiler')->compileString(
         "@pt:test::arc(limit=2,out=field)\n{{ \$field[0]['title'] }}"
@@ -107,4 +222,91 @@ it('renders empty fallback text for loop directives', function (): void {
 
     expect($output)->toContain('暂无数据')
         ->and($output)->not->toContain('arc-1');
+});
+
+it('compiles host seo title and meta directives', function (): void {
+    $compiled = app('blade.compiler')->compileString(
+        "<title>@pt:title()</title>\n@pt:keywords()\n@pt:description()\n@pt:canonical()\n@pt:robots()"
+    );
+
+    expect($compiled)->toContain('echo e(\seo_title());')
+        ->and($compiled)->toContain('echo \seo_meta_keywords();')
+        ->and($compiled)->toContain('echo \seo_meta_description();')
+        ->and($compiled)->toContain('echo \seo_link_canonical();')
+        ->and($compiled)->toContain('echo \seo_meta_robots();');
+});
+
+it('renders host seo title and meta directives', function (): void {
+    $output = renderBladeSnippet(
+        "<title>@pt:title()</title>\n@pt:keywords()\n@pt:description()\n@pt:canonical()\n@pt:robots()"
+    );
+
+    expect($output)->toContain('<title>shared title</title>')
+        ->and($output)->toContain('<meta name="keywords" content="cms,ptadmin">')
+        ->and($output)->toContain('<meta name="description" content="shared description">')
+        ->and($output)->toContain('<link rel="canonical" href="/cms">')
+        ->and($output)->toContain('<meta name="robots" content="index,follow">');
+});
+
+it('compiles host seo social and jsonld directives', function (): void {
+    $compiled = app('blade.compiler')->compileString(
+        "@pt:seo::social()\n@pt:seo::jsonld()\n@pt:seo::head()"
+    );
+
+    expect($compiled)->toContain('echo \seo_social();')
+        ->and($compiled)->toContain('echo \seo_jsonld_render();')
+        ->and($compiled)->toContain('echo \seo_meta_keywords();')
+        ->and($compiled)->toContain('echo \seo_meta_description();')
+        ->and($compiled)->toContain('echo \seo_link_canonical();')
+        ->and($compiled)->toContain('echo \seo_meta_robots();');
+});
+
+it('renders host seo social and jsonld directives', function (): void {
+    $output = renderBladeSnippet(
+        "@pt:seo::social()\n@pt:seo::jsonld()\n@pt:seo::head()"
+    );
+
+    expect($output)->toContain('<meta property="og:title" content="shared title">')
+        ->and($output)->toContain('<meta name="twitter:card" content="summary">')
+        ->and($output)->toContain('"@type":"WebPage"')
+        ->and($output)->toContain('<meta name="keywords" content="cms,ptadmin">')
+        ->and($output)->toContain('<meta name="description" content="shared description">')
+        ->and($output)->toContain('<link rel="canonical" href="/cms">')
+        ->and($output)->toContain('<meta name="robots" content="index,follow">');
+});
+
+it('renders host seo head directive with selective output toggles', function (): void {
+    $output = renderBladeSnippet(
+        '@pt:seo::head(keywords="activity",keywords_mode="append",with_social=false,with_jsonld=false,with_robots=false)'
+    );
+
+    expect($output)->toContain('<meta name="keywords" content="cms,ptadmin, activity">')
+        ->and($output)->toContain('<meta name="description" content="shared description">')
+        ->and($output)->toContain('<link rel="canonical" href="/cms">')
+        ->and($output)->not->toContain('<meta name="robots" content="index,follow">')
+        ->and($output)->not->toContain('twitter:card')
+        ->and($output)->not->toContain('application/ld+json');
+});
+
+it('compiles host seo override directive to apply shared context overrides', function (): void {
+    $compiled = app('blade.compiler')->compileString(
+        "@pt:seo(title=\"活动专题\",title_mode=\"replace\",keywords=\"activity\",keywords_mode=\"append\")"
+    );
+
+    expect($compiled)->toContain("\\apply_seo_overrides(['title' => '活动专题', 'title_mode' => 'replace', 'keywords' => 'activity', 'keywords_mode' => 'append'])");
+});
+
+it('renders host seo override directive and forwards attributes', function (): void {
+    unset($GLOBALS['ptadmin_test_seo_overrides']);
+
+    renderBladeSnippet(
+        "@pt:seo(title=\"活动专题\",title_mode=\"replace\",keywords=\"activity\",keywords_mode=\"append\")"
+    );
+
+    expect($GLOBALS['ptadmin_test_seo_overrides'] ?? [])->toBe([
+        'title' => '活动专题',
+        'title_mode' => 'replace',
+        'keywords' => 'activity',
+        'keywords_mode' => 'append',
+    ]);
 });

@@ -357,13 +357,7 @@ final class AddonManager
     public function refreshCache(): void
     {
         $this->reset();
-        $content = "<?php\nreturn ".$this.';';
-        $cacheFile = AddonUtil::getAddonCacheDir();
-        $cacheDir = \dirname($cacheFile);
-        if (!is_dir($cacheDir)) {
-            mkdir($cacheDir, 0755, true);
-        }
-        file_put_contents($cacheFile, $content);
+        $this->persistCache();
     }
 
     public function reset(): void
@@ -424,7 +418,15 @@ final class AddonManager
      */
     private function loadCacheConfig($data): void
     {
+        if (isset($data['addons']) && \is_array($data['addons'])) {
+            $data = $data['addons'];
+        }
+
         foreach ($data as $key => $config) {
+            if ('__meta' === (string) $key) {
+                continue;
+            }
+
             $this->addonManager[$key] = new AddonConfigManager($config['addons'] ?? $config);
         }
     }
@@ -435,13 +437,60 @@ final class AddonManager
     private function initialize(): void
     {
         if (true === (bool) config('app.debug') && file_exists(AddonUtil::getAddonCacheDir())) {
-            $data = require_once AddonUtil::getAddonCacheDir();
-            $this->loadCacheConfig($data);
+            $data = require AddonUtil::getAddonCacheDir();
+            if ($this->isCachePayloadFresh($data)) {
+                $this->loadCacheConfig($data);
 
-            return;
+                return;
+            }
         }
 
         $this->loadConfig(AddonUtil::getAddonsDirs());
+
+        if (true === (bool) config('app.debug')) {
+            $this->persistCache();
+        }
+    }
+
+    private function persistCache(): void
+    {
+        $content = "<?php\nreturn ".var_export($this->buildCachePayload(), true).';';
+        $cacheFile = AddonUtil::getAddonCacheDir();
+        $cacheDir = \dirname($cacheFile);
+        if (!is_dir($cacheDir)) {
+            mkdir($cacheDir, 0755, true);
+        }
+        file_put_contents($cacheFile, $content);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildCachePayload(): array
+    {
+        return array_merge([
+            '__meta' => [
+                'signature' => AddonUtil::buildAddonCacheSignature(),
+                'generated_at' => time(),
+            ],
+        ], $this->toArray());
+    }
+
+    /**
+     * @param mixed $payload
+     */
+    private function isCachePayloadFresh($payload): bool
+    {
+        if (!\is_array($payload)) {
+            return false;
+        }
+
+        $cachedSignature = (string) data_get($payload, '__meta.signature', '');
+        if ('' === $cachedSignature) {
+            return false;
+        }
+
+        return hash_equals($cachedSignature, AddonUtil::buildAddonCacheSignature());
     }
 
     private function getInstalledAddonConfig(string $addonCode): ?array
