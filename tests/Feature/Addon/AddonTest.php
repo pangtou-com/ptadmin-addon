@@ -1812,6 +1812,140 @@ function buildAddonPackageZip(string $sourceDir, string $zipFilename): void
     $zip->close();
 }
 
+it('excludes development directories from addon upload packages', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-upload-filter-'.uniqid();
+    $sourceDir = $basePath.\DIRECTORY_SEPARATOR.'Test';
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'package.zip';
+
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'.idea');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'.github');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'node_modules');
+
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'manifest.json', '{}');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js', 'console.log("ok");');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'node_modules'.\DIRECTORY_SEPARATOR.'ignore.js', 'ignored');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'.idea'.\DIRECTORY_SEPARATOR.'workspace.xml', '<xml />');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'.github'.\DIRECTORY_SEPARATOR.'workflow.yml', 'name: ci');
+
+    $packager = new class('test', new class {
+        public function getStorePath($path = null): string
+        {
+            return sys_get_temp_dir().\DIRECTORY_SEPARATOR.'unused'.(null !== $path ? \DIRECTORY_SEPARATOR.$path : '');
+        }
+    }) extends \PTAdmin\Addon\Service\Action\AbstractAddonAction {
+        public function handle(): ?bool
+        {
+            return null;
+        }
+
+        public function pack(string $target, string $zipFilename): void
+        {
+            $this->zipDir($target, $zipFilename);
+        }
+    };
+
+    $packager->pack($sourceDir, $zipFile);
+
+    $zip = new ZipArchive();
+    $zip->open($zipFile);
+
+    expect($zip->locateName('Test/manifest.json'))->not->toBeFalse()
+        ->and($zip->locateName('Test/Frontend/dist/admin/index.js'))->not->toBeFalse()
+        ->and($zip->locateName('Test/Frontend/node_modules/ignore.js'))->toBeFalse()
+        ->and($zip->locateName('Test/.idea/workspace.xml'))->toBeFalse()
+        ->and($zip->locateName('Test/.github/workflow.yml'))->toBeFalse();
+
+    $zip->close();
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('builds addon upload packages with separated partitions', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-upload-partitions-'.uniqid();
+    $addonDir = $basePath.\DIRECTORY_SEPARATOR.'Cms';
+    $frontendDir = $addonDir.\DIRECTORY_SEPARATOR.'Frontend';
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'package.zip';
+
+    $filesystem->ensureDirectoryExists($frontendDir.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin');
+    $filesystem->ensureDirectoryExists($frontendDir.\DIRECTORY_SEPARATOR.'src');
+    file_put_contents($addonDir.\DIRECTORY_SEPARATOR.'manifest.json', (string) json_encode([
+        'code' => 'cms',
+        'name' => 'CMS',
+        'version' => '1.0.0',
+        'type' => 'module',
+        'develop' => true,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    file_put_contents($addonDir.\DIRECTORY_SEPARATOR.'Bootstrap.php', '<?php class Bootstrap {}');
+    file_put_contents($frontendDir.\DIRECTORY_SEPARATOR.'frontend.json', (string) json_encode([
+        'code' => 'cms',
+        'version' => '1.0.0',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    file_put_contents($frontendDir.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts', 'console.log("source");');
+    file_put_contents($frontendDir.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js', 'console.log("dist");');
+
+    $action = new class('cms') {
+        public function __construct(private string $code)
+        {
+        }
+
+        public function getStorePath($path = null): string
+        {
+            return sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-upload-partitions-work'.(null !== $path ? \DIRECTORY_SEPARATOR.$path : '');
+        }
+
+        public function getAddonPath(): string
+        {
+            return sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-upload-partitions-'.substr($this->code, 0, 3).DIRECTORY_SEPARATOR.'Cms';
+        }
+    };
+
+    $packager = new \PTAdmin\Addon\Service\Action\AddonUpload('cms', $action);
+    $method = new \ReflectionMethod($packager, 'buildPackageZip');
+    $method->setAccessible(true);
+    $method->invoke($packager, $addonDir, $zipFile);
+
+    $zip = new ZipArchive();
+    $zip->open($zipFile);
+
+    expect($zip->locateName('manifest.json'))->not->toBeFalse()
+        ->and($zip->locateName('release.json'))->not->toBeFalse()
+        ->and($zip->locateName('backend/Bootstrap.php'))->not->toBeFalse()
+        ->and($zip->locateName('frontend-source/src/main.ts'))->not->toBeFalse()
+        ->and($zip->locateName('frontend-dist/frontend.json'))->not->toBeFalse()
+        ->and($zip->locateName('frontend-dist/dist/admin/index.js'))->not->toBeFalse();
+
+    $releaseManifest = json_decode($zip->getFromName('release.json'), true, 512, JSON_THROW_ON_ERROR);
+    expect(data_get($releaseManifest, 'components.backend.included'))->toBeTrue()
+        ->and(data_get($releaseManifest, 'components.frontend_source.included'))->toBeTrue()
+        ->and(data_get($releaseManifest, 'components.frontend_dist.included'))->toBeTrue();
+
+    $zip->close();
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('resolves addon upload source path from addon code', function (): void {
+    $action = new class('test') {
+        public function __construct(private string $code)
+        {
+        }
+
+        public function getAddonPath(): string
+        {
+            $reflection = new \ReflectionClass(AddonAction::class);
+            $addonAction = $reflection->newInstanceWithoutConstructor();
+            $constructor = $reflection->getConstructor();
+            $constructor->setAccessible(true);
+            $constructor->invoke($addonAction, $this->code);
+
+            return $addonAction->getAddonPath();
+        }
+    };
+
+    expect($action->getAddonPath())->toBe(base_path('addons'.\DIRECTORY_SEPARATOR.'Test'));
+});
+
 function buildFrontendTemplateZip(string $zipFilename, array $files): void
 {
     $filesystem = new Filesystem();

@@ -60,3 +60,15 @@ php artisan addon:uninstall demo-addon --force
 ```bash
 php artisan addon:upload demo-addon
 ```
+
+上传命令接收插件 `code`，会从本地已安装插件清单解析真实插件目录，例如 `base_path('addons/DemoAddon')`。上传包为单个 zip，内部按发布内容分区：
+
+- `manifest.json`：插件基础声明。
+- `release.json`：发布包结构声明，标记后端、前端源码、前端构建物是否包含。
+- `backend/`：后端运行代码，排除前端源码和构建物。
+- `frontend-source/`：`Frontend/` 下的前端源码，排除 `dist/`。
+- `frontend-dist/`：前端运行构建物，包含 `frontend.json` 和 `dist/`。
+
+上传包必须至少包含 `backend/` 或 `frontend-dist/` 其中之一。只有前端源码但没有构建物时不会生成有效发布包。
+
+打包会排除开发目录和本地依赖目录，例如 `.git`、`.github`、`.idea`、`.vscode`、`node_modules`、`vendor`、`.vite`、`.turbo`、`.cache`、`coverage`。

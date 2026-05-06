@@ -30,6 +30,25 @@ use PTAdmin\Addon\Service\Traits\FormatOutputTrait;
 
 abstract class AbstractAddonAction
 {
+    private const PACKAGE_EXCLUDE_NAMES = [
+        '.DS_Store',
+        '.git',
+        '.gitignore',
+        '.gitkeep',
+        '.github',
+        '.hg',
+        '.idea',
+        '.nyc_output',
+        '.svn',
+        '.turbo',
+        '.vite',
+        '.vscode',
+        '.cache',
+        'coverage',
+        'node_modules',
+        'vendor',
+    ];
+
     use FormatOutputTrait;
     /** @var Filesystem */
     protected $filesystem;
@@ -107,7 +126,7 @@ abstract class AbstractAddonAction
         $handle = opendir($folder);
         $deny = ['.DS_Store', '.', '..'];
         while (false !== $f = readdir($handle)) {
-            if (\in_array($f, $deny, true)) {
+            if (\in_array($f, $deny, true) || $this->shouldExcludePackageEntry($f)) {
                 continue;
             }
             $filePath = "{$folder}/{$f}";
@@ -158,14 +177,46 @@ abstract class AbstractAddonAction
             return false;
         }
         $md5Hashes = [];
+        $folderPrefix = rtrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, (string) $folderPath), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($folderPath));
         foreach ($iterator as $file) {
             if ($file->isFile()) {
+                $filePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, (string) $file->getRealPath());
+                $relativePath = false !== strpos($filePath, $folderPrefix)
+                    ? substr($filePath, \strlen($folderPrefix))
+                    : $file->getFilename();
+                if ($this->shouldExcludePackagePath($relativePath)) {
+                    continue;
+                }
+
                 $md5Hashes[] = md5_file($file->getRealPath());
             }
         }
         sort($md5Hashes);
 
         return md5(implode('', $md5Hashes));
+    }
+
+    /**
+     * 判断是否属于发布包排除项.
+     */
+    protected function shouldExcludePackageEntry(string $entry): bool
+    {
+        return \in_array($entry, self::PACKAGE_EXCLUDE_NAMES, true);
+    }
+
+    /**
+     * 判断相对路径是否命中发布包排除项.
+     */
+    protected function shouldExcludePackagePath(string $path): bool
+    {
+        $segments = preg_split('/[\\\\\\/]+/', trim($path, "\\/")) ?: [];
+        foreach ($segments as $segment) {
+            if ($this->shouldExcludePackageEntry($segment)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

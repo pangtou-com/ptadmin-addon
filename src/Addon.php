@@ -117,6 +117,7 @@ class Addon extends Facade
     /**
      * 获取当前所有可用支付插件代理。
      *
+     * @param string|null $addonCode
      * @return array
      */
     public static function payments(?string $addonCode = null): array

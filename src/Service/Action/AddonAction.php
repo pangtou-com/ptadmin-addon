@@ -81,12 +81,8 @@ class AddonAction
         if (null !== $this->addon_path) {
             return $this->addon_path;
         }
-        $addons = Addon::getInstalledAddons();
-        if (isset($addons[$this->getCode()])) {
-            return $this->addon_path = $addons[$this->getCode()]['base_path'];
-        }
 
-        throw new AddonException(__('ptadmin-addon::messages.addon.not_exists', ['code' => $this->code]));
+        return $this->addon_path = Addon::getAddonPath($this->getCode());
     }
 
     public function getCode(): string
