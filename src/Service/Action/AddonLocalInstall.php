@@ -7,6 +7,7 @@ namespace PTAdmin\Addon\Service\Action;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonPackageValidator;
+use PTAdmin\Addon\Service\AddonPackageSourceResolver;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
 use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
@@ -63,21 +64,11 @@ final class AddonLocalInstall extends AbstractAddonAction
 
     private function resolveSourceDir(): string
     {
-        $packageBase = $this->action->getStorePath('package');
-        $manifest = $packageBase.\DIRECTORY_SEPARATOR.'manifest.json';
-        if (is_file($manifest)) {
-            return $packageBase;
-        }
+        $resolver = new AddonPackageSourceResolver($this->filesystem);
+        $sourceDir = $resolver->resolve($this->action->getStorePath('package'));
+        $this->action->setFrontendRuntimePath($resolver->getFrontendRuntimePath());
 
-        $dirs = array_diff(scandir($packageBase), ['.', '..']);
-        foreach ($dirs as $dir) {
-            $path = $packageBase.\DIRECTORY_SEPARATOR.$dir;
-            if (is_dir($path) && is_file($path.\DIRECTORY_SEPARATOR.'manifest.json')) {
-                return $path;
-            }
-        }
-
-        throw new AddonException(__('ptadmin-addon::messages.package.manifest_not_found'));
+        return $sourceDir;
     }
 
     private function validatePackageIntegrity(string $packageFile, array $config): void

@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Http;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\AddonApi;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonPackageSourceResolver;
 use PTAdmin\Addon\Service\AddonUtil;
 
 final class AddonUpgrade extends AbstractAddonAction
@@ -55,7 +56,9 @@ final class AddonUpgrade extends AbstractAddonAction
 
         $this->info(__('ptadmin-addon::messages.action.backup_start'));
         $backupPath = $this->backupAddon($currentPath);
-        $sourceDir = $this->downloadAndUnzip($versionId);
+        $resolver = new AddonPackageSourceResolver($this->filesystem);
+        $sourceDir = $this->downloadAndUnzip($versionId, $resolver);
+        $this->action->setFrontendRuntimePath($resolver->getFrontendRuntimePath());
         $newConfig = AddonUtil::readAddonConfig($sourceDir);
         if (null === $newConfig || ($newConfig['code'] ?? null) !== $this->code) {
             throw new AddonException(__('ptadmin-addon::messages.addon.upgrade_invalid', ['code' => $this->code]));
@@ -69,12 +72,14 @@ final class AddonUpgrade extends AbstractAddonAction
             if (null !== $installer) {
                 $installer->upgrade($currentVersion, $newConfig['version'] ?? null);
             }
+            $this->action->publishFrontendRuntime($this->code);
             $this->info(__('ptadmin-addon::messages.action.upgrade_done', [
                 'from' => $currentVersion,
                 'to' => $newConfig['version'] ?? 'unknown',
             ]));
         } catch (\Throwable $exception) {
             $this->restoreBackup($backupPath, $currentPath, $disabled);
+            $this->action->deleteFrontendRuntime($this->code);
 
             throw $exception;
         }
@@ -122,7 +127,7 @@ final class AddonUpgrade extends AbstractAddonAction
         }
     }
 
-    private function downloadAndUnzip($versionId): string
+    private function downloadAndUnzip($versionId, AddonPackageSourceResolver $resolver): string
     {
         $data = AddonApi::getAddonDownloadUrl([
             'code' => $this->code,
@@ -134,12 +139,7 @@ final class AddonUpgrade extends AbstractAddonAction
         $this->hash = $data['hash'] ?? '';
         $this->downloadPackage($data['url']);
 
-        $dirname = $this->getUnzipDirname();
-        if (null === $dirname) {
-            throw new AddonException(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
-        }
-
-        return $dirname;
+        return $resolver->resolve($this->action->getStorePath('package'));
     }
 
     private function downloadPackage(string $url): void
@@ -181,22 +181,5 @@ final class AddonUpgrade extends AbstractAddonAction
     private function getDownloadFilename(): string
     {
         return $this->action->getStorePath($this->filename);
-    }
-
-    private function getUnzipDirname(): ?string
-    {
-        clearstatcache();
-        $base = $this->action->getStorePath('package');
-        if (!is_dir($base)) {
-            return null;
-        }
-        $dirs = scandir($base);
-        foreach ($dirs as $dir) {
-            if ('.' !== $dir && '..' !== $dir && is_dir($base.\DIRECTORY_SEPARATOR.$dir)) {
-                return $base.\DIRECTORY_SEPARATOR.$dir;
-            }
-        }
-
-        return null;
     }
 }

@@ -30,14 +30,14 @@ use PTAdmin\Addon\Service\Action\AddonAction;
  */
 class AddonInstall extends BaseAddonCommand
 {
-    protected $signature = 'addon:install {code : 应用编码} {version=0 : 指定版本} {--f|force : 强制覆盖}';
+    protected $signature = 'addon:install {code : 应用编码} {version=0 : 指定版本} {--f|force : 强制覆盖} {--with-source : 保留前端源码分区}';
     protected $description = '安装插件应用';
 
     public function handle(): int
     {
         $code = $this->argument('code');
 
-        AddonAction::install((string) $code, $this->argument('version'), $this->option('force'));
+        AddonAction::install((string) $code, $this->argument('version'), $this->option('force'), $this->option('with-source'));
 
         return 0;
     }

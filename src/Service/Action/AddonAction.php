@@ -40,6 +40,9 @@ class AddonAction
     /** @var string */
     private $addon_path;
 
+    /** @var null|string */
+    private $frontend_runtime_path;
+
     /** @var string */
     private $code;
 
@@ -124,6 +127,39 @@ class AddonAction
         return null;
     }
 
+    public function setFrontendRuntimePath(?string $path): void
+    {
+        $this->frontend_runtime_path = $path;
+    }
+
+    public function getFrontendRuntimePath(): ?string
+    {
+        return $this->frontend_runtime_path;
+    }
+
+    public function publishFrontendRuntime(string $code = null): void
+    {
+        $source = $this->getFrontendRuntimePath();
+        if (null === $source || !is_dir($source)) {
+            return;
+        }
+
+        $code = $code ?? $this->code;
+        $filesystem = new Filesystem();
+        $target = storage_path('app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.$code);
+        if (is_dir($target)) {
+            $filesystem->deleteDirectory($target);
+        }
+        $filesystem->ensureDirectoryExists(\dirname($target));
+        $filesystem->copyDirectory($source, $target);
+    }
+
+    public function deleteFrontendRuntime(string $code = null): void
+    {
+        $code = $code ?? $this->code;
+        (new Filesystem())->deleteDirectory(storage_path('app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.$code));
+    }
+
     /**
      * 安装插件.
      *
@@ -133,7 +169,7 @@ class AddonAction
      *
      * @return null|array|mixed
      */
-    public static function install(string $code, $versionId = 0, bool $force = false)
+    public static function install(string $code, $versionId = 0, bool $force = false, bool $withSource = false)
     {
         if (Addon::hasInstalledAddon($code) && !$force) {
             throw new AddonException(__('ptadmin-addon::messages.addon.installed_force', ['code' => $code]));
@@ -144,7 +180,7 @@ class AddonAction
             $obj->backupCurrentAddon();
         }
 
-        return $obj->addTask(AddonDownload::class, $versionId, $force)->addTask('refresh')->addTask(AddonInstall::class)->action();
+        return $obj->addTask(AddonDownload::class, $versionId, $force, $withSource)->addTask('refresh')->addTask(AddonInstall::class)->action();
     }
 
     public static function installLocal(string $packageFile, bool $force = false)

@@ -48,9 +48,11 @@ final class AddonInstall extends AbstractAddonAction
                 $this->installer->install();
                 $this->installer->init();
             }
+            $this->action->publishFrontendRuntime($this->code);
             app(AddonAdminResourceSynchronizer::class)->sync($this->code);
         } catch (\Throwable $exception) {
             $this->rollbackInstalledAddon();
+            $this->action->deleteFrontendRuntime($this->code);
 
             throw $exception instanceof AddonException
                 ? $exception

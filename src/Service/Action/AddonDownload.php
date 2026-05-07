@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Http;
 use PTAdmin\Addon\AddonApi;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonPackageValidator;
+use PTAdmin\Addon\Service\AddonPackageSourceResolver;
 use PTAdmin\Addon\Service\AddonUtil;
 
 /**
@@ -38,7 +39,7 @@ final class AddonDownload extends AbstractAddonAction
     private $progress = 0;
     private $hash;
 
-    public function handle($versionId = 0, bool $force = false): ?string
+    public function handle($versionId = 0, bool $force = false, bool $withSource = false): ?string
     {
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
         $data = AddonApi::getAddonDownloadUrl([
@@ -51,15 +52,14 @@ final class AddonDownload extends AbstractAddonAction
         $this->hash = $data['hash'] ?? '';
         $this->downloadAddon($data['url']);
 
-        return $this->move($force);
+        return $this->move($force, $withSource);
     }
 
-    private function move(bool $force = false): ?string
+    private function move(bool $force = false, bool $withSource = false): ?string
     {
-        $base = $this->getUnzipDirname();
-        if (null === $base) {
-            throw new AddonException(__('ptadmin-addon::messages.addon.unzip_failed', ['code' => $this->code]));
-        }
+        $resolver = new AddonPackageSourceResolver($this->filesystem, $withSource);
+        $base = $resolver->resolve($this->action->getStorePath());
+        $this->action->setFrontendRuntimePath($resolver->getFrontendRuntimePath());
         $info = AddonUtil::readAddonConfig($base);
         if (null === $info) {
             throw new AddonException(__('ptadmin-addon::messages.package.manifest_not_found'));
@@ -69,7 +69,7 @@ final class AddonDownload extends AbstractAddonAction
         }))->validate($info);
 
         $this->info(__('ptadmin-addon::messages.action.copy_target', ['title' => $info['title']]));
-        $target = base_path('addons'.\DIRECTORY_SEPARATOR.basename($base));
+        $target = base_path('addons'.\DIRECTORY_SEPARATOR.$info['base_path']);
         if (is_dir($target)) {
             if (!$force) {
                 throw new AddonException(__('ptadmin-addon::messages.addon.installed_force', ['code' => $info['code']]));
@@ -135,19 +135,5 @@ final class AddonDownload extends AbstractAddonAction
     private function getDownloadFilename(): string
     {
         return $this->action->getStorePath($this->filename);
-    }
-
-    private function getUnzipDirname(): ?string
-    {
-        clearstatcache();
-        $base = $this->action->getStorePath();
-        $dirs = scandir($base);
-        foreach ($dirs as $dir) {
-            if ('.' !== $dir && '..' !== $dir && is_dir($base.\DIRECTORY_SEPARATOR.$dir)) {
-                return $base.\DIRECTORY_SEPARATOR.$dir;
-            }
-        }
-
-        return null;
     }
 }

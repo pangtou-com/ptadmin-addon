@@ -8,6 +8,7 @@ return [
         'local_zip_only' => '本地安装仅支持 zip 压缩包',
         'manifest_missing' => '本地安装包缺少有效 manifest.json',
         'manifest_not_found' => '本地安装包解压后未找到 manifest.json',
+        'release_manifest_not_found' => '插件发布包缺少 manifest.json 或 release.json',
         'release_payload_missing' => '上传包至少需要 backend 或 frontend-dist 分区中的一个',
         'checksum_format_invalid' => '本地安装包 checksum 格式无效',
         'checksum_algorithm_unsupported' => '不支持的 checksum 算法：:algorithm',

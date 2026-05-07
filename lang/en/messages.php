@@ -8,6 +8,7 @@ return [
         'local_zip_only' => 'Only zip archives are supported for local installation',
         'manifest_missing' => 'The local package does not contain a valid manifest.json',
         'manifest_not_found' => 'manifest.json was not found after extracting the local package',
+        'release_manifest_not_found' => 'The addon release package must contain manifest.json and release.json',
         'release_payload_missing' => 'The upload package must contain at least one of backend or frontend-dist',
         'checksum_format_invalid' => 'Invalid checksum format in the local package',
         'checksum_algorithm_unsupported' => 'Unsupported checksum algorithm: :algorithm',

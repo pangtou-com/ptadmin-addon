@@ -562,10 +562,13 @@ it('upgrade addon from downloaded package', function (): void {
 
     $packageDir = $basePath.\DIRECTORY_SEPARATOR.'package-source';
     $filesystem->copyDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test', $packageDir.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->ensureDirectoryExists($packageDir.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin');
     $configFile = $packageDir.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'manifest.json';
     $config = json_decode(file_get_contents($configFile), true, 512, JSON_THROW_ON_ERROR);
     $config['version'] = 'v0.0.2';
     file_put_contents($configFile, json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    file_put_contents($packageDir.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json', '{"code":"test","version":"v0.0.2"}');
+    file_put_contents($packageDir.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js', 'console.log("upgrade dist");');
 
     $zipFile = $basePath.\DIRECTORY_SEPARATOR.'upgrade.zip';
     buildAddonPackageZip($packageDir.\DIRECTORY_SEPARATOR.'Test', $zipFile);
@@ -622,7 +625,9 @@ it('upgrade addon from downloaded package', function (): void {
     AddonAction::upgrade('test', 0, true);
 
     expect(Addon::getAddonVersion('test'))->toEqual('v0.0.2')
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'upgrade.log'))->toBeTrue();
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'upgrade.log'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -1067,6 +1072,204 @@ it('force overwrite local installed addon', function (): void {
     AddonAction::installLocal($zipFile, true);
 
     expect(Addon::getAddonVersion('test'))->toEqual('v0.0.2');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('installs addon from separated release package', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-release-local-'.uniqid();
+    $sourceDir = $basePath.\DIRECTORY_SEPARATOR.'release-source';
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'release.zip';
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2');
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'backend');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'frontend-source'.\DIRECTORY_SEPARATOR.'src');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin');
+
+    $filesystem->copy(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'manifest.json', $sourceDir.\DIRECTORY_SEPARATOR.'manifest.json');
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test', $sourceDir.\DIRECTORY_SEPARATOR.'backend');
+    $filesystem->delete($sourceDir.\DIRECTORY_SEPARATOR.'backend'.\DIRECTORY_SEPARATOR.'manifest.json');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'release.json', json_encode([
+        'schema' => 'ptadmin-addon-release@1',
+        'code' => 'test',
+        'version' => 'v0.0.1',
+        'kind' => 'full-stack',
+        'components' => [
+            'backend' => ['path' => 'backend', 'included' => true],
+            'frontend_source' => ['path' => 'frontend-source', 'included' => true],
+            'frontend_dist' => ['path' => 'frontend-dist', 'included' => true],
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-source'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts', 'console.log("source");');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'frontend.json', '{"code":"test"}');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js', 'console.log("dist");');
+
+    zipDirectoryForTest($sourceDir, $zipFile);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    $fakeService = new FakeAdminResourceServiceForAddonTest();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
+
+    AddonAction::installLocal($zipFile);
+
+    expect(Addon::hasAddon('test'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Bootstrap.php'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and($fakeService->synced)->toHaveCount(1);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('keeps frontend source when cloud install requests source', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-cloud-source-'.uniqid();
+    $sourceDir = $basePath.\DIRECTORY_SEPARATOR.'release-source';
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'release.zip';
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2');
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'backend');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'frontend-source'.\DIRECTORY_SEPARATOR.'src');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin');
+
+    $filesystem->copy(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'manifest.json', $sourceDir.\DIRECTORY_SEPARATOR.'manifest.json');
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test', $sourceDir.\DIRECTORY_SEPARATOR.'backend');
+    $filesystem->delete($sourceDir.\DIRECTORY_SEPARATOR.'backend'.\DIRECTORY_SEPARATOR.'manifest.json');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'release.json', json_encode([
+        'schema' => 'ptadmin-addon-release@1',
+        'code' => 'test',
+        'version' => 'v0.0.1',
+        'kind' => 'full-stack',
+        'components' => [
+            'backend' => ['path' => 'backend', 'included' => true],
+            'frontend_source' => ['path' => 'frontend-source', 'included' => true],
+            'frontend_dist' => ['path' => 'frontend-dist', 'included' => true],
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-source'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts', 'console.log("source");');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'frontend.json', '{"code":"test"}');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js', 'console.log("dist");');
+
+    zipDirectoryForTest($sourceDir, $zipFile);
+    $zipBody = file_get_contents($zipFile);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', new FakeAdminResourceServiceForAddonTest());
+    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+
+    fakeAddonDownloadHttpForTest('test', (string) $zipBody);
+
+    AddonAction::install('test', 0, false, true);
+
+    expect(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('cloud install source request succeeds when package has no frontend source', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-cloud-source-missing-'.uniqid();
+    $sourceDir = $basePath.\DIRECTORY_SEPARATOR.'release-source';
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'release.zip';
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2');
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'backend');
+    $filesystem->ensureDirectoryExists($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin');
+
+    $filesystem->copy(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'manifest.json', $sourceDir.\DIRECTORY_SEPARATOR.'manifest.json');
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test', $sourceDir.\DIRECTORY_SEPARATOR.'backend');
+    $filesystem->delete($sourceDir.\DIRECTORY_SEPARATOR.'backend'.\DIRECTORY_SEPARATOR.'manifest.json');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'release.json', json_encode([
+        'schema' => 'ptadmin-addon-release@1',
+        'code' => 'test',
+        'version' => 'v0.0.1',
+        'kind' => 'full-stack',
+        'components' => [
+            'backend' => ['path' => 'backend', 'included' => true],
+            'frontend_source' => ['path' => 'frontend-source', 'included' => false],
+            'frontend_dist' => ['path' => 'frontend-dist', 'included' => true],
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'frontend.json', '{"code":"test"}');
+    file_put_contents($sourceDir.\DIRECTORY_SEPARATOR.'frontend-dist'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js', 'console.log("dist");');
+
+    zipDirectoryForTest($sourceDir, $zipFile);
+    $zipBody = file_get_contents($zipFile);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', new FakeAdminResourceServiceForAddonTest());
+    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+
+    fakeAddonDownloadHttpForTest('test', (string) $zipBody);
+
+    AddonAction::install('test', 0, false, true);
+
+    expect(Addon::hasAddon('test'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('rejects legacy local addon package without release manifest', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-legacy-local-'.uniqid();
+    $sourceDir = $basePath.\DIRECTORY_SEPARATOR.'Test';
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'legacy.zip';
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test', $sourceDir);
+    zipLegacyDirectoryForTest($sourceDir, $zipFile);
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2');
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+
+    expect(fn () => AddonAction::installLocal($zipFile))
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.package.release_manifest_not_found'));
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -1789,6 +1992,154 @@ it('wraps marketplace connection failures as addon exceptions with configured ho
 });
 
 function buildAddonPackageZip(string $sourceDir, string $zipFilename): void
+{
+    $zip = new ZipArchive();
+    $zip->open($zipFilename, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $manifestPath = $sourceDir.\DIRECTORY_SEPARATOR.'manifest.json';
+    $manifest = is_file($manifestPath)
+        ? json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR)
+        : [];
+    $hasFrontendSource = is_dir($sourceDir.\DIRECTORY_SEPARATOR.'Frontend');
+    $hasFrontendDist = is_dir($sourceDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist')
+        && is_file($sourceDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json');
+    $releaseManifest = [
+        'schema' => 'ptadmin-addon-release@1',
+        'code' => (string) data_get($manifest, 'code', basename($sourceDir)),
+        'version' => (string) data_get($manifest, 'version', ''),
+        'kind' => $hasFrontendDist ? 'full-stack' : 'backend-only',
+        'components' => [
+            'backend' => [
+                'path' => 'backend',
+                'included' => true,
+            ],
+            'frontend_source' => [
+                'path' => 'frontend-source',
+                'included' => $hasFrontendSource,
+            ],
+            'frontend_dist' => [
+                'path' => 'frontend-dist',
+                'included' => $hasFrontendDist,
+            ],
+        ],
+    ];
+
+    $zip->addFile($manifestPath, 'manifest.json');
+    $zip->addFromString('release.json', json_encode($releaseManifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($sourceDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        $relativePath = $iterator->getSubPathName();
+        if ('manifest.json' === $relativePath || 'release.json' === $relativePath) {
+            continue;
+        }
+        if ('Frontend'.\DIRECTORY_SEPARATOR.'frontend.json' === $relativePath) {
+            $localPath = 'frontend-dist'.\DIRECTORY_SEPARATOR.'frontend.json';
+        } elseif ('Frontend'.\DIRECTORY_SEPARATOR.'dist' === $relativePath || 0 === strpos($relativePath, 'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR)) {
+            $localPath = 'frontend-dist'.\DIRECTORY_SEPARATOR.substr($relativePath, \strlen('Frontend'.\DIRECTORY_SEPARATOR));
+        } elseif ('Frontend' === $relativePath || 0 === strpos($relativePath, 'Frontend'.\DIRECTORY_SEPARATOR)) {
+            $localPath = 'frontend-source'.\DIRECTORY_SEPARATOR.substr($relativePath, \strlen('Frontend'.\DIRECTORY_SEPARATOR));
+        } else {
+            $localPath = 'backend'.\DIRECTORY_SEPARATOR.$relativePath;
+        }
+        if ($file->isDir()) {
+            $zip->addEmptyDir($localPath);
+
+            continue;
+        }
+        $zip->addFile($file->getPathname(), $localPath);
+    }
+
+    $zip->close();
+}
+
+function fakeAddonDownloadHttpForTest(string $code, string $zipBody): void
+{
+    $postResponse = new class($code, $zipBody)
+    {
+        public function __construct(private string $code, private string $zipBody)
+        {
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function json($key = null)
+        {
+            $data = [
+                'code' => 0,
+                'data' => [
+                    'url' => 'https://example.com/'.$this->code.'.zip',
+                    'hash' => md5($this->zipBody),
+                ],
+            ];
+
+            return null === $key ? $data : data_get($data, $key);
+        }
+
+        public function body(): string
+        {
+            return (string) json_encode($this->json(), JSON_UNESCAPED_UNICODE);
+        }
+    };
+    $getResponse = new class($zipBody)
+    {
+        public function __construct(private string $zipBody)
+        {
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function body(): string
+        {
+            return $this->zipBody;
+        }
+
+        public function json($key = null)
+        {
+            return null;
+        }
+    };
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->once()->with('test-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
+        return 'https://www.pangtou.com/api-addon/download' === $url;
+    })->andReturn($postResponse);
+    Http::shouldReceive('get')->once()->with('https://example.com/'.$code.'.zip')->andReturn($getResponse);
+}
+
+function zipDirectoryForTest(string $sourceDir, string $zipFilename): void
+{
+    $zip = new ZipArchive();
+    $zip->open($zipFilename, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($sourceDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        $localPath = $iterator->getSubPathName();
+        if ($file->isDir()) {
+            $zip->addEmptyDir($localPath);
+
+            continue;
+        }
+        $zip->addFile($file->getPathname(), $localPath);
+    }
+
+    $zip->close();
+}
+
+function zipLegacyDirectoryForTest(string $sourceDir, string $zipFilename): void
 {
     $zip = new ZipArchive();
     $zip->open($zipFilename, ZipArchive::CREATE | ZipArchive::OVERWRITE);
