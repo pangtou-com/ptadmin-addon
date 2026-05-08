@@ -35,14 +35,14 @@ return [
                 'route_base' => env('PTADMIN_ADDON_FRONTEND_MODULE_ROUTE_BASE', '/{code}'),
                 'remote_name' => env('PTADMIN_ADDON_FRONTEND_MODULE_REMOTE_NAME', '{code_snake}_remote'),
                 'develop_entry' => env('PTADMIN_ADDON_FRONTEND_MODULE_DEVELOP_ENTRY', 'http://localhost:4179/assets/remoteEntry.js'),
-                'deploy_entry' => env('PTADMIN_ADDON_FRONTEND_MODULE_DEPLOY_ENTRY', '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js'),
+                'deploy_entry' => env('PTADMIN_ADDON_FRONTEND_MODULE_DEPLOY_ENTRY', '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js'),
                 'expose' => env('PTADMIN_ADDON_FRONTEND_MODULE_EXPOSE', './module'),
             ],
             'micro-app' => [
                 'route_base' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_ROUTE_BASE', '/{code}'),
                 'app_name' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_NAME', '{code_snake}'),
                 'develop_url' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_DEVELOP_URL', 'http://localhost:5182/'),
-                'deploy_url' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_DEPLOY_URL', '{app_url}/addons/{code}/dist/admin/'),
+                'deploy_url' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_DEPLOY_URL', '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/'),
             ],
         ],
         'templates' => [

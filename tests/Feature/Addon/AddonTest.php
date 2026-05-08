@@ -627,8 +627,9 @@ it('upgrade addon from downloaded package', function (): void {
     expect(Addon::getAddonVersion('test'))->toEqual('v0.0.2')
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'upgrade.log'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -1130,8 +1131,9 @@ it('installs addon from separated release package', function (): void {
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
         ->and($fakeService->synced)->toHaveCount(1);
 
     $filesystem->deleteDirectory($basePath);
@@ -1188,7 +1190,8 @@ it('keeps frontend source when cloud install requests source', function (): void
     AddonAction::install('test', 0, false, true);
 
     expect(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -1243,7 +1246,8 @@ it('cloud install source request succeeds when package has no frontend source', 
 
     expect(Addon::hasAddon('test'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -1411,7 +1415,7 @@ it('init addon scaffold and pulls frontend template when requested', function ()
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
                 'expose' => './module',
             ],
         ],
@@ -1517,14 +1521,14 @@ it('does not fallback when official frontend template source fails', function ()
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
                 'expose' => './module',
             ],
             'micro-app' => [
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
             ],
         ],
         'templates' => [
@@ -1607,7 +1611,7 @@ it('pulls module frontend template from official manifest url', function (): voi
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
                 'expose' => './module',
             ],
         ],
@@ -1756,7 +1760,7 @@ it('pulls micro app frontend template from official manifest url', function (): 
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
             ],
         ],
         'templates' => [
@@ -1914,14 +1918,14 @@ it('rewrites module frontend manifest entry with deploy url when addon is not in
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
                 'expose' => './module',
             ],
             'micro-app' => [
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
             ],
         ],
         'templates' => [
@@ -2006,7 +2010,7 @@ it('rewrites module frontend manifest entry with deploy url when addon is not in
     );
 
     expect(data_get($frontendManifest, 'entry.federation.entry'))
-        ->toEqual('https://demo.example.com/addons/demo-addon/dist/admin/assets/remoteEntry.js');
+        ->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/admin/assets/remoteEntry.js');
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -2027,7 +2031,7 @@ it('rewrites micro app frontend manifest entry with develop url when addon is in
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
             ],
         ],
         'templates' => [
@@ -2138,7 +2142,7 @@ it('rewrites micro app frontend manifest entry with deploy url when addon is not
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
             ],
         ],
         'templates' => [
@@ -2229,7 +2233,7 @@ it('rewrites micro app frontend manifest entry with deploy url when addon is not
         ->and(data_get($frontendManifest, 'name'))->toEqual('demo-addon')
         ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/demo-addon')
         ->and(data_get($frontendManifest, 'entry.wujie.name'))->toEqual('demo_addon')
-        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('https://demo.example.com/addons/demo-addon/dist/admin/');
+        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/admin/');
 
     $filesystem->deleteDirectory($basePath);
 });

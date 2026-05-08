@@ -146,19 +146,70 @@ class AddonAction
 
         $code = $code ?? $this->code;
         $filesystem = new Filesystem();
-        $target = storage_path('app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.$code);
+        $target = $this->addonFrontendRuntimePath($code);
         if (is_dir($target)) {
             $filesystem->deleteDirectory($target);
         }
         $filesystem->ensureDirectoryExists(\dirname($target));
         $filesystem->copyDirectory($source, $target);
         $filesystem->delete($target.\DIRECTORY_SEPARATOR.'frontend.json');
+        $this->publishFrontendRuntimeLink($filesystem, $code, $target);
     }
 
     public function deleteFrontendRuntime(string $code = null): void
     {
         $code = $code ?? $this->code;
-        (new Filesystem())->deleteDirectory(storage_path('app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.$code));
+        $filesystem = new Filesystem();
+        $this->deletePath($this->addonFrontendPublicPath($code), $filesystem);
+        $filesystem->deleteDirectory($this->addonFrontendRuntimePath($code));
+    }
+
+    private function addonFrontendRuntimePath(string $code): string
+    {
+        $base = function_exists('addon_storage_path')
+            ? addon_storage_path($code)
+            : storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.$code);
+
+        return rtrim($base, \DIRECTORY_SEPARATOR);
+    }
+
+    private function addonFrontendPublicPath(string $code): string
+    {
+        return public_path($this->adminWebPrefix().\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.$code);
+    }
+
+    private function publishFrontendRuntimeLink(Filesystem $filesystem, string $code, string $target): void
+    {
+        $link = $this->addonFrontendPublicPath($code);
+        $this->deletePath($link, $filesystem);
+        $filesystem->ensureDirectoryExists(\dirname($link));
+
+        if (@symlink($target, $link)) {
+            return;
+        }
+
+        $filesystem->copyDirectory($target, $link);
+    }
+
+    private function deletePath(string $path, Filesystem $filesystem): void
+    {
+        if (is_link($path) || is_file($path)) {
+            @unlink($path);
+            return;
+        }
+
+        if (is_dir($path)) {
+            $filesystem->deleteDirectory($path);
+        }
+    }
+
+    private function adminWebPrefix(): string
+    {
+        if (function_exists('admin_web_prefix')) {
+            return trim(admin_web_prefix(), '/');
+        }
+
+        return trim((string) config('ptadmin-auth.web_prefix', 'admin'), '/');
     }
 
     /**

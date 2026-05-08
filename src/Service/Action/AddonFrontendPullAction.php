@@ -521,7 +521,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 'entry' => $this->replaceManifestPlaceholders(
                     (string) config(
                         'addon.frontend_templates.manifest.module.'.($develop ? 'develop_entry' : 'deploy_entry'),
-                        $develop ? 'http://localhost:4179/assets/remoteEntry.js' : '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js'
+                        $develop ? 'http://localhost:4179/assets/remoteEntry.js' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js'
                     ),
                     $code
                 ),
@@ -548,7 +548,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 'url' => $this->normalizeMicroAppUrl($this->replaceManifestPlaceholders(
                     (string) config(
                         'addon.frontend_templates.manifest.micro-app.'.($develop ? 'develop_url' : 'deploy_url'),
-                        $develop ? 'http://localhost:5182/' : '{app_url}/addons/{code}/dist/admin/'
+                        $develop ? 'http://localhost:5182/' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/'
                     ),
                     $code
                 )),
@@ -571,7 +571,17 @@ final class AddonFrontendPullAction extends AbstractAddonAction
             '{code_kebab}' => $code,
             '{code_snake}' => str_replace('-', '_', $code),
             '{app_url}' => $appUrl,
+            '{admin_web_prefix}' => $this->adminWebPrefix(),
         ]);
+    }
+
+    private function adminWebPrefix(): string
+    {
+        if (function_exists('admin_web_prefix')) {
+            return trim(admin_web_prefix(), '/');
+        }
+
+        return trim((string) config('ptadmin-auth.web_prefix', 'admin'), '/');
     }
 
     private function normalizeMicroAppUrl(string $url): string
