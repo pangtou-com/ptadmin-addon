@@ -94,10 +94,7 @@ final class AddonUpload extends AbstractAddonAction
         $this->filesystem->deleteDirectory($stageDir);
         $this->filesystem->ensureDirectoryExists($stageDir);
 
-        $manifestPath = $addonPath.\DIRECTORY_SEPARATOR.'manifest.json';
-        if (is_file($manifestPath)) {
-            $this->filesystem->copy($manifestPath, $stageDir.\DIRECTORY_SEPARATOR.'manifest.json');
-        }
+        $this->writeReleaseManifestJson($manifest, $stageDir.\DIRECTORY_SEPARATOR.'manifest.json');
 
         $backendIncluded = $this->copyBackendPartition($addonPath, $stageDir.\DIRECTORY_SEPARATOR.'backend');
         $frontendSourceIncluded = $this->copyFrontendSourcePartition($addonPath, $stageDir.\DIRECTORY_SEPARATOR.'frontend-source');
@@ -195,7 +192,7 @@ final class AddonUpload extends AbstractAddonAction
             'name' => (string) data_get($manifest, 'name', data_get($manifest, 'title', $code)),
             'version' => (string) data_get($manifest, 'version', ''),
             'kind' => $kind,
-            'develop' => (bool) data_get($manifest, 'develop', false),
+            'develop' => false,
             'type' => (string) data_get($manifest, 'type', ''),
             'packed_at' => date(DATE_ATOM),
             'components' => [
@@ -216,6 +213,19 @@ final class AddonUpload extends AbstractAddonAction
                 ],
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $manifest
+     */
+    private function writeReleaseManifestJson(array $manifest, string $targetPath): void
+    {
+        $manifest['develop'] = false;
+
+        $this->filesystem->put(
+            $targetPath,
+            (string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
     }
 
     private function zipDirectoryContents(string $sourceDir, string $zipFilename): void

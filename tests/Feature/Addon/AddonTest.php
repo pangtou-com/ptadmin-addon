@@ -2588,8 +2588,11 @@ it('builds addon upload packages with separated partitions', function (): void {
         ->and($zip->locateName('frontend-dist/frontend.json'))->not->toBeFalse()
         ->and($zip->locateName('frontend-dist/dist/admin/index.js'))->not->toBeFalse();
 
+    $packedManifest = json_decode($zip->getFromName('manifest.json'), true, 512, JSON_THROW_ON_ERROR);
     $releaseManifest = json_decode($zip->getFromName('release.json'), true, 512, JSON_THROW_ON_ERROR);
-    expect(data_get($releaseManifest, 'components.backend.included'))->toBeTrue()
+    expect(data_get($packedManifest, 'develop'))->toBeFalse()
+        ->and(data_get($releaseManifest, 'develop'))->toBeFalse()
+        ->and(data_get($releaseManifest, 'components.backend.included'))->toBeTrue()
         ->and(data_get($releaseManifest, 'components.frontend_source.included'))->toBeTrue()
         ->and(data_get($releaseManifest, 'components.frontend_dist.included'))->toBeTrue();
 
