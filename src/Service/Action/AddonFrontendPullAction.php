@@ -521,7 +521,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 'entry' => $this->replaceManifestPlaceholders(
                     (string) config(
                         'addon.frontend_templates.manifest.module.'.($develop ? 'develop_entry' : 'deploy_entry'),
-                        $develop ? 'http://localhost:4179/assets/remoteEntry.js' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js'
+                        $develop ? 'http://localhost:4179/assets/remoteEntry.js' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js'
                     ),
                     $code
                 ),
@@ -548,7 +548,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 'url' => $this->normalizeMicroAppUrl($this->replaceManifestPlaceholders(
                     (string) config(
                         'addon.frontend_templates.manifest.micro-app.'.($develop ? 'develop_url' : 'deploy_url'),
-                        $develop ? 'http://localhost:5182/' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/'
+                        $develop ? 'http://localhost:5182/' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/'
                     ),
                     $code
                 )),

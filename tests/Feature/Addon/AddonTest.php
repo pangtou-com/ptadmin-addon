@@ -1415,7 +1415,7 @@ it('init addon scaffold and pulls frontend template when requested', function ()
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
         ],
@@ -1521,14 +1521,14 @@ it('does not fallback when official frontend template source fails', function ()
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
             'micro-app' => [
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -1611,7 +1611,7 @@ it('pulls module frontend template from official manifest url', function (): voi
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
         ],
@@ -1760,7 +1760,7 @@ it('pulls micro app frontend template from official manifest url', function (): 
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -1918,14 +1918,14 @@ it('rewrites module frontend manifest entry with deploy url when addon is not in
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
             'micro-app' => [
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -2010,7 +2010,7 @@ it('rewrites module frontend manifest entry with deploy url when addon is not in
     );
 
     expect(data_get($frontendManifest, 'entry.federation.entry'))
-        ->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/admin/assets/remoteEntry.js');
+        ->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/assets/remoteEntry.js');
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -2031,7 +2031,7 @@ it('rewrites micro app frontend manifest entry with develop url when addon is in
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -2142,7 +2142,7 @@ it('rewrites micro app frontend manifest entry with deploy url when addon is not
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/admin/',
+                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -2233,7 +2233,7 @@ it('rewrites micro app frontend manifest entry with deploy url when addon is not
         ->and(data_get($frontendManifest, 'name'))->toEqual('demo-addon')
         ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/demo-addon')
         ->and(data_get($frontendManifest, 'entry.wujie.name'))->toEqual('demo_addon')
-        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/admin/');
+        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/');
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -2265,7 +2265,7 @@ it('builds frontend assets and generates module manifest via addon action', func
 
     $result = AddonAction::buildFrontend('demo-addon');
 
-    $assetPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin';
+    $assetPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'dist';
     $moduleManifestPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'frontend.json';
     $moduleManifest = json_decode(file_get_contents($moduleManifestPath), true, 512, JSON_THROW_ON_ERROR);
 
@@ -2281,14 +2281,14 @@ it('builds frontend assets and generates module manifest via addon action', func
             'asset_path' => $assetPath,
             'module_manifest' => $moduleManifestPath,
         ])
-        ->and(data_get($result, 'entry.js'))->toEqual('dist/admin/index.js')
-        ->and(data_get($result, 'entry.css'))->toEqual(['dist/admin/index.css'])
+        ->and(data_get($result, 'entry.js'))->toEqual('dist/index.js')
+        ->and(data_get($result, 'entry.css'))->toEqual(['dist/index.css'])
         ->and(data_get($moduleManifest, 'modules.0.key'))->toEqual('demo-addon')
         ->and(data_get($moduleManifest, 'modules.0.title'))->toEqual('Demo Addon')
         ->and(data_get($moduleManifest, 'modules.0.route_base'))->toEqual('/demo-addon')
         ->and(data_get($moduleManifest, 'modules.0.meta.order'))->toEqual(30)
-        ->and(data_get($moduleManifest, 'modules.0.entry.local.js'))->toEqual('dist/admin/index.js')
-        ->and(data_get($moduleManifest, 'modules.0.entry.local.css'))->toEqual(['dist/admin/index.css'])
+        ->and(data_get($moduleManifest, 'modules.0.entry.local.js'))->toEqual('dist/index.js')
+        ->and(data_get($moduleManifest, 'modules.0.entry.local.css'))->toEqual(['dist/index.css'])
         ->and(data_get($moduleManifest, 'modules.0.pages.0.path'))->toEqual('/demo-addon');
 
     $filesystem->deleteDirectory($basePath);

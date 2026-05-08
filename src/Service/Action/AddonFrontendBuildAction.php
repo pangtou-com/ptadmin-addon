@@ -62,7 +62,7 @@ final class AddonFrontendBuildAction
         $installCommand = trim((string) ($frontendConfig['install_command'] ?? ''));
         $buildCommand = trim((string) ($frontendConfig['build_command'] ?? ''));
         $distRelative = trim((string) ($frontendConfig['dist_dir'] ?? 'dist'), '/');
-        $assetRelative = trim((string) ($frontendConfig['asset_dir'] ?? 'dist/admin'), '/');
+        $assetRelative = trim((string) ($frontendConfig['asset_dir'] ?? 'dist'), '/');
         $moduleManifestRelative = trim((string) ($frontendConfig['module_manifest'] ?? 'frontend.json'), '/');
 
         if (!$skipInstall) {
