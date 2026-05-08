@@ -238,6 +238,7 @@ class AddonApi
                 CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
                 CURLOPT_RESOLVE => [
                     'www.pangtou.com:443:61.147.93.222',
+                    'cloud.api.pangtou.com:443:61.147.93.222',
                 ],
             ],
         ]);

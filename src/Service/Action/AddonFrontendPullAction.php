@@ -46,10 +46,10 @@ final class AddonFrontendPullAction extends AbstractAddonAction
 
         foreach ($this->resolveSourceOrder($source) as $currentSource) {
             try {
-                $url = $this->buildArchiveUrl($currentSource, $template, $ref);
+                $archive = $this->resolveArchive($currentSource, $template, $ref);
                 $this->info(__('ptadmin-addon::messages.command.frontend_pull_trying', [
                     'source' => $currentSource,
-                    'url' => $url,
+                    'url' => $archive['url'],
                 ]));
 
                 $downloadFile = $temporaryRoot.\DIRECTORY_SEPARATOR.$currentSource.'.zip';
@@ -57,7 +57,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 $this->filesystem->deleteDirectory($extractPath);
                 $this->filesystem->ensureDirectoryExists($extractPath);
 
-                $this->downloadArchive($url, $downloadFile);
+                $this->downloadArchive($archive['url'], $downloadFile);
                 $sourcePath = $this->extractArchive($downloadFile, $extractPath);
 
                 if ($this->filesystem->isDirectory($targetPath)) {
@@ -79,7 +79,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                     'source' => $currentSource,
                     'path' => $targetPath,
                     'template' => $template,
-                    'ref' => $ref,
+                    'ref' => $archive['ref'],
                 ];
             } catch (\Throwable $throwable) {
                 $errors[] = sprintf('%s: %s', $currentSource, $throwable->getMessage());
@@ -106,35 +106,35 @@ final class AddonFrontendPullAction extends AbstractAddonAction
     private function resolveSourceOrder(string $source): array
     {
         $specifiedSource = strtolower(trim($source));
-        if ('' !== $specifiedSource) {
-            if (self::OFFICIAL_SOURCE === $specifiedSource) {
-                return [self::OFFICIAL_SOURCE];
-            }
-
-            return array_values(array_unique([$specifiedSource, self::OFFICIAL_SOURCE]));
+        if ('' !== $specifiedSource && self::OFFICIAL_SOURCE !== $specifiedSource) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_source_unsupported', [
+                'source' => $specifiedSource,
+            ]));
         }
 
-        $region = $this->resolveRegion();
-        $primary = (string) config('addon.frontend_templates.primary_sources.'.$region, self::OFFICIAL_SOURCE);
-
-        return array_values(array_unique([$primary, 'github']));
+        return [self::OFFICIAL_SOURCE];
     }
 
-    private function resolveRegion(): string
+    /**
+     * @return array{url: string, ref: string}
+     */
+    private function resolveArchive(string $source, string $template, string $ref): array
     {
-        $configuredRegion = strtolower(trim((string) config('addon.frontend_templates.region', 'auto')));
-        if ('' !== $configuredRegion && 'auto' !== $configuredRegion) {
-            return $configuredRegion;
+        $manifestUrl = trim((string) config('addon.frontend_templates.templates.'.$template.'.sources.'.$source.'.manifest_url', ''));
+        if ('' === $manifestUrl) {
+            $manifestUrl = trim((string) config('addon.frontend_templates.sources.'.$source.'.manifest_url', ''));
         }
 
-        $locale = strtolower(str_replace('_', '-', (string) config('app.locale', '')));
-        $timezone = strtolower((string) config('app.timezone', ''));
-
-        if (Str::startsWith($locale, 'zh') || \in_array($timezone, ['asia/shanghai', 'asia/chongqing', 'asia/harbin', 'asia/urumqi'], true)) {
-            return 'cn';
+        if ('' !== $manifestUrl) {
+            return $this->resolveArchiveFromManifest($manifestUrl, $ref);
         }
 
-        return 'global';
+        $url = $this->buildArchiveUrl($source, $template, $ref);
+
+        return [
+            'url' => $url,
+            'ref' => $ref,
+        ];
     }
 
     private function buildArchiveUrl(string $source, string $template, string $ref): string
@@ -154,6 +154,143 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         ]);
     }
 
+    /**
+     * @return array{url: string, ref: string}
+     */
+    private function resolveArchiveFromManifest(string $manifestUrl, string $ref): array
+    {
+        $manifest = $this->downloadTemplateManifest($manifestUrl);
+        $version = $this->resolveManifestVersion($manifest, $ref);
+        $artifact = $this->resolveManifestArtifact($version);
+        $url = trim((string) ($artifact['url'] ?? ''));
+        if ('' === $url) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_archive_missing'));
+        }
+
+        return [
+            'url' => $this->normalizeManifestArchiveUrl($url, (string) ($manifest['base_url'] ?? $manifestUrl)),
+            'ref' => (string) ($version['version'] ?? $ref),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function downloadTemplateManifest(string $manifestUrl): array
+    {
+        try {
+            $response = Http::withOptions($this->httpOptions())->timeout(60)->get($manifestUrl);
+        } catch (ConnectionException $exception) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_connection_failed', [
+                'url' => $manifestUrl,
+                'message' => $exception->getMessage(),
+            ]), 20000, $exception);
+        }
+
+        if (!$response->successful()) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_http_failed', [
+                'url' => $manifestUrl,
+                'status' => $response->status(),
+            ]));
+        }
+
+        $body = $response->body();
+        if ('' === trim($body)) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_invalid'));
+        }
+
+        $manifest = json_decode($body, true);
+        if (!\is_array($manifest)) {
+            $manifest = json_decode($this->stripJsonTrailingCommas($body), true);
+        }
+        if (!\is_array($manifest)) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_invalid'));
+        }
+
+        return $manifest;
+    }
+
+    /**
+     * @param array<string, mixed> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveManifestVersion(array $manifest, string $ref): array
+    {
+        $requested = trim($ref);
+        $latest = trim((string) ($manifest['latest'] ?? ''));
+        $targetVersion = \in_array($requested, ['', 'main', 'master', 'latest'], true) ? $latest : $requested;
+        $versions = \is_array($manifest['versions'] ?? null) ? $manifest['versions'] : [];
+
+        foreach ($versions as $version) {
+            if (!\is_array($version)) {
+                continue;
+            }
+
+            if ('' === $targetVersion || $targetVersion === (string) ($version['version'] ?? '')) {
+                return $version;
+            }
+        }
+
+        if ([] !== $versions && '' === $targetVersion && \is_array($versions[0] ?? null)) {
+            return $versions[0];
+        }
+
+        throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_version_missing', [
+            'version' => $targetVersion ?: $requested,
+        ]));
+    }
+
+    /**
+     * @param array<string, mixed> $version
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveManifestArtifact(array $version): array
+    {
+        $artifacts = \is_array($version['artifacts'] ?? null) ? $version['artifacts'] : [];
+        $artifact = $artifacts['primary'] ?? null;
+        if (!\is_array($artifact)) {
+            foreach ($artifacts as $candidate) {
+                if (\is_array($candidate)) {
+                    $artifact = $candidate;
+
+                    break;
+                }
+            }
+        }
+
+        if (!\is_array($artifact)) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_archive_missing'));
+        }
+
+        return $artifact;
+    }
+
+    private function normalizeManifestArchiveUrl(string $url, string $baseUrl): string
+    {
+        if (preg_match('#^https?://#i', $url)) {
+            return $url;
+        }
+
+        $base = trim($baseUrl);
+        if ('' === $base) {
+            return $url;
+        }
+
+        $path = (string) (parse_url($base, PHP_URL_PATH) ?: '');
+        if (preg_match('#\.[a-z0-9]+$#i', $path)) {
+            $base = preg_replace('#/[^/]*$#', '/', $base) ?: $base;
+        }
+
+        return rtrim($base, '/').'/'.ltrim($url, '/');
+    }
+
+    private function stripJsonTrailingCommas(string $json): string
+    {
+        return (string) preg_replace('/,\s*([}\]])/', '$1', $json);
+    }
+
     private function normalizeTemplate(string $template): string
     {
         $normalized = strtolower(trim($template));
@@ -168,9 +305,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
     private function downloadArchive(string $url, string $downloadFile): void
     {
         try {
-            $response = Http::withOptions([
-                'verify' => false,
-            ])->timeout(60)->get($url);
+            $response = Http::withOptions($this->httpOptions())->timeout(60)->get($url);
         } catch (ConnectionException $exception) {
             throw new AddonException($exception->getMessage(), 20000, $exception);
         }
@@ -187,6 +322,25 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         }
 
         $this->filesystem->put($downloadFile, $body);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function httpOptions(): array
+    {
+        $options = [
+            'verify' => false,
+        ];
+        $resolve = config('addon.frontend_templates.curl_resolve', []);
+        if (\is_array($resolve) && [] !== $resolve) {
+            $options['curl'] = [
+                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                CURLOPT_RESOLVE => array_values(array_filter($resolve, static fn ($value): bool => \is_string($value) && '' !== trim($value))),
+            ];
+        }
+
+        return $options;
     }
 
     private function extractArchive(string $downloadFile, string $extractPath): string
@@ -227,13 +381,42 @@ final class AddonFrontendPullAction extends AbstractAddonAction
     {
         if ('module' === $template) {
             $this->rewriteModuleFrontendManifest($targetPath, $addonPath);
+            $this->rewritePackageJson($targetPath, $addonPath);
 
             return;
         }
 
         if ('micro-app' === $template) {
             $this->rewriteMicroAppFrontendManifest($targetPath, $addonPath);
+            $this->rewritePackageJson($targetPath, $addonPath);
         }
+    }
+
+    private function rewritePackageJson(string $targetPath, string $addonPath): void
+    {
+        $packagePath = $targetPath.\DIRECTORY_SEPARATOR.'package.json';
+        if (!$this->filesystem->exists($packagePath)) {
+            return;
+        }
+
+        $addonManifest = AddonUtil::readAddonConfig($addonPath);
+        $code = strtolower(trim((string) ($addonManifest['code'] ?? $this->code)));
+        if ('' === $code) {
+            return;
+        }
+
+        $content = @file_get_contents($packagePath);
+        $payload = \is_string($content) ? @json_decode($content, true) : null;
+        if (!\is_array($payload)) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_build_module_invalid'));
+        }
+
+        $payload['name'] = '@pangtou-addon/'.$code;
+
+        $this->filesystem->put(
+            $packagePath,
+            (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
     }
 
     private function rewriteModuleFrontendManifest(string $targetPath, string $addonPath): void

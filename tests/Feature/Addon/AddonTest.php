@@ -1395,14 +1395,12 @@ it('force recreate addon scaffold', function (): void {
     $filesystem->deleteDirectory($basePath);
 });
 
-it('pulls frontend template via addon action with regional fallback order', function (): void {
+it('init addon scaffold and pulls frontend template when requested', function (): void {
     $filesystem = new Filesystem();
-    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-'.uniqid();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-init-frontend-'.uniqid();
     $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
 
     $this->app->setBasePath($basePath);
-    config()->set('app.locale', 'zh-cn');
-    config()->set('app.timezone', 'Asia/Shanghai');
     config()->set('addon.frontend_templates', [
         'default_template' => 'module',
         'region' => 'cn',
@@ -1414,55 +1412,19 @@ it('pulls frontend template via addon action with regional fallback order', func
                 'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
                 'expose' => './module',
             ],
-            'micro-app' => [
-                'route_base' => '/{code}',
-                'app_name' => '{code_snake}',
-                'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
-            ],
-        ],
-        'primary_sources' => [
-            'cn' => 'official',
-            'global' => 'official',
         ],
         'templates' => [
             'module' => [
                 'sources' => [
-                    'github' => [
-                        'archive_url' => 'https://github.example.com/module/{ref}.zip',
-                    ],
                     'official' => [
                         'archive_url' => 'https://official.example.com/module/{ref}.zip',
                     ],
                 ],
             ],
-            'micro-app' => [
-                'sources' => [
-                    'github' => [
-                        'archive_url' => 'https://github.example.com/micro-app/{ref}.zip',
-                    ],
-                    'official' => [
-                        'archive_url' => 'https://official.example.com/micro-app/{ref}.zip',
-                    ],
-                ],
-            ],
-        ],
-        'sources' => [
-            'github' => [
-                'archive_url' => 'https://github.example.com/{template}/{ref}.zip',
-            ],
-            'official' => [
-                'archive_url' => 'https://official.example.com/{template}/{ref}.zip',
-            ],
         ],
     ]);
 
-    expect(Artisan::call('addon:init', [
-        'code' => 'demo-addon',
-        '--title' => 'Demo Addon',
-    ]))->toEqual(0);
-
-    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template.zip';
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template-init.zip';
     buildFrontendTemplateZip($zipFile, [
         'package.json' => "{\"name\":\"demo-addon-frontend\"}\n",
         'frontend.json' => (string) json_encode([
@@ -1483,27 +1445,8 @@ it('pulls frontend template via addon action with regional fallback order', func
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
         'src/main.ts' => "console.log('demo-addon');\n",
-        'README.md' => "# Demo Frontend\n",
     ]);
     $zipBody = file_get_contents($zipFile);
-
-    $failedResponse = new class
-    {
-        public function successful(): bool
-        {
-            return false;
-        }
-
-        public function status(): int
-        {
-            return 500;
-        }
-
-        public function body(): string
-        {
-            return 'upstream error';
-        }
-    };
 
     $successResponse = new class($zipBody)
     {
@@ -1530,40 +1473,424 @@ it('pulls frontend template via addon action with regional fallback order', func
         }
     };
 
+    Http::shouldReceive('withOptions')->once()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->once()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->once()->with('https://official.example.com/module/main.zip')->andReturn($successResponse);
+
+    expect(Artisan::call('addon:init', [
+        'code' => 'demo-addon',
+        '--title' => 'Demo Addon',
+        '--frontend' => true,
+    ]))->toEqual(0);
+
+    $addonDir = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon';
+    $frontendPath = $addonDir.\DIRECTORY_SEPARATOR.'Frontend';
+    $frontendManifest = json_decode(file_get_contents($frontendPath.\DIRECTORY_SEPARATOR.'frontend.json'), true, 512, JSON_THROW_ON_ERROR);
+    $frontendPackage = json_decode(file_get_contents($frontendPath.\DIRECTORY_SEPARATOR.'package.json'), true, 512, JSON_THROW_ON_ERROR);
+
+    expect(file_exists($addonDir.\DIRECTORY_SEPARATOR.'manifest.json'))->toBeTrue()
+        ->and(is_dir($frontendPath))->toBeTrue()
+        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'package.json'))->toBeTrue()
+        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
+        ->and(data_get($frontendPackage, 'name'))->toEqual('@pangtou-addon/demo-addon')
+        ->and(data_get($frontendManifest, 'id'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'entry.federation.remote'))->toEqual('demo_addon_remote');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('does not fallback when official frontend template source fails', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    config()->set('app.locale', 'zh-cn');
+    config()->set('app.timezone', 'Asia/Shanghai');
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'module',
+        'region' => 'cn',
+        'manifest' => [
+            'module' => [
+                'route_base' => '/{code}',
+                'remote_name' => '{code_snake}_remote',
+                'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'expose' => './module',
+            ],
+            'micro-app' => [
+                'route_base' => '/{code}',
+                'app_name' => '{code_snake}',
+                'develop_url' => 'http://localhost:5182/',
+                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+            ],
+        ],
+        'templates' => [
+            'module' => [
+                'sources' => [
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/module/{ref}.zip',
+                    ],
+                ],
+            ],
+            'micro-app' => [
+                'sources' => [
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/micro-app/{ref}.zip',
+                    ],
+                ],
+            ],
+        ],
+        'sources' => [
+            'official' => [
+                'archive_url' => 'https://official.example.com/{template}/{ref}.zip',
+            ],
+        ],
+    ]);
+
+    expect(Artisan::call('addon:init', [
+        'code' => 'demo-addon',
+        '--title' => 'Demo Addon',
+    ]))->toEqual(0);
+
+    $failedResponse = new class
+    {
+        public function successful(): bool
+        {
+            return false;
+        }
+
+        public function status(): int
+        {
+            return 500;
+        }
+
+        public function body(): string
+        {
+            return 'upstream error';
+        }
+    };
+
     $requestedUrls = [];
-    Http::shouldReceive('withOptions')->times(2)->with(['verify' => false])->andReturnSelf();
-    Http::shouldReceive('timeout')->times(2)->with(60)->andReturnSelf();
-    Http::shouldReceive('get')->times(2)->withArgs(function (string $url) use (&$requestedUrls): bool {
+    Http::shouldReceive('withOptions')->once()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->once()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->once()->withArgs(function (string $url) use (&$requestedUrls): bool {
         $requestedUrls[] = $url;
 
         return true;
-    })->andReturn($failedResponse, $successResponse);
+    })->andReturn($failedResponse);
 
-    $result = AddonAction::pullFrontend('demo-addon', 'module', 'main');
+    expect(fn () => AddonAction::pullFrontend('demo-addon', 'module', 'main'))
+        ->toThrow(AddonException::class);
 
     expect($requestedUrls)->toEqual([
         'https://official.example.com/module/main.zip',
-        'https://github.example.com/module/main.zip',
     ]);
-    expect($result)->toMatchArray([
-        'source' => 'github',
-        'template' => 'module',
-        'ref' => 'main',
+    expect(is_dir($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend'))->toBeFalse();
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('pulls module frontend template from official manifest url', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-manifest-module-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'module',
+        'region' => 'cn',
+        'manifest' => [
+            'module' => [
+                'route_base' => '/{code}',
+                'remote_name' => '{code_snake}_remote',
+                'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                'deploy_entry' => '{app_url}/addons/{code}/dist/admin/assets/remoteEntry.js',
+                'expose' => './module',
+            ],
+        ],
+        'templates' => [
+            'module' => [
+                'sources' => [
+                    'official' => [
+                        'manifest_url' => 'https://cloud.api.pangtou.com/storage/starter/template-plugin-module.json',
+                    ],
+                ],
+            ],
+        ],
     ]);
 
-    $frontendPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend';
-    $frontendManifest = json_decode(file_get_contents($frontendPath.\DIRECTORY_SEPARATOR.'frontend.json'), true, 512, JSON_THROW_ON_ERROR);
-    expect(is_dir($frontendPath))->toBeTrue()
-        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'package.json'))->toBeTrue()
-        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
-        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'template-root'))->toBeFalse()
-        ->and(data_get($result, 'path'))->toEqual($frontendPath)
-        ->and(data_get($frontendManifest, 'id'))->toEqual('demo-addon')
-        ->and(data_get($frontendManifest, 'code'))->toEqual('demo-addon')
-        ->and(data_get($frontendManifest, 'name'))->toEqual('demo-addon')
-        ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/demo-addon')
-        ->and(data_get($frontendManifest, 'entry.federation.remote'))->toEqual('demo_addon_remote')
-        ->and(data_get($frontendManifest, 'entry.federation.entry'))->toEqual('http://localhost:4179/assets/remoteEntry.js');
+    AddonAction::init('demo-addon', 'Demo Addon');
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template-manifest-module.zip';
+    buildFrontendTemplateZip($zipFile, [
+        'frontend.json' => (string) json_encode([
+            'id' => 'your-plugin',
+            'code' => 'your-plugin',
+            'name' => '示例插件',
+            'version' => '0.1.0',
+            'enabled' => true,
+            'kind' => 'module',
+            'runtime' => 'federation',
+            'routeBase' => '/your-plugin',
+            'entry' => [
+                'federation' => [
+                    'remote' => 'your_plugin_remote',
+                    'entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                    'expose' => './module',
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
+    ]);
+    $zipBody = file_get_contents($zipFile);
+
+    $manifestBody = <<<'JSON'
+{
+    "name": "plugin-module",
+    "latest": "1.2.0",
+    "base_url": "https://cdn.example.com/starter/",
+    "versions": [
+        {
+            "version": "1.2.0",
+            "artifacts": {
+                "primary": {
+                    "type": "zip",
+                    "url": "module/frontend-v1.2.0.zip"
+                }
+            },
+        }
+    ],
+}
+JSON;
+
+    $manifestResponse = new class($manifestBody)
+    {
+        public function __construct(private string $body)
+        {
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+    $archiveResponse = new class($zipBody)
+    {
+        public function __construct(private string $body)
+        {
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+
+    $requestedUrls = [];
+    Http::shouldReceive('withOptions')->twice()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->twice()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->twice()->withArgs(function (string $url) use (&$requestedUrls): bool {
+        $requestedUrls[] = $url;
+
+        return true;
+    })->andReturn($manifestResponse, $archiveResponse);
+
+    $result = AddonAction::pullFrontend('demo-addon', 'module', 'main', 'official');
+
+    expect($requestedUrls)->toEqual([
+        'https://cloud.api.pangtou.com/storage/starter/template-plugin-module.json',
+        'https://cdn.example.com/starter/module/frontend-v1.2.0.zip',
+    ]);
+    expect($result)->toMatchArray([
+        'source' => 'official',
+        'template' => 'module',
+        'ref' => '1.2.0',
+    ]);
+
+    $frontendManifest = json_decode(
+        file_get_contents($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'),
+        true,
+        512,
+        JSON_THROW_ON_ERROR
+    );
+
+    expect(data_get($frontendManifest, 'id'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'entry.federation.remote'))->toEqual('demo_addon_remote');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('pulls micro app frontend template from official manifest url', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-pull-manifest-micro-app-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'module',
+        'region' => 'cn',
+        'manifest' => [
+            'micro-app' => [
+                'route_base' => '/{code}',
+                'app_name' => '{code_snake}',
+                'develop_url' => 'http://localhost:5182/',
+                'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
+            ],
+        ],
+        'templates' => [
+            'micro-app' => [
+                'sources' => [
+                    'official' => [
+                        'manifest_url' => 'https://cloud.api.pangtou.com/storage/starter/template-plugin-micro-app.json',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    AddonAction::init('demo-addon', 'Demo Addon');
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'frontend-template-manifest-micro-app.zip';
+    buildFrontendTemplateZip($zipFile, [
+        'frontend.json' => (string) json_encode([
+            'id' => 'your-plugin',
+            'code' => 'your-plugin',
+            'name' => '示例无界插件',
+            'version' => '0.1.0',
+            'enabled' => true,
+            'kind' => 'micro-app',
+            'runtime' => 'wujie',
+            'routeBase' => '/your-plugin',
+            'entry' => [
+                'wujie' => [
+                    'name' => 'your_plugin',
+                    'url' => 'http://localhost:5182/',
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
+    ]);
+    $zipBody = file_get_contents($zipFile);
+
+    $manifestBody = (string) json_encode([
+        'name' => 'plugin-micro-app',
+        'latest' => '1.2.0',
+        'base_url' => 'https://cdn.example.com/starter/',
+        'versions' => [
+            [
+                'version' => '1.2.0',
+                'artifacts' => [
+                    'primary' => [
+                        'type' => 'zip',
+                        'url' => 'micro-app/frontend-v1.2.0.zip',
+                    ],
+                ],
+            ],
+            [
+                'version' => '1.1.0',
+                'artifacts' => [
+                    'primary' => [
+                        'type' => 'zip',
+                        'url' => 'micro-app/frontend-v1.1.0.zip',
+                    ],
+                ],
+            ],
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+
+    $manifestResponse = new class($manifestBody)
+    {
+        public function __construct(private string $body)
+        {
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+    $archiveResponse = new class($zipBody)
+    {
+        public function __construct(private string $body)
+        {
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+
+    $requestedUrls = [];
+    Http::shouldReceive('withOptions')->twice()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->twice()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->twice()->withArgs(function (string $url) use (&$requestedUrls): bool {
+        $requestedUrls[] = $url;
+
+        return true;
+    })->andReturn($manifestResponse, $archiveResponse);
+
+    $result = AddonAction::pullFrontend('demo-addon', 'micro-app', '1.1.0', 'official');
+
+    expect($requestedUrls)->toEqual([
+        'https://cloud.api.pangtou.com/storage/starter/template-plugin-micro-app.json',
+        'https://cdn.example.com/starter/micro-app/frontend-v1.1.0.zip',
+    ]);
+    expect($result)->toMatchArray([
+        'source' => 'official',
+        'template' => 'micro-app',
+        'ref' => '1.1.0',
+    ]);
+
+    $frontendManifest = json_decode(
+        file_get_contents($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'DemoAddon'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'),
+        true,
+        512,
+        JSON_THROW_ON_ERROR
+    );
+
+    expect(data_get($frontendManifest, 'id'))->toEqual('demo-addon')
+        ->and(data_get($frontendManifest, 'entry.wujie.name'))->toEqual('demo_addon')
+        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('http://localhost:5182/');
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -1594,10 +1921,6 @@ it('rewrites module frontend manifest entry with deploy url when addon is not in
                 'develop_url' => 'http://localhost:5182/',
                 'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
             ],
-        ],
-        'primary_sources' => [
-            'cn' => 'official',
-            'global' => 'official',
         ],
         'templates' => [
             'module' => [
@@ -1704,10 +2027,6 @@ it('rewrites micro app frontend manifest entry with develop url when addon is in
                 'develop_url' => 'http://localhost:5182/',
                 'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
             ],
-        ],
-        'primary_sources' => [
-            'cn' => 'official',
-            'global' => 'official',
         ],
         'templates' => [
             'micro-app' => [
@@ -1819,10 +2138,6 @@ it('rewrites micro app frontend manifest entry with deploy url when addon is not
                 'develop_url' => 'http://localhost:5182/',
                 'deploy_url' => '{app_url}/addons/{code}/dist/admin/',
             ],
-        ],
-        'primary_sources' => [
-            'cn' => 'official',
-            'global' => 'official',
         ],
         'templates' => [
             'micro-app' => [
@@ -2310,6 +2625,23 @@ function buildFrontendTemplateZip(string $zipFilename, array $files): void
         file_put_contents($targetFile, (string) $content);
     }
 
-    buildAddonPackageZip($rootDir, $zipFilename);
+    $zip = new ZipArchive();
+    $zip->open($zipFilename, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($rootDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        $relativePath = 'template-root'.\DIRECTORY_SEPARATOR.$iterator->getSubPathName();
+        if ($file->isDir()) {
+            $zip->addEmptyDir($relativePath);
+
+            continue;
+        }
+        $zip->addFile($file->getPathname(), $relativePath);
+    }
+
+    $zip->close();
     $filesystem->deleteDirectory($sourceDir);
 }

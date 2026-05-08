@@ -6,9 +6,19 @@
 php artisan addon:init demo-addon --title="Demo Addon"
 ```
 
+同步拉取前端模板：
+
+```bash
+php artisan addon:init demo-addon --title="Demo Addon" --frontend
+php artisan addon:init demo-addon --frontend --frontend-template=micro-app --frontend-ref=main
+```
+
 可选参数：
 
 - `--title`
+- `--frontend`
+- `--frontend-template`
+- `--frontend-ref`
 - `--force`
 
 ## 本地安装

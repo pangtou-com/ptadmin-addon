@@ -6,6 +6,12 @@
 php artisan addon:init demo-addon --title="Demo Addon"
 ```
 
+如果插件需要前端源码，可以在初始化时同步拉取前端模板：
+
+```bash
+php artisan addon:init demo-addon --title="Demo Addon" --frontend
+```
+
 命令会生成：
 
 - `addons/DemoAddon/manifest.json`
@@ -14,6 +20,7 @@ php artisan addon:init demo-addon --title="Demo Addon"
 - `addons/DemoAddon/Routes/web.php`
 - `addons/DemoAddon/Config/config.php`
 - `addons/DemoAddon/Response/Views/index.blade.php`
+- 指定 `--frontend` 时生成 `addons/DemoAddon/Frontend`
 
 ## 2. 编写安装周期
 

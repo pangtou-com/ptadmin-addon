@@ -195,11 +195,30 @@ class AddonAction
      *
      * @return null|array|mixed
      */
-    public static function init(string $code, string $title = '', bool $force = false)
+    public static function init(
+        string $code,
+        string $title = '',
+        bool $force = false,
+        bool $withFrontend = false,
+        string $frontendTemplate = 'module',
+        string $frontendRef = 'main',
+        string $frontendSource = ''
+    )
     {
         $obj = new self($code);
 
         $result = $obj->addTask(AddonInitAction::class, $title, $force)->action();
+        if ($withFrontend) {
+            $frontendResult = (new AddonFrontendPullAction($obj->getCode(), $obj))->handle(
+                $frontendTemplate,
+                $frontendRef,
+                $frontendSource,
+                true
+            );
+            if (\is_array($result)) {
+                $result['frontend'] = $frontendResult;
+            }
+        }
         $obj->refreshCache();
 
         return $result;

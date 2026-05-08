@@ -13,7 +13,7 @@ class AddonFrontendPull extends BaseAddonCommand
         {code : 插件编码}
         {--template=module : 前端模板标识，支持 module / micro-app}
         {--ref=main : 模板版本或分支，默认 main}
-        {--source= : 指定模板源，支持 official / github，留空时按区域自动选择}
+        {--source= : 指定模板源，仅支持 official，留空时使用 official}
         {--f|force : 强制覆盖已存在 Frontend 目录}';
 
     protected $description = '拉取插件前端模板到 Frontend 目录';
@@ -59,7 +59,6 @@ class AddonFrontendPull extends BaseAddonCommand
         $aliases = [
             '' => '',
             'auto' => '',
-            'github' => 'github',
             'official' => 'official',
         ];
 
@@ -67,6 +66,6 @@ class AddonFrontendPull extends BaseAddonCommand
             return $aliases[$normalized];
         }
 
-        throw new AddonException('前端模板源仅支持：official、github、auto');
+        throw new AddonException('前端模板源仅支持：official、auto');
     }
 }

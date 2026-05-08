@@ -21,17 +21,15 @@ return [
     | Frontend Templates
     |--------------------------------------------------------------------------
     |
-    | 插件前端模板拉取配置。
-    | region=auto 时会根据当前 locale / timezone 推断优先区域：
-    | - cn      优先 official
-    | - global  优先 official
+    | 插件前端模板拉取配置。当前仅支持 official 源：
+    | - module    使用 template-plugin-module.json
+    | - micro-app 使用 template-plugin-micro-app.json
     |
-    | 当主源拉取失败后，会自动回退到 github。
+    | 拉取时先读取模板清单 manifest_url，再按 latest/ref 解析最终 zip 下载地址。
     |
     */
     'frontend_templates' => [
         'default_template' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE', 'module'),
-        'region' => env('PTADMIN_ADDON_FRONTEND_REGION', 'auto'),
         'manifest' => [
             'module' => [
                 'route_base' => env('PTADMIN_ADDON_FRONTEND_MODULE_ROUTE_BASE', '/{code}'),
@@ -47,40 +45,34 @@ return [
                 'deploy_url' => env('PTADMIN_ADDON_FRONTEND_MICRO_APP_DEPLOY_URL', '{app_url}/addons/{code}/dist/admin/'),
             ],
         ],
-        'primary_sources' => [
-            'cn' => 'official',
-            'global' => 'official',
-        ],
         'templates' => [
             'module' => [
                 'sources' => [
-                    'github' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_GITHUB_ARCHIVE_URL', 'https://github.com/pangtou-com/ptadmin-addon-module/archive/refs/heads/{ref}.zip'),
-                    ],
                     'official' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', 'http://dev.pangtou.com/addon-templates/module/{ref}.zip')),
+                        'manifest_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_OFFICIAL_MANIFEST_URL', 'https://cloud.api.pangtou.com/storage/starter/template-plugin-module.json'),
+                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', '')),
                     ],
                 ],
             ],
             'micro-app' => [
                 'sources' => [
-                    'github' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_GITHUB_ARCHIVE_URL', 'https://github.com/pangtou-com/ptadmin-addon-micro-app/archive/refs/heads/{ref}.zip'),
-                    ],
                     'official' => [
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', 'http://dev.pangtou.com/addon-templates/micro-app/{ref}.zip')),
+                        'manifest_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_OFFICIAL_MANIFEST_URL', 'https://cloud.api.pangtou.com/storage/starter/template-plugin-micro-app.json'),
+                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', '')),
                     ],
                 ],
             ],
         ],
         'sources' => [
-            'github' => [
-                'archive_url' => env('PTADMIN_ADDON_FRONTEND_GITHUB_ARCHIVE_URL', ''),
-            ],
             'official' => [
+                'manifest_url' => env('PTADMIN_ADDON_FRONTEND_OFFICIAL_MANIFEST_URL', ''),
                 'archive_url' => env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', ''),
             ],
         ],
+        'curl_resolve' => array_values(array_filter(array_map('trim', explode(',', env(
+            'PTADMIN_ADDON_FRONTEND_CURL_RESOLVE',
+            'cloud.api.pangtou.com:443:61.147.93.222'
+        ))))),
     ],
 
     /*
