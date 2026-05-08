@@ -41,7 +41,8 @@ class AddonLogin extends BaseAddonCommand
             'username' => $username,
             'password' => $password,
         ]);
-
+        $this->info("用户登录成功");
+        dump($user);
         return 0;
     }
 }
