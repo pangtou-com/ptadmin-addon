@@ -626,7 +626,8 @@ it('upgrade addon from downloaded package', function (): void {
 
     expect(Addon::getAddonVersion('test'))->toEqual('v0.0.2')
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'upgrade.log'))->toBeTrue()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
@@ -1127,8 +1128,9 @@ it('installs addon from separated release package', function (): void {
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Bootstrap.php'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
         ->and($fakeService->synced)->toHaveCount(1);
 

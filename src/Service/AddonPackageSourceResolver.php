@@ -64,7 +64,11 @@ final class AddonPackageSourceResolver
         if ($this->withSource) {
             $this->copyFrontendSource($releasePath.\DIRECTORY_SEPARATOR.'frontend-source', $target.\DIRECTORY_SEPARATOR.'Frontend');
         }
-        $this->copyFrontendDist($releasePath.\DIRECTORY_SEPARATOR.'frontend-dist', $targetParent.\DIRECTORY_SEPARATOR.'frontend-runtime');
+        $this->copyFrontendDist(
+            $releasePath.\DIRECTORY_SEPARATOR.'frontend-dist',
+            $targetParent.\DIRECTORY_SEPARATOR.'frontend-runtime',
+            $target
+        );
 
         if (!is_file($target.\DIRECTORY_SEPARATOR.'manifest.json')) {
             throw new AddonException(__('ptadmin-addon::messages.package.manifest_not_found'));
@@ -145,7 +149,7 @@ final class AddonPackageSourceResolver
         $this->copyDirectoryContents($sourcePath, $targetPath);
     }
 
-    private function copyFrontendDist(string $sourcePath, string $targetPath): void
+    private function copyFrontendDist(string $sourcePath, string $targetPath, string $addonTargetPath): void
     {
         if (!is_dir($sourcePath)) {
             return;
@@ -154,7 +158,10 @@ final class AddonPackageSourceResolver
         $this->filesystem->deleteDirectory($targetPath);
         $this->filesystem->ensureDirectoryExists($targetPath);
         if (is_file($sourcePath.\DIRECTORY_SEPARATOR.'frontend.json')) {
-            $this->filesystem->copy($sourcePath.\DIRECTORY_SEPARATOR.'frontend.json', $targetPath.\DIRECTORY_SEPARATOR.'frontend.json');
+            $this->filesystem->copy(
+                $sourcePath.\DIRECTORY_SEPARATOR.'frontend.json',
+                $addonTargetPath.\DIRECTORY_SEPARATOR.'frontend.json'
+            );
         }
         $this->copyDirectoryContents($sourcePath.\DIRECTORY_SEPARATOR.'dist', $targetPath.\DIRECTORY_SEPARATOR.'dist');
         $this->frontendRuntimePath = $targetPath;

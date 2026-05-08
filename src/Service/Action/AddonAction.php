@@ -152,6 +152,7 @@ class AddonAction
         }
         $filesystem->ensureDirectoryExists(\dirname($target));
         $filesystem->copyDirectory($source, $target);
+        $filesystem->delete($target.\DIRECTORY_SEPARATOR.'frontend.json');
     }
 
     public function deleteFrontendRuntime(string $code = null): void
