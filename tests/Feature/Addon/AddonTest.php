@@ -2621,6 +2621,102 @@ it('resolves addon upload source path from addon code', function (): void {
     expect($action->getAddonPath())->toBe(base_path('addons'.\DIRECTORY_SEPARATOR.'Test'));
 });
 
+it('pulls project frontend template into resources directory', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-project-frontend-pull-'.uniqid();
+    $targetPath = $basePath.\DIRECTORY_SEPARATOR.'resources'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'frontend';
+    $filesystem->ensureDirectoryExists($basePath);
+
+    $this->app->setBasePath($basePath);
+    config()->set('app.name', 'Demo Project');
+    config()->set('ptadmin-auth.project_frontend_dev_url', 'http://localhost:4180/');
+    config()->set('addon.frontend_templates', [
+        'default_template' => 'micro-app',
+        'templates' => [
+            'micro-app' => [
+                'sources' => [
+                    'official' => [
+                        'archive_url' => 'https://official.example.com/project-micro-app/{ref}.zip',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'project-frontend-template.zip';
+    buildFrontendTemplateZip($zipFile, [
+        'package.json' => "{\"name\":\"ptadmin-project-frontend\"}\n",
+        'frontend.json' => (string) json_encode([
+            'id' => 'your-project',
+            'code' => 'your-project',
+            'name' => '项目二开',
+            'enabled' => true,
+            'kind' => 'micro-app',
+            'runtime' => 'wujie',
+            'routeBase' => '/your-project',
+            'entry' => [
+                'wujie' => [
+                    'name' => 'your_project',
+                    'url' => 'http://localhost:5182/',
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
+        'src/main.ts' => "console.log('project frontend');\n",
+    ]);
+    $zipBody = file_get_contents($zipFile);
+
+    $successResponse = new class($zipBody)
+    {
+        public function __construct(private string $body)
+        {
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function body(): string
+        {
+            return $this->body;
+        }
+    };
+
+    Http::shouldReceive('withOptions')->once()->with(['verify' => false])->andReturnSelf();
+    Http::shouldReceive('timeout')->once()->with(60)->andReturnSelf();
+    Http::shouldReceive('get')->once()->with('https://official.example.com/project-micro-app/main.zip')->andReturn($successResponse);
+
+    $result = AddonAction::pullProjectFrontend($targetPath, 'micro-app', 'main', 'official', false, '__app__');
+
+    $frontendManifest = json_decode(file_get_contents($targetPath.\DIRECTORY_SEPARATOR.'frontend.json'), true, 512, JSON_THROW_ON_ERROR);
+    $packageJson = json_decode(file_get_contents($targetPath.\DIRECTORY_SEPARATOR.'package.json'), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($result)->toMatchArray([
+        'source' => 'official',
+        'path' => $targetPath,
+        'template' => 'micro-app',
+        'ref' => 'main',
+    ])
+        ->and(file_exists($targetPath.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
+        ->and(data_get($packageJson, 'name'))->toEqual('@pangtou-app/app')
+        ->and(data_get($frontendManifest, 'id'))->toEqual('__app__')
+        ->and(data_get($frontendManifest, 'key'))->toEqual('__app__')
+        ->and(data_get($frontendManifest, 'code'))->toEqual('__app__')
+        ->and(data_get($frontendManifest, 'name'))->toEqual('Demo Project')
+        ->and(data_get($frontendManifest, 'kind'))->toEqual('micro-app')
+        ->and(data_get($frontendManifest, 'runtime'))->toEqual('wujie')
+        ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/')
+        ->and(data_get($frontendManifest, 'entry.wujie.name'))->toEqual('your_project')
+        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('http://localhost:4180/');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
 function buildFrontendTemplateZip(string $zipFilename, array $files): void
 {
     $filesystem = new Filesystem();

@@ -289,6 +289,19 @@ class AddonAction
     }
 
     /**
+     * 拉取项目二开前端开发模板.
+     *
+     * @return null|array|mixed
+     */
+    public static function pullProjectFrontend(string $targetPath, string $template = 'micro-app', string $ref = 'main', string $source = '', bool $force = false, string $code = '__app__')
+    {
+        $obj = new self($code);
+        $action = new AddonFrontendPullAction($obj->getCode(), $obj);
+
+        return $action->handleProject($targetPath, $template, $ref, $source, $force, $code);
+    }
+
+    /**
      * 构建插件前端资源.
      *
      * @return null|array|mixed

@@ -37,6 +37,37 @@ final class AddonFrontendPullAction extends AbstractAddonAction
             throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_exists', ['path' => $targetPath]));
         }
 
+        return $this->pullToTarget($targetPath, $template, $ref, $source, $force, function (string $path, string $normalizedTemplate) use ($addonPath): void {
+            $this->postProcessTemplate($path, $normalizedTemplate, $addonPath);
+        });
+    }
+
+    /**
+     * 拉取项目二开前端模板到指定目录。
+     *
+     * @return array<string, string>
+     */
+    public function handleProject(string $targetPath, string $template = 'micro-app', string $ref = 'main', string $source = '', bool $force = false, string $code = '__app__'): array
+    {
+        $targetPath = rtrim($targetPath, \DIRECTORY_SEPARATOR);
+        if ('' === $targetPath) {
+            throw new AddonException('项目二开前端模板目标目录不能为空');
+        }
+
+        if ($this->filesystem->isDirectory($targetPath) && !$force) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_exists', ['path' => $targetPath]));
+        }
+
+        return $this->pullToTarget($targetPath, $template, $ref, $source, $force, function (string $path, string $normalizedTemplate) use ($code): void {
+            $this->postProcessProjectTemplate($path, $normalizedTemplate, $code);
+        });
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function pullToTarget(string $targetPath, string $template, string $ref, string $source, bool $force, callable $postProcess): array
+    {
         $template = $this->normalizeTemplate($template);
         $ref = '' === trim($ref) ? 'main' : trim($ref);
         $temporaryRoot = $this->action->getStorePath('frontend');
@@ -63,12 +94,13 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 if ($this->filesystem->isDirectory($targetPath)) {
                     $this->filesystem->deleteDirectory($targetPath);
                 }
+                $this->filesystem->ensureDirectoryExists(\dirname($targetPath));
 
                 if (!$this->filesystem->moveDirectory($sourcePath, $targetPath)) {
                     throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_move_failed', ['path' => $targetPath]));
                 }
 
-                $this->postProcessTemplate($targetPath, $template, $addonPath);
+                $postProcess($targetPath, $template);
 
                 $this->success(__('ptadmin-addon::messages.command.frontend_pull_created', [
                     'source' => $currentSource,
@@ -392,6 +424,12 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         }
     }
 
+    private function postProcessProjectTemplate(string $targetPath, string $template, string $code): void
+    {
+        $this->rewriteProjectFrontendManifest($targetPath, $template, $code);
+        $this->rewriteProjectPackageJson($targetPath, $code);
+    }
+
     private function rewritePackageJson(string $targetPath, string $addonPath): void
     {
         $packagePath = $targetPath.\DIRECTORY_SEPARATOR.'package.json';
@@ -461,6 +499,58 @@ final class AddonFrontendPullAction extends AbstractAddonAction
 
         $this->filesystem->put(
             $manifestPath,
+            (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    private function rewriteProjectFrontendManifest(string $targetPath, string $template, string $code): void
+    {
+        $manifestPath = $targetPath.\DIRECTORY_SEPARATOR.'frontend.json';
+        if (!$this->filesystem->exists($manifestPath)) {
+            return;
+        }
+
+        $content = @file_get_contents($manifestPath);
+        $payload = \is_string($content) ? @json_decode($content, true) : null;
+        if (!\is_array($payload)) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_build_module_invalid'));
+        }
+
+        $code = $this->normalizeProjectCode($code);
+        $payload['id'] = $code;
+        $payload['key'] = $code;
+        $payload['code'] = $code;
+        $payload['name'] = (string) config('app.name', $payload['name'] ?? 'Application');
+        $payload['runtime'] = 'micro-app' === $template ? 'wujie' : (string) ($payload['runtime'] ?? 'wujie');
+        $payload['routeBase'] = '/';
+
+        if ('wujie' === $payload['runtime']) {
+            $payload['entry'] = $this->resolveProjectMicroAppEntry($code, (array) ($payload['entry'] ?? []));
+        }
+
+        $this->filesystem->put(
+            $manifestPath,
+            (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    private function rewriteProjectPackageJson(string $targetPath, string $code): void
+    {
+        $packagePath = $targetPath.\DIRECTORY_SEPARATOR.'package.json';
+        if (!$this->filesystem->exists($packagePath)) {
+            return;
+        }
+
+        $content = @file_get_contents($packagePath);
+        $payload = \is_string($content) ? @json_decode($content, true) : null;
+        if (!\is_array($payload)) {
+            throw new AddonException(__('ptadmin-addon::messages.command.frontend_build_module_invalid'));
+        }
+
+        $payload['name'] = '@pangtou-app/'.$this->normalizeProjectPackageName($code);
+
+        $this->filesystem->put(
+            $packagePath,
             (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
         );
     }
@@ -559,6 +649,27 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         ];
     }
 
+    /**
+     * @param array<string, mixed> $entry
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveProjectMicroAppEntry(string $code, array $entry): array
+    {
+        $wujie = \is_array($entry['wujie'] ?? null) ? $entry['wujie'] : [];
+        $developUrl = trim((string) config('ptadmin-auth.project_frontend_dev_url', ''));
+
+        return [
+            'wujie' => [
+                'name' => (string) ($wujie['name'] ?? 'ptadmin_project_app'),
+                'url' => '' !== $developUrl ? $this->normalizeMicroAppUrl($developUrl) : (string) ($wujie['url'] ?? ''),
+                'alive' => (bool) ($wujie['alive'] ?? true),
+                'degrade' => (bool) ($wujie['degrade'] ?? false),
+                'sync' => (bool) ($wujie['sync'] ?? true),
+            ],
+        ];
+    }
+
     private function replaceManifestPlaceholders(string $pattern, string $code): string
     {
         $appUrl = rtrim((string) config('app.url', ''), '/');
@@ -592,5 +703,17 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         }
 
         return rtrim($normalized, '/').'/';
+    }
+
+    private function normalizeProjectCode(string $code): string
+    {
+        $code = trim($code);
+
+        return '' === $code ? '__app__' : $code;
+    }
+
+    private function normalizeProjectPackageName(string $code): string
+    {
+        return str_replace('_', '-', trim($this->normalizeProjectCode($code), '_'));
     }
 }
