@@ -5,19 +5,6 @@ declare(strict_types=1);
 return [
     /*
     |--------------------------------------------------------------------------
-    | Marketplace
-    |--------------------------------------------------------------------------
-    |
-    | 插件云平台入口地址。默认指向官方平台，开发或私有部署场景下
-    | 可通过环境变量覆盖。
-    |
-    */
-    'marketplace' => [
-        'base_url' => env('PTADMIN_ADDON_MARKETPLACE_BASE_URL', 'https://www.pangtou.com/api-addon/'),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | Frontend Templates
     |--------------------------------------------------------------------------
     |
@@ -49,30 +36,29 @@ return [
             'module' => [
                 'sources' => [
                     'official' => [
-                        'manifest_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_OFFICIAL_MANIFEST_URL', 'https://cloud.api.pangtou.com/storage/starter/template-plugin-module.json'),
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MODULE_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', '')),
+                        'manifest_url' => 'https://cloud.api.pangtou.com/storage/starter/template-plugin-module.json',
+                        'archive_url' => '',
                     ],
                 ],
             ],
             'micro-app' => [
                 'sources' => [
                     'official' => [
-                        'manifest_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_OFFICIAL_MANIFEST_URL', 'https://cloud.api.pangtou.com/storage/starter/template-plugin-micro-app.json'),
-                        'archive_url' => env('PTADMIN_ADDON_FRONTEND_TEMPLATE_MICRO_APP_OFFICIAL_ARCHIVE_URL', env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', '')),
+                        'manifest_url' => 'https://cloud.api.pangtou.com/storage/starter/template-plugin-micro-app.json',
+                        'archive_url' => '',
                     ],
                 ],
             ],
         ],
         'sources' => [
             'official' => [
-                'manifest_url' => env('PTADMIN_ADDON_FRONTEND_OFFICIAL_MANIFEST_URL', ''),
-                'archive_url' => env('PTADMIN_ADDON_FRONTEND_OFFICIAL_ARCHIVE_URL', ''),
+                'manifest_url' => '',
+                'archive_url' => '',
             ],
         ],
-        'curl_resolve' => array_values(array_filter(array_map('trim', explode(',', env(
-            'PTADMIN_ADDON_FRONTEND_CURL_RESOLVE',
-            'cloud.api.pangtou.com:443:61.147.93.222'
-        ))))),
+        'curl_resolve' => [
+            'cloud.api.pangtou.com:443:61.147.93.222',
+        ],
     ],
 
     /*

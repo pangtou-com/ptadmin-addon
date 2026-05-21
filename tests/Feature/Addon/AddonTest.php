@@ -2294,9 +2294,8 @@ it('builds frontend assets and generates module manifest via addon action', func
     $filesystem->deleteDirectory($basePath);
 });
 
-it('wraps marketplace connection failures as addon exceptions with configured host', function (): void {
+it('wraps marketplace connection failures as addon exceptions with official host', function (): void {
     Cache::flush();
-    config()->set('addon.marketplace.base_url', 'https://addons.example.test/api-addon/');
     Cache::put('ptadmin:addon_user_keys', serialize([
         'token' => 'Bearer test-token',
     ]));
@@ -2305,11 +2304,11 @@ it('wraps marketplace connection failures as addon exceptions with configured ho
     Http::shouldReceive('withToken')->once()->with('test-token')->andReturnSelf();
     Http::shouldReceive('withOptions')->once()->andReturnSelf();
     Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
-        return 'https://addons.example.test/api-addon/addon-exists/test' === $url;
-    })->andThrow(new ConnectionException('cURL error 6: Could not resolve host: addons.example.test'));
+        return 'https://www.pangtou.com/api-addon/addon-exists/test' === $url;
+    })->andThrow(new ConnectionException('cURL error 6: Could not resolve host: www.pangtou.com'));
 
     expect(fn () => AddonApi::getAddonCodeExists('test'))
-        ->toThrow(AddonException::class, 'addons.example.test');
+        ->toThrow(AddonException::class, 'www.pangtou.com');
 });
 
 function buildAddonPackageZip(string $sourceDir, string $zipFilename): void

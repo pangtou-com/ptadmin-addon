@@ -109,7 +109,7 @@ return [
     'api' => [
         'download_url_failed' => 'Failed to get the addon download URL',
         'request_failed' => 'Request failed, status [:status], message [:message]',
-        'network_failed' => 'Unable to connect to the addon marketplace host [:host]. Check DNS/network settings or override the endpoint with PTADMIN_ADDON_MARKETPLACE_BASE_URL. Original error: :message',
+        'network_failed' => 'Unable to connect to the addon marketplace host [:host]. Check DNS/network settings. Original error: :message',
         'login_required' => 'You are not logged in to the marketplace. Please log in first.',
     ],
     'definition' => [

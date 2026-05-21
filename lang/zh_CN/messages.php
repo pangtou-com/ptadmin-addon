@@ -109,7 +109,7 @@ return [
     'api' => [
         'download_url_failed' => '获取下载地址失败',
         'request_failed' => '请求失败,状态值为：【:status】错误信息：【:message】',
-        'network_failed' => '无法连接插件云平台【:host】。请检查当前服务器 DNS/网络配置，或通过 PTADMIN_ADDON_MARKETPLACE_BASE_URL 覆盖平台地址。底层错误：:message',
+        'network_failed' => '无法连接插件云平台【:host】。请检查当前服务器 DNS/网络配置。底层错误：:message',
         'login_required' => '未登录平台，请先登录平台后操作',
     ],
     'definition' => [

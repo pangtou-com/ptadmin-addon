@@ -41,6 +41,7 @@ use PTAdmin\Addon\Exception\AddonException;
 class AddonApi
 {
     private const DEFAULT_BASE_URL = 'https://www.pangtou.com/api-addon/';
+    private const PLATFORM_SNAPSHOT_URL = 'https://cloud.api.pangtou.com/storage/starter/platform-snapshot.json';
     private const TOKEN_KEY = 'ptadmin:addon_user_keys';
 
     /**
@@ -132,6 +133,18 @@ class AddonApi
     public static function verifyAddonPurchase(array $data): array
     {
         return (new static())->send('verify', $data);
+    }
+
+    /**
+     * 获取平台快照数据.
+     *
+     * @return array<string, mixed>
+     */
+    public static function getPlatformSnapshot(): array
+    {
+        return self::getCacheData('platform-snapshot', [], static function (): array {
+            return (new static())->requestJson(self::PLATFORM_SNAPSHOT_URL);
+        }, 10);
     }
 
     /**
@@ -286,7 +299,7 @@ class AddonApi
 
     private function getUrl($method): string
     {
-        return rtrim((string) config('addon.marketplace.base_url', self::DEFAULT_BASE_URL), '/').'/'.$method;
+        return rtrim(self::DEFAULT_BASE_URL, '/').'/'.$method;
     }
 
     private function addonArgsEncrypt(array $param = []): array
@@ -304,5 +317,63 @@ class AddonApi
             'host' => parse_url($this->getUrl($method), PHP_URL_HOST) ?: '',
             'message' => $e->getMessage(),
         ]), 20000, $e);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requestJson(string $url, int $timeout = 10): array
+    {
+        $res = Http::withHeaders([
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ]);
+        $token = $this->resolveToken();
+        if ('' !== $token) {
+            $res = $res->withToken($token);
+        }
+        $res = $res->withOptions([
+            'verify' => false,
+            'timeout' => $timeout,
+            'curl' => [
+                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                CURLOPT_RESOLVE => [
+                    'www.pangtou.com:443:61.147.93.222',
+                    'cloud.api.pangtou.com:443:61.147.93.222',
+                ],
+            ],
+        ]);
+
+        try {
+            $response = $res->get($url);
+        } catch (ConnectionException $e) {
+            throw new AddonException(__('ptadmin-addon::messages.api.network_failed', [
+                'host' => parse_url($url, PHP_URL_HOST) ?: '',
+                'message' => $e->getMessage(),
+            ]), 20000, $e);
+        }
+
+        if (!$response->successful()) {
+            throw new AddonException(__('ptadmin-addon::messages.api.request_failed', [
+                'status' => $response->status(),
+                'message' => $response->json('message'),
+            ]));
+        }
+
+        $payload = $response->json();
+
+        return \is_array($payload) ? $payload : [];
+    }
+
+    private function resolveToken(): string
+    {
+        $data = Cache::get(self::TOKEN_KEY);
+        if (blank($data)) {
+            return '';
+        }
+
+        $data = unserialize($data);
+
+        return Str::replace('Bearer ', '', $data['token'] ?? '');
     }
 }
