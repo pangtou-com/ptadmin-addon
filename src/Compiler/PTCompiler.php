@@ -456,7 +456,7 @@ class PTCompiler extends BladeCompiler
         $extraAttributes = [];
         $context = $this->resolveDirectiveContext((string) ($name['name'] ?? ''), (string) ($name['method'] ?? ''));
         if (null !== $context) {
-            $extraAttributes['__pt_context'] = $this->buildDirectiveContextExpression($context);
+            $extraAttributes['__pt_context'] = "\\runtime_context_current()";
         }
 
         return $parse->buildExpression($extraAttributes);
@@ -476,57 +476,6 @@ class PTCompiler extends BladeCompiler
         $context = trim((string) ($definition['context'] ?? ''));
 
         return '' === $context ? null : $context;
-    }
-
-    private function buildDirectiveContextExpression(string $context): string
-    {
-        if ('page' === $context) {
-            return $this->buildPageContextExpression();
-        }
-
-        return 'null';
-    }
-
-    private function buildPageContextExpression(): string
-    {
-        return "[
-            'version' => 1,
-            'route' => \$route ?? null,
-            'resolved' => [
-                'type' => data_get(\$resolved ?? [], 'type'),
-            ],
-            'page' => [
-                'id' => data_get(\$page ?? [], 'id'),
-                'title' => data_get(\$page ?? [], 'title'),
-                'subtitle' => data_get(\$page ?? [], 'subtitle'),
-                'description' => data_get(\$page ?? [], 'description'),
-                'keyword' => data_get(\$page ?? [], 'keyword'),
-                'breadcrumb' => data_get(\$page ?? [], 'breadcrumb', []),
-                'category' => data_get(\$page ?? [], 'category', []),
-                'archive' => data_get(\$page ?? [], 'archive', data_get(\$page ?? [], 'page_archive', [])),
-                'tag' => data_get(\$page ?? [], 'tag', []),
-                'tags' => data_get(\$page ?? [], 'tags', []),
-                'special' => data_get(\$page ?? [], 'special', []),
-                'prev' => data_get(\$page ?? [], 'prev', []),
-                'next' => data_get(\$page ?? [], 'next', []),
-                'pagination' => [
-                    'total' => data_get(\$page ?? [], 'total', data_get(\$page ?? [], 'pagination.total')),
-                    'last_page' => data_get(\$page ?? [], 'last_page', data_get(\$page ?? [], 'pagination.last_page')),
-                    'current_page' => data_get(\$page ?? [], 'current_page', data_get(\$page ?? [], 'pagination.current_page')),
-                    'per_page' => data_get(\$page ?? [], 'per_page', data_get(\$page ?? [], 'pagination.per_page')),
-                ],
-            ],
-            'seo' => [
-                'title' => data_get(\$page ?? [], 'seo.title'),
-                'keywords' => data_get(\$page ?? [], 'seo.keywords'),
-                'description' => data_get(\$page ?? [], 'seo.description'),
-                'canonical' => data_get(\$page ?? [], 'canonical'),
-                'robots' => data_get(\$page ?? [], 'robots', data_get(\$page ?? [], 'meta.robots')),
-                'open_graph' => data_get(\$page ?? [], 'open_graph', []),
-                'twitter' => data_get(\$page ?? [], 'twitter', []),
-                'structured_data' => data_get(\$page ?? [], 'structured_data', []),
-            ],
-        ]";
     }
 
     /**

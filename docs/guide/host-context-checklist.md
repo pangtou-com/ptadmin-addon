@@ -8,7 +8,7 @@
 
 宿主负责两件事：
 
-1. 提供统一模板变量
+1. 注入统一运行时上下文
 2. 输出最终页面壳层
 
 插件负责两件事：
@@ -20,15 +20,21 @@
 
 ## 接入步骤
 
-### 1. 统一提供模板运行时变量
+### 1. 统一注入模板运行时上下文
 
-宿主在渲染模板时，至少应传入：
+宿主在渲染模板前，至少应注入：
 
-- `$route`
-- `$resolved`
-- `$page`
+```php
+runtime_context_replace(runtime_context_page([
+    'route' => $route,
+    'resolved' => [
+        'type' => 'archive',
+    ],
+    'page' => $page,
+]));
+```
 
-最小示例：
+同时仍然可以继续把这些变量传给视图作为展示数据：
 
 ```php
 return view($template, [
@@ -40,11 +46,11 @@ return view($template, [
 ]);
 ```
 
-这三个变量会在指令编译阶段被自动收敛为统一的 `__pt_context`。
+编译器在运行时会自动把当前上下文收敛为统一的 `__pt_context`。
 
 ### 2. 统一定义页面类型
 
-`$resolved['type']` 必须稳定，建议只允许有限集合，例如：
+运行时上下文里的 `resolved.type` 必须稳定，建议只允许有限集合，例如：
 
 - `home`
 - `category`
@@ -55,9 +61,9 @@ return view($template, [
 
 不要在不同宿主或不同插件里随意改名，否则插件无法稳定识别当前页面。
 
-### 3. 统一整理 `$page`
+### 3. 统一整理页面数据结构
 
-宿主输出的 `$page` 建议按标准结构整理：
+注入前的页面数据建议按标准结构整理：
 
 ```php
 [
@@ -133,11 +139,14 @@ DirectiveDefinition::make('lists')
 
 不要再依赖按指令名自动推导变量。
 
-### 7. 允许旧结构过渡，但新代码只面向新协议
+### 7. 统一读取入口
 
-如果历史页面还在使用旧结构，可以保留兼容层。
+插件与宿主建议统一使用下面的读取方式：
 
-但新接入、新插件、新模板都应该只按标准协议开发，避免继续扩大兼容面。
+- 指令内部：`runtime_context_from_dto($dto)`
+- 普通运行时：`runtime_context_current()` 或 `runtime_context('page.id')`
+
+不要再把 `$page`、`$resolved` 这类模板变量当成上下文事实源。
 
 ## 宿主自检
 
@@ -146,13 +155,13 @@ DirectiveDefinition::make('lists')
 - 分类页下列表指令是否能正确识别当前分页
 - 详情页下上一篇/下一篇是否能直接读取当前上下文
 - 标签/专题聚合页是否能自动识别当前聚合对象
-- 宿主 SEO 指令是否能直接消费 `$page['seo']`
+- 宿主 SEO 指令是否能直接消费运行时上下文里的 `seo`
 - 不写 `id` 的循环指令是否统一使用 `$field`
 
 ## 推荐落地顺序
 
-1. 宿主先统一 `$route / $resolved / $page`
+1. 宿主先统一 `runtime_context_page(...)` 注入
 2. 宿主再统一 SEO 输出协议
 3. 插件注册逐步切换到 `DirectiveDefinition::CONTEXT_PAGE`
-4. 模板清理掉隐式变量推导
-5. 最后移除旧上下文字段兼容
+4. 插件内部读取统一切到 `runtime_context_from_dto($dto)`
+5. 模板清理掉把 `$page` 当上下文来源的旧习惯

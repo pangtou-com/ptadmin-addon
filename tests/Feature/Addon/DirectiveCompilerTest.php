@@ -124,6 +124,20 @@ beforeEach(function (): void {
             ->context(DirectiveDefinition::CONTEXT_PAGE)
             ->cacheable(false)
     );
+    runtime_context_replace(runtime_context_page([
+        'route' => '/runtime/demo',
+        'resolved' => ['type' => 'archive'],
+        'page' => [
+            'id' => 100,
+            'title' => '运行时文章',
+            'pagination' => [
+                'total' => 20,
+                'last_page' => 2,
+                'current_page' => 1,
+                'per_page' => 10,
+            ],
+        ],
+    ]));
 });
 
 function renderBladeSnippet(string $template): string
@@ -173,11 +187,7 @@ it('uses $field as the default loop variable when id is omitted', function (): v
 
     expect($compiled)->toContain('foreach($__currentLoopData as $field)')
         ->and($compiled)->not->toContain('foreach($__currentLoopData as $arc)')
-        ->and($compiled)->toContain("'__pt_context' => [")
-        ->and($compiled)->toContain("'version' => 1")
-        ->and($compiled)->toContain("'resolved' => [")
-        ->and($compiled)->toContain("'archive' => data_get(\$page ?? [], 'archive', data_get(\$page ?? [], 'page_archive', []))")
-        ->and($compiled)->toContain("'pagination' => [");
+        ->and($compiled)->toContain("'__pt_context' => \\runtime_context_current()");
 });
 
 it('renders plugin loop directives with the default $field variable', function (): void {
@@ -204,6 +214,14 @@ it('renders assigned output variables from plugin directives', function (): void
     );
 
     expect($output)->toContain('arc-1|arc-2');
+});
+
+it('passes runtime context through dto payload', function (): void {
+    $output = renderBladeSnippet(
+        "@pt:test::arc(limit=1)\n{{ \$field['context_route'] }}|{{ \$field['context_type'] }}\n@pt:end"
+    );
+
+    expect($output)->toContain('/runtime/demo|archive');
 });
 
 it('compiles empty fallback text for loop directives', function (): void {

@@ -23,6 +23,7 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon;
 
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -42,7 +43,7 @@ class AddonApi
 {
     private const DEFAULT_BASE_URL = 'https://www.pangtou.com/api-addon/';
     private const PLATFORM_SNAPSHOT_URL = 'https://cloud.api.pangtou.com/storage/starter/platform-snapshot.json';
-    private const TOKEN_KEY = 'ptadmin:addon_user_keys';
+    private const SESSION_FILE = 'app/ptadmin/addon/marketplace-session.dat';
 
     /**
      * @param $method
@@ -66,24 +67,34 @@ class AddonApi
      */
     public static function cloudLogin(array $data)
     {
-        $results = (new static())->send('login', $data, false);
-        Cache::put(self::TOKEN_KEY, serialize($results), now()->addDays());
+        $api = new static();
+        $results = $api->send('login', $data, false);
+        $api->writeSession($results);
+
+        try {
+            $userinfo = $api->send('userinfo');
+            if (\is_array($userinfo) && [] !== $userinfo) {
+                $results = array_merge($results, $userinfo);
+                $api->writeSession($results);
+            }
+        } catch (\Throwable $e) {
+        }
+
         unset($results['token']);
 
         return $results;
     }
 
-    public static function getCloudUserinfo()
+    public static function getCloudUserinfo(): ?array
     {
-        $data = Cache::get(self::TOKEN_KEY);
-        if (!blank($data)) {
-            $data = unserialize($data);
+        $data = (new static())->readSession();
+        if ([] !== $data) {
             unset($data['token']);
 
             return $data;
         }
 
-        return [];
+        return null;
     }
 
     /**
@@ -108,7 +119,7 @@ class AddonApi
     public static function cloudLogout()
     {
         $res = (new static())->send('logout');
-        Cache::forget(self::TOKEN_KEY);
+        (new static())->clearSession();
 
         return $res;
     }
@@ -215,6 +226,13 @@ class AddonApi
         $res->withToken($obj->getToken());
         $res = $res->withOptions([
             'verify' => false,
+            'curl' => [
+                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                CURLOPT_RESOLVE => [
+                    'www.pangtou.com:443:61.147.93.222',
+                    'cloud.api.pangtou.com:443:61.147.93.222',
+                ],
+            ],
         ]);
 
         try {
@@ -231,9 +249,10 @@ class AddonApi
      *
      * @param $method
      * @param array $data
-     * @param bool  $needLogin
+     * @param bool $needLogin
      *
      * @return array|mixed
+     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
      */
     public function send($method, array $data = [], bool $needLogin = true)
     {
@@ -270,7 +289,7 @@ class AddonApi
         if (200 === $res->status()) {
             $results = $res->json();
             if (\in_array($results['code'], [401, 20000], true)) {
-                Cache::forget(self::TOKEN_KEY);
+                $this->clearSession();
             }
             if (0 !== $results['code']) {
                 throw new AddonException($results['message']);
@@ -286,13 +305,15 @@ class AddonApi
         ]));
     }
 
+    /**
+     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
+     */
     private function getToken(): string
     {
-        $data = Cache::get(self::TOKEN_KEY);
-        if (blank($data)) {
+        $data = $this->readSession();
+        if ([] === $data) {
             throw new Exception\AddonException(__('ptadmin-addon::messages.api.login_required'));
         }
-        $data = unserialize($data);
 
         return Str::replace('Bearer ', '', $data['token'] ?? '');
     }
@@ -367,13 +388,65 @@ class AddonApi
 
     private function resolveToken(): string
     {
-        $data = Cache::get(self::TOKEN_KEY);
-        if (blank($data)) {
+        $data = $this->readSession();
+        if ([] === $data) {
             return '';
         }
 
-        $data = unserialize($data);
-
         return Str::replace('Bearer ', '', $data['token'] ?? '');
+    }
+
+    private function writeSession(array $payload): void
+    {
+        $filesystem = new Filesystem();
+        $path = $this->getSessionFilePath();
+        $directory = \dirname($path);
+        if (!$filesystem->isDirectory($directory)) {
+            $filesystem->ensureDirectoryExists($directory);
+        }
+
+        $content = AesUtil::encryptString((string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $filesystem->put($path, $content);
+    }
+
+    /**
+     * @return array<string, mixed>
+     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
+     */
+    private function readSession(): array
+    {
+        $filesystem = new Filesystem();
+        $path = $this->getSessionFilePath();
+        if ($filesystem->exists($path)) {
+            $content = trim((string) $filesystem->get($path));
+            if ('' === $content) {
+                return [];
+            }
+
+            try {
+                $decoded = AesUtil::decryptString($content);
+                $data = json_decode($decoded, true, 512, JSON_THROW_ON_ERROR);
+
+                return \is_array($data) ? $data : [];
+            } catch (\Throwable $e) {
+                return [];
+            }
+        }
+
+        return [];
+    }
+
+    private function clearSession(): void
+    {
+        $filesystem = new Filesystem();
+        $path = $this->getSessionFilePath();
+        if ($filesystem->exists($path)) {
+            $filesystem->delete($path);
+        }
+    }
+
+    private function getSessionFilePath(): string
+    {
+        return storage_path(self::SESSION_FILE);
     }
 }

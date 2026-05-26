@@ -9,7 +9,7 @@
 统一规则如下：
 
 - `__pt_context` 是模板运行时的内部上下文字段
-- 上下文由宿主负责构建
+- 上下文由宿主显式注入到运行时容器
 - 插件只能读取上下文，不能写入或扩展私有结构
 - 指令通过 `DirectiveDefinition::context(DirectiveDefinition::CONTEXT_PAGE)` 声明自己需要页面上下文
 - 未显式声明 `id` 时，循环指令默认变量统一为 `$field`
@@ -22,17 +22,31 @@
 
 ## 宿主职责
 
-宿主不直接手写 `__pt_context`，而是按约定提供模板变量：
+宿主不直接手写 `__pt_context`，而是先将标准上下文显式注入运行时容器：
 
-- `$route`
-- `$resolved`
-- `$page`
+```php
+runtime_context_replace(runtime_context_page([
+    'route' => $route,
+    'resolved' => [
+        'type' => 'archive',
+    ],
+    'page' => $page,
+]));
+```
 
-编译器在遇到声明了 `context(DirectiveDefinition::CONTEXT_PAGE)` 的指令时，会自动将这三个变量收敛为统一的 `__pt_context`。
+编译器在遇到声明了 `context(DirectiveDefinition::CONTEXT_PAGE)` 的指令时，会自动读取当前运行时上下文，并收敛为统一的 `__pt_context`。
 
 最小示例：
 
 ```php
+runtime_context_replace(runtime_context_page([
+    'route' => $route,
+    'resolved' => [
+        'type' => 'archive',
+    ],
+    'page' => $page,
+]));
+
 return view('some-theme.article-detail', [
     'route' => $route,
     'resolved' => [
@@ -164,7 +178,7 @@ $manager->register(
 插件内部读取上下文时，建议优先读取标准结构：
 
 ```php
-$context = (array) $dto->getAttribute('__pt_context', []);
+$context = runtime_context_from_dto($dto);
 
 $type = (string) data_get($context, 'resolved.type', '');
 $pageId = (int) data_get($context, 'page.id', 0);
@@ -176,15 +190,38 @@ $categoryId = (int) data_get($context, 'page.category.id', 0);
 
 - 直接依赖插件私有命名
 - 在不同插件里发明不同的上下文字段名
-- 要求模板作者显式传递本可由宿主识别的当前页信息
+- 继续把 `$page`、`$resolved` 之类模板变量当成上下文事实源
+
+## 宿主注入与读取
+
+宿主与插件建议统一遵守下面的使用方式：
+
+1. 宿主在页面入口注入标准上下文
+2. 编译器在运行时自动把当前上下文注入 `__pt_context`
+3. 指令内部统一通过 `runtime_context_from_dto($dto)` 读取
+4. 非指令场景统一通过 `runtime_context()` 或 `runtime_context_current()` 读取
+
+常用辅助方法：
+
+```php
+runtime_context_put(array $context): void;
+runtime_context_merge(array $context): void;
+runtime_context_replace(array $context): void;
+runtime_context_current(): array;
+runtime_context_from_dto(?DirectivesDTO $dto = null): array;
+runtime_context(?string $key = null, $default = null);
+runtime_context_forget(): void;
+runtime_context_normalize(array $context): array;
+runtime_context_page(array $payload): array;
+```
 
 ## 兼容策略
 
-当前实现允许旧结构向新结构过渡，但新代码应只面向这份标准协议开发。
+当前实现已以运行时上下文为唯一标准入口，新代码应只面向这份协议开发。
 
 建议后续按这个顺序推进：
 
-1. 新增或重构指令时统一声明 `context(DirectiveDefinition::CONTEXT_PAGE)`
-2. 新模板默认使用 `$field` 或显式 `id`
-3. 插件内部读取逻辑逐步切到 `resolved/page/seo` 标准结构
-4. 完成迁移后，再移除旧字段兼容
+1. 页面入口统一注入 `runtime_context_page(...)`
+2. 新增或重构指令统一声明 `context(DirectiveDefinition::CONTEXT_PAGE)`
+3. 插件内部读取逻辑统一切到 `runtime_context_from_dto($dto)`
+4. 模板层只把 `$page` 等变量当成展示数据，不再当成上下文事实源

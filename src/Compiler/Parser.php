@@ -203,7 +203,7 @@ class Parser
         $data = array_merge($data, $extraAttributes);
 
         foreach ($data as $key => $str) {
-            if (\is_string($str) && !Str::startsWith($str, ['$', '[', 'false', 'true'])) {
+            if (\is_string($str) && !Str::startsWith($str, ['$', '[', 'false', 'true', '\\'])) {
                 if (Str::contains($str, ["'"])) {
                     $str = Str::replace("'", "\\'", $str);
                 }
@@ -220,7 +220,7 @@ class Parser
 
     private function buildCurrentContextExpression(): string
     {
-        return "['page' => \$page ?? null, 'resolved' => \$resolved ?? null, 'route' => \$route ?? null]";
+        return "\\runtime_context_current()";
     }
 
     /**

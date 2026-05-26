@@ -121,8 +121,6 @@ abstract class BaseBootstrap
                     'status' => 1,
                     'sort' => 0,
                     'meta' => array(
-                        'note' => (string) ($addonInfo['description'] ?? ''),
-                        'controller' => '',
                         'hidden' => 0,
                         'keep_alive' => 0,
                     ),

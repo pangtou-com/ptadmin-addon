@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Http;
 use FilesystemIterator;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\AddonApi;
+use PTAdmin\Addon\AesUtil;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonConfigManager;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
@@ -89,6 +90,8 @@ beforeEach(function (): void {
     @unlink(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addon-uninstall.log');
     touch(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2'.\DIRECTORY_SEPARATOR.'disable');
     $this->addon = new AddonManager();
+    $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
+    @unlink($sessionFile);
 });
 
 it('has addon', function (): void {
@@ -985,7 +988,7 @@ it('prevent local install when official addon is not purchased', function (): vo
         }
     };
 
-    Http::shouldReceive('withHeaders')->twice()->andReturnSelf();
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
     Http::shouldReceive('withToken')->twice()->with('test-token')->andReturnSelf();
     Http::shouldReceive('withOptions')->twice()->andReturnSelf();
     Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
@@ -2296,9 +2299,12 @@ it('builds frontend assets and generates module manifest via addon action', func
 
 it('wraps marketplace connection failures as addon exceptions with official host', function (): void {
     Cache::flush();
-    Cache::put('ptadmin:addon_user_keys', serialize([
+    $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
+    $filesystem = new Filesystem();
+    $filesystem->ensureDirectoryExists(\dirname($sessionFile));
+    $filesystem->put($sessionFile, AesUtil::encryptString((string) json_encode([
         'token' => 'Bearer test-token',
-    ]));
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
 
     Http::shouldReceive('withHeaders')->once()->andReturnSelf();
     Http::shouldReceive('withToken')->once()->with('test-token')->andReturnSelf();
@@ -2309,6 +2315,166 @@ it('wraps marketplace connection failures as addon exceptions with official host
 
     expect(fn () => AddonApi::getAddonCodeExists('test'))
         ->toThrow(AddonException::class, 'www.pangtou.com');
+});
+
+it('persists marketplace login token and user profile to encrypted file storage', function (): void {
+    Cache::flush();
+
+    $loginResponse = \Mockery::mock();
+    $loginResponse->shouldReceive('status')->once()->andReturn(200);
+    $loginResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => [
+            'token' => 'Bearer long-lived-token',
+            'username' => 'demo-user',
+        ],
+    ]);
+    $loginResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'token' => 'Bearer long-lived-token',
+        'username' => 'demo-user',
+    ]);
+
+    $userinfoResponse = \Mockery::mock();
+    $userinfoResponse->shouldReceive('status')->once()->andReturn(200);
+    $userinfoResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => [
+            'id' => 9527,
+            'username' => 'demo-user',
+            'nickname' => 'Demo User',
+            'mobile' => '13800000000',
+        ],
+    ]);
+    $userinfoResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'id' => 9527,
+        'username' => 'demo-user',
+        'nickname' => 'Demo User',
+        'mobile' => '13800000000',
+    ]);
+
+    Http::shouldReceive('withHeaders')->twice()->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url, array $payload): bool {
+        return 'https://www.pangtou.com/api-addon/login' === $url
+            && 'demo-user' === ($payload['username'] ?? null)
+            && 'secret' === ($payload['password'] ?? null)
+            && isset($payload['time'], $payload['state'], $payload['sign']);
+    })->andReturn($loginResponse);
+    Http::shouldReceive('withToken')->once()->with('long-lived-token')->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url, array $payload): bool {
+        return 'https://www.pangtou.com/api-addon/userinfo' === $url
+            && isset($payload['time'], $payload['state'], $payload['sign']);
+    })->andReturn($userinfoResponse);
+
+    $user = AddonApi::cloudLogin([
+        'username' => 'demo-user',
+        'password' => 'secret',
+    ]);
+
+    $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
+
+    expect($user)->toEqual([
+        'id' => 9527,
+        'username' => 'demo-user',
+        'nickname' => 'Demo User',
+        'mobile' => '13800000000',
+    ])->and(file_exists($sessionFile))->toBeTrue();
+
+    $encrypted = file_get_contents($sessionFile);
+    $cached = json_decode(AesUtil::decryptString((string) $encrypted), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($cached)->toBeArray()
+        ->and($cached['token'] ?? null)->toEqual('Bearer long-lived-token')
+        ->and($cached['id'] ?? null)->toEqual(9527)
+        ->and($cached['nickname'] ?? null)->toEqual('Demo User')
+        ->and(AddonApi::getCloudUserinfo())->toEqual([
+            'id' => 9527,
+            'username' => 'demo-user',
+            'nickname' => 'Demo User',
+            'mobile' => '13800000000',
+        ]);
+});
+
+it('clears persisted marketplace login token when api reports unauthorized', function (): void {
+    Cache::flush();
+    $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
+    $filesystem = new Filesystem();
+    $filesystem->ensureDirectoryExists(\dirname($sessionFile));
+    $filesystem->put($sessionFile, AesUtil::encryptString((string) json_encode([
+        'token' => 'Bearer expired-token',
+        'username' => 'demo-user',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+
+    $response = \Mockery::mock();
+    $response->shouldReceive('status')->once()->andReturn(200);
+    $response->shouldReceive('json')->once()->andReturn([
+        'code' => 401,
+        'message' => 'unauthorized',
+        'data' => [],
+    ]);
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->once()->with('expired-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->once()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
+        return 'https://www.pangtou.com/api-addon/addon-exists/test' === $url;
+    })->andReturn($response);
+
+    expect(fn () => AddonApi::getAddonCodeExists('test'))
+        ->toThrow(AddonException::class, 'unauthorized');
+
+    expect(file_exists($sessionFile))->toBeFalse();
+});
+
+it('falls back to login payload when marketplace user profile refresh fails', function (): void {
+    Cache::flush();
+
+    $loginResponse = \Mockery::mock();
+    $loginResponse->shouldReceive('status')->once()->andReturn(200);
+    $loginResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => [
+            'token' => 'Bearer long-lived-token',
+            'username' => 'demo-user',
+        ],
+    ]);
+    $loginResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'token' => 'Bearer long-lived-token',
+        'username' => 'demo-user',
+    ]);
+
+    Http::shouldReceive('withHeaders')->twice()->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url, array $payload): bool {
+        return 'https://www.pangtou.com/api-addon/login' === $url
+            && 'demo-user' === ($payload['username'] ?? null)
+            && 'secret' === ($payload['password'] ?? null)
+            && isset($payload['time'], $payload['state'], $payload['sign']);
+    })->andReturn($loginResponse);
+    Http::shouldReceive('withToken')->once()->with('long-lived-token')->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
+        return 'https://www.pangtou.com/api-addon/userinfo' === $url;
+    })->andThrow(new AddonException('userinfo failed'));
+
+    $user = AddonApi::cloudLogin([
+        'username' => 'demo-user',
+        'password' => 'secret',
+    ]);
+
+    expect($user)->toBe([
+        'username' => 'demo-user',
+    ]);
+
+    $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
+    $cached = json_decode(AesUtil::decryptString((string) file_get_contents($sessionFile)), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($cached)->toBeArray()
+        ->and($cached['token'] ?? null)->toEqual('Bearer long-lived-token')
+        ->and($cached['username'] ?? null)->toEqual('demo-user')
+        ->and($cached['nickname'] ?? null)->toBeNull();
 });
 
 function buildAddonPackageZip(string $sourceDir, string $zipFilename): void

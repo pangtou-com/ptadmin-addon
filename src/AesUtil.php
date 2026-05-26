@@ -91,6 +91,23 @@ class AesUtil
         return openssl_decrypt($result[0], $obj->method, $obj->secret_key, $obj->options, $result[1]);
     }
 
+    public static function encryptString(string $data): string
+    {
+        $obj = new static();
+        $encrypted = openssl_encrypt($data, $obj->method, $obj->secret_key, $obj->options, $obj->iv);
+
+        return base64_encode($encrypted.'::'.$obj->iv);
+    }
+
+    public static function decryptString(string $data): string
+    {
+        $obj = new static();
+        $data = base64_decode($data, true);
+        $result = explode('::', $data);
+
+        return (string) openssl_decrypt($result[0], $obj->method, $obj->secret_key, $obj->options, $result[1]);
+    }
+
     /**
      * 将参数排序后重组.
      *

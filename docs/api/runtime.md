@@ -68,7 +68,25 @@ $manager->register(
 
 - `context(DirectiveDefinition::CONTEXT_PAGE)`
 
-声明后，编译器会把宿主模板里的 `$route`、`$resolved`、`$page` 收敛为统一的 `__pt_context` 传给指令。
+声明后，编译器会从当前运行时上下文中读取标准协议，并收敛为统一的 `__pt_context` 传给指令。
+
+宿主推荐在页面入口显式注入标准上下文：
+
+```php
+runtime_context_replace(runtime_context_page([
+    'route' => $route,
+    'resolved' => [
+        'type' => 'archive',
+    ],
+    'page' => $page,
+]));
+```
+
+插件内部推荐统一通过下面的入口读取上下文：
+
+```php
+$context = runtime_context_from_dto($dto);
+```
 
 相关规范见：[模板上下文协议](/guide/template-context.md)
 

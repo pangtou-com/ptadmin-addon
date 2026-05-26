@@ -29,6 +29,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\Contracts\RuntimeContextNormalizerInterface;
+use PTAdmin\Addon\Contracts\RuntimeContextProviderInterface;
 use PTAdmin\Addon\Commands\AddonCache;
 use PTAdmin\Addon\Commands\AddonCacheClear;
 use PTAdmin\Addon\Commands\AddonDisable;
@@ -46,6 +48,8 @@ use PTAdmin\Addon\Commands\AddonUpload;
 use PTAdmin\Addon\Compiler\PTCompiler;
 use PTAdmin\Addon\Middleware\AddonMiddleware;
 use PTAdmin\Addon\Service\AddonManager;
+use PTAdmin\Addon\Service\RuntimeContextNormalizer;
+use PTAdmin\Addon\Service\RuntimeContextProvider;
 
 class AddonServiceProvider extends ServiceProvider
 {
@@ -60,6 +64,8 @@ class AddonServiceProvider extends ServiceProvider
         $this->app->singleton('__addon__', function () {
             return new AddonMiddleware();
         });
+        $this->app->singleton(RuntimeContextNormalizerInterface::class, RuntimeContextNormalizer::class);
+        $this->app->singleton(RuntimeContextProviderInterface::class, RuntimeContextProvider::class);
         $this->registerProvider($this->app);
     }
 

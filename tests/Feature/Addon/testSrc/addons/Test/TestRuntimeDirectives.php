@@ -18,10 +18,13 @@ class TestRuntimeDirectives
     public function arc(DirectivesDTO $dto): array
     {
         $limit = (int) $dto->getAttribute('limit', 2);
+        $context = runtime_context_from_dto($dto);
         $items = [];
         for ($i = 1; $i <= $limit; ++$i) {
             $items[] = [
                 'title' => 'arc-'.$i,
+                'context_route' => (string) data_get($context, 'route', ''),
+                'context_type' => (string) data_get($context, 'resolved.type', ''),
             ];
         }
 
