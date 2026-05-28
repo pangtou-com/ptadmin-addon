@@ -148,9 +148,10 @@ class AddonAction
         $filesystem = new Filesystem();
         $target = $this->addonFrontendRuntimePath($code);
         if (is_dir($target)) {
+            $this->assertDirectoryWritable($target);
             $filesystem->deleteDirectory($target);
         }
-        $filesystem->ensureDirectoryExists(\dirname($target));
+        $this->ensureDirectoryWritable(\dirname($target));
         $filesystem->copyDirectory($source, $target);
         $filesystem->delete($target.\DIRECTORY_SEPARATOR.'frontend.json');
         $this->publishFrontendRuntimeLink($filesystem, $code, $target);
@@ -182,7 +183,7 @@ class AddonAction
     {
         $link = $this->addonFrontendPublicPath($code);
         $this->deletePath($link, $filesystem);
-        $filesystem->ensureDirectoryExists(\dirname($link));
+        $this->ensureDirectoryWritable(\dirname($link));
 
         if (@symlink($target, $link)) {
             return;
@@ -200,6 +201,35 @@ class AddonAction
 
         if (is_dir($path)) {
             $filesystem->deleteDirectory($path);
+        }
+    }
+
+    private function ensureDirectoryWritable(string $directory): void
+    {
+        if (is_dir($directory)) {
+            $this->assertDirectoryWritable($directory);
+
+            return;
+        }
+
+        $parent = \dirname($directory);
+        while ($parent !== \dirname($parent) && !is_dir($parent)) {
+            $parent = \dirname($parent);
+        }
+
+        if (!is_dir($parent) || !is_writable($parent)) {
+            throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $directory]));
+        }
+
+        if (!@mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $directory]));
+        }
+    }
+
+    private function assertDirectoryWritable(string $directory): void
+    {
+        if (!is_writable($directory)) {
+            throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $directory]));
         }
     }
 

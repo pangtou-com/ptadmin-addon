@@ -24,7 +24,7 @@ final class AddonLocalInstall extends AbstractAddonAction
             throw new AddonException(__('ptadmin-addon::messages.package.local_zip_only'));
         }
 
-        $this->filesystem->ensureDirectoryExists($this->action->getStorePath('package'));
+        $this->ensureDirectoryWritable($this->action->getStorePath('package'));
         $this->info(__('ptadmin-addon::messages.action.unpack_local'));
         $this->unzip($packageFile, $this->action->getStorePath('package'));
 
@@ -49,9 +49,10 @@ final class AddonLocalInstall extends AbstractAddonAction
         $target = base_path('addons'.\DIRECTORY_SEPARATOR.$config['base_path']);
         $this->info(__('ptadmin-addon::messages.addon.copy_target', ['path' => $target]));
         if (is_dir($target)) {
+            $this->ensureDirectoryWritable($target);
             $this->filesystem->deleteDirectory($target);
         }
-        $this->filesystem->ensureDirectoryExists(\dirname($target));
+        $this->ensureDirectoryWritable(\dirname($target));
         if (!$this->filesystem->moveDirectory($sourceDir, $target)) {
             throw new AddonException(__('ptadmin-addon::messages.addon.write_failed', ['code' => $code]));
         }

@@ -114,6 +114,30 @@ abstract class AbstractAddonAction
         $zip->close();
     }
 
+    protected function ensureDirectoryWritable(string $directory): void
+    {
+        if (is_dir($directory)) {
+            if (!is_writable($directory)) {
+                throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $directory]));
+            }
+
+            return;
+        }
+
+        $parent = \dirname($directory);
+        while ($parent !== \dirname($parent) && !is_dir($parent)) {
+            $parent = \dirname($parent);
+        }
+
+        if (!is_dir($parent) || !is_writable($parent)) {
+            throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $directory]));
+        }
+
+        if (!@mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $directory]));
+        }
+    }
+
     /**
      * 添加文件夹和子文件夹到压缩文件包中.
      *

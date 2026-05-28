@@ -14,6 +14,7 @@ return [
         'checksum_algorithm_unsupported' => 'Unsupported checksum algorithm: :algorithm',
         'checksum_failed' => 'Local package integrity verification failed',
         'ziparchive_missing' => 'ZipArchive is not available. Please enable the Zip extension in PHP.',
+        'directory_not_writable' => 'Directory is not writable. Check permissions: :path',
     ],
     'addon' => [
         'not_exists' => 'Addon [:code] does not exist',

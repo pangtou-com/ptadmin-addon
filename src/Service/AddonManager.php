@@ -458,7 +458,12 @@ final class AddonManager
         $cacheFile = AddonUtil::getAddonCacheDir();
         $cacheDir = \dirname($cacheFile);
         if (!is_dir($cacheDir)) {
-            mkdir($cacheDir, 0755, true);
+            if (!@mkdir($cacheDir, 0755, true) && !is_dir($cacheDir)) {
+                throw new \RuntimeException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $cacheDir]));
+            }
+        }
+        if (!is_writable($cacheDir)) {
+            throw new \RuntimeException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $cacheDir]));
         }
         file_put_contents($cacheFile, $content);
     }

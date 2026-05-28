@@ -49,7 +49,7 @@ final class AddonUpgrade extends AbstractAddonAction
             return null;
         }
 
-        $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
+        $this->ensureDirectoryWritable($this->action->getStorePath());
         $currentPath = Addon::getAddonPath($this->code);
         $currentVersion = Addon::getAddonVersion($this->code);
         $disabled = file_exists($currentPath.\DIRECTORY_SEPARATOR.'disable');
@@ -100,7 +100,7 @@ final class AddonUpgrade extends AbstractAddonAction
     private function backupAddon(string $currentPath): string
     {
         $backupPath = $this->action->getStorePath('backup'.\DIRECTORY_SEPARATOR.basename($currentPath));
-        $this->filesystem->ensureDirectoryExists(\dirname($backupPath));
+        $this->ensureDirectoryWritable(\dirname($backupPath));
         $this->filesystem->copyDirectory($currentPath, $backupPath);
 
         return $backupPath;
@@ -118,7 +118,7 @@ final class AddonUpgrade extends AbstractAddonAction
     private function replaceAddon(string $sourceDir, string $targetPath, bool $disabled): void
     {
         $this->filesystem->deleteDirectory($targetPath);
-        $this->filesystem->ensureDirectoryExists(\dirname($targetPath));
+        $this->ensureDirectoryWritable(\dirname($targetPath));
         if (!$this->filesystem->moveDirectory($sourceDir, $targetPath)) {
             throw new AddonException(__('ptadmin-addon::messages.addon.replace_failed', ['code' => $this->code]));
         }

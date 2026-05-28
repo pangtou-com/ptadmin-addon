@@ -14,6 +14,7 @@ return [
         'checksum_algorithm_unsupported' => '不支持的 checksum 算法：:algorithm',
         'checksum_failed' => '本地安装包完整性校验失败',
         'ziparchive_missing' => 'ZipArchive类不存在，请检查PHP环境是否开启Zip扩展',
+        'directory_not_writable' => '目录不可写，请检查权限：:path',
     ],
     'addon' => [
         'not_exists' => '插件【:code】不存在',

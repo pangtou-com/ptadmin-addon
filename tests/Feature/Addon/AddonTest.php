@@ -788,6 +788,41 @@ it('install addon from local zip package', function (): void {
     $filesystem->deleteDirectory($basePath);
 });
 
+it('reports writable directory when local install cannot write addon directory', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-local-permission-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2');
+    $addonsPath = $basePath.\DIRECTORY_SEPARATOR.'addons';
+    $filesystem->ensureDirectoryExists($addonsPath);
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'local-install.zip';
+    buildAddonPackageZip(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test', $zipFile);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+
+    chmod($addonsPath, 0555);
+
+    try {
+        expect(fn () => AddonAction::installLocal($zipFile))
+            ->toThrow(AddonException::class, __('ptadmin-addon::messages.package.directory_not_writable', [
+                'path' => $addonsPath,
+            ]));
+    } finally {
+        chmod($addonsPath, 0755);
+        $filesystem->deleteDirectory($basePath);
+    }
+});
+
 it('prevent local install when php compatibility is not satisfied', function (): void {
     $filesystem = new Filesystem();
     $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-php-'.uniqid();

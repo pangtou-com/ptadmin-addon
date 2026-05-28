@@ -41,7 +41,7 @@ final class AddonDownload extends AbstractAddonAction
 
     public function handle($versionId = 0, bool $force = false, bool $withSource = false): ?string
     {
-        $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
+        $this->ensureDirectoryWritable($this->action->getStorePath());
         $data = AddonApi::getAddonDownloadUrl([
             'code' => $this->code,
             'addon_version_id' => $versionId,
@@ -74,9 +74,10 @@ final class AddonDownload extends AbstractAddonAction
             if (!$force) {
                 throw new AddonException(__('ptadmin-addon::messages.addon.installed_force', ['code' => $info['code']]));
             }
+            $this->ensureDirectoryWritable($target);
             $this->filesystem->deleteDirectory($target);
         }
-        $this->filesystem->ensureDirectoryExists(\dirname($target));
+        $this->ensureDirectoryWritable(\dirname($target));
         $this->filesystem->moveDirectory($base, $target);
 
         return $base;
