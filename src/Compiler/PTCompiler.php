@@ -129,6 +129,10 @@ class PTCompiler extends BladeCompiler
                 return $this->loopCompile($parse, $data);
             }
 
+            if ($instance->isOutput($data['name'], $data['method'])) {
+                return $this->echoCompile($parse, $data);
+            }
+
             return $this->ifCompile($parse, $data);
         }
 
@@ -430,6 +434,20 @@ class PTCompiler extends BladeCompiler
         $name = $this->wrapName($directiveName);
 
         return "<?php {$parse->getOutput()} = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); ?>";
+    }
+
+    /**
+     * 编译为直接输出语句.
+     *
+     * @param Parser $parse
+     * @param mixed  $name  调用方法名称
+     */
+    protected function echoCompile(Parser $parse, $name): string
+    {
+        $directiveName = $name;
+        $name = $this->wrapName($directiveName);
+
+        return "<?php echo \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); ?>";
     }
 
     /**

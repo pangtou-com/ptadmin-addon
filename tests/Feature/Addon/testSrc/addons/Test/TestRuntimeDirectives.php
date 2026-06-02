@@ -31,6 +31,11 @@ class TestRuntimeDirectives
         return $items;
     }
 
+    public function badge(DirectivesDTO $dto): string
+    {
+        return '<strong>'.e((string) $dto->getAttribute('label', 'badge')).'</strong>';
+    }
+
     public function auth(): bool
     {
         return true;

@@ -124,6 +124,14 @@ beforeEach(function (): void {
             ->context(DirectiveDefinition::CONTEXT_PAGE)
             ->cacheable(false)
     );
+    AddonDirectivesManage::getInstance()->register(
+        'test',
+        DirectiveDefinition::make('badge')
+            ->handler(TestRuntimeDirectives::class)
+            ->method('badge')
+            ->type(DirectiveDefinition::TYPE_OUTPUT)
+            ->cacheable(false)
+    );
     runtime_context_replace(runtime_context_page([
         'route' => '/runtime/demo',
         'resolved' => ['type' => 'archive'],
@@ -178,6 +186,16 @@ it('renders plugin loop directives and executes directive handler', function ():
 
     expect($output)->toContain('arc-1|')
         ->and($output)->toContain('arc-2|');
+});
+
+it('renders plugin output directives directly', function (): void {
+    $compiled = app('blade.compiler')->compileString('@pt:test::badge(label="状态")');
+
+    expect($compiled)->toContain('echo \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle');
+
+    $output = renderBladeSnippet('@pt:test::badge(label="状态")');
+
+    expect($output)->toBe('<strong>状态</strong>');
 });
 
 it('uses $field as the default loop variable when id is omitted', function (): void {

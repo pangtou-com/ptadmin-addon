@@ -109,10 +109,23 @@ class AddonDirectives
         $method = $method ?? self::DEFAULT_METHOD;
         $target = $this->getMethodTarget($method);
         if (isset($target['type'])) {
-            return 'if' !== $target['type'];
+            return DirectiveDefinition::TYPE_LOOP === $target['type'];
         }
 
         return true;
+    }
+
+    /**
+     * 验证指令是否为直接输出.
+     *
+     * @param $method
+     */
+    public function isOutput($method): bool
+    {
+        $method = $method ?? self::DEFAULT_METHOD;
+        $target = $this->getMethodTarget($method);
+
+        return isset($target['type']) && DirectiveDefinition::TYPE_OUTPUT === $target['type'];
     }
 
     /**

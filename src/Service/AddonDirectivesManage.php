@@ -69,6 +69,17 @@ class AddonDirectivesManage
     }
 
     /**
+     * 判断是否为直接输出指令.
+     *
+     * @param mixed $name
+     * @param $method
+     */
+    public function isOutput($name, $method): bool
+    {
+        return $this->getProvider($name)->isOutput($method);
+    }
+
+    /**
      * 注册插件指令定义.
      *
      * @param string                               $addonCode
