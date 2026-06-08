@@ -122,6 +122,7 @@ beforeEach(function (): void {
             ->method('arc')
             ->type('loop')
             ->context(DirectiveDefinition::CONTEXT_PAGE)
+            ->loopContext('directives.test.stack')
             ->cacheable(false)
     );
     AddonDirectivesManage::getInstance()->register(
@@ -234,6 +235,33 @@ it('renders assigned output variables from plugin directives', function (): void
     expect($output)->toContain('arc-1|arc-2');
 });
 
+it('renders shared pt dump directive once inside loops', function (): void {
+    $compiled = app('blade.compiler')->compileString('@pt:dump()');
+
+    expect($compiled)->toContain('TemplateDumpRenderer::class');
+
+    $output = renderBladeSnippet(
+        "@pt:test::arc(limit=2,id=archive)\n@pt:dump()\n@pt:end"
+    );
+
+    expect(substr_count($output, '@pt:dump(stack)'))->toBe(1)
+        ->and($output)->toContain('<th>字段</th><th>说明</th><th>模板输出</th>')
+        ->and($output)->toContain('{$stack.title}')
+        ->and($output)->toContain('查看帮助文档')
+        ->and($output)->toContain('https://docs.pangtou.com?directive=stack')
+        ->and($output)->not->toContain('<th>类型</th>')
+        ->and($output)->not->toContain('<th>示例值</th>');
+});
+
+it('renders shared pt dump directive from explicit context and alias', function (): void {
+    $output = renderBladeSnippet('@pt:dump(context="page",as="page",docs_url="https://docs.pangtou.com/cms/directives")');
+
+    expect($output)->toContain('@pt:dump(page)')
+        ->and($output)->toContain('{$page.title}')
+        ->and($output)->toContain('https://docs.pangtou.com/cms/directives?directive=page')
+        ->and($output)->toContain('标题');
+});
+
 it('passes runtime context through dto payload', function (): void {
     $output = renderBladeSnippet(
         "@pt:test::arc(limit=1)\n{{ \$field['context_route'] }}|{{ \$field['context_type'] }}\n@pt:end"
@@ -258,6 +286,65 @@ it('renders empty fallback text for loop directives', function (): void {
 
     expect($output)->toContain('暂无数据')
         ->and($output)->not->toContain('arc-1');
+});
+
+it('compiles empty blocks for loop directives', function (): void {
+    $compiled = app('blade.compiler')->compileString(
+        "@pt:test::arc(limit=0,id=item)\n{{ \$item['title'] }}\n@pt:empty\n暂无数据\n@pt:end"
+    );
+
+    expect($compiled)->toContain('foreach($__currentLoopData as $item)')
+        ->and($compiled)->toContain('$__ptLoopEmpty_')
+        ->and($compiled)->toContain('if ($__ptLoopEmpty_')
+        ->and($compiled)->toContain('暂无数据');
+});
+
+it('renders empty blocks for loop directives', function (): void {
+    $output = renderBladeSnippet(
+        "@pt:test::arc(limit=0,id=item)\n{{ \$item['title'] }}\n@pt:empty\n暂无数据\n@pt:end"
+    );
+
+    expect($output)->toContain('暂无数据')
+        ->and($output)->not->toContain('arc-1');
+});
+
+it('uses explicit empty blocks before empty attributes', function (): void {
+    $output = renderBladeSnippet(
+        "@pt:test::arc(limit=0,id=item,empty=\"参数空数据\")\n{{ \$item['title'] }}\n@pt:empty\n块空数据\n@pt:end"
+    );
+
+    expect($output)->toContain('块空数据')
+        ->and($output)->not->toContain('参数空数据');
+});
+
+it('binds empty blocks to the nearest loop directive', function (): void {
+    $output = renderBladeSnippet(
+        "@pt:test::arc(limit=1,id=parent)\n"
+        ."P{{ \$parent['title'] }}\n"
+        ."@pt:test::arc(limit=0,id=child)\n"
+        ."C{{ \$child['title'] }}\n"
+        ."@pt:empty\n"
+        ."EMPTY-{{ \$parent['title'] }}\n"
+        ."@pt:end\n"
+        ."@pt:end"
+    );
+
+    expect($output)->toContain('Parc-1')
+        ->and($output)->toContain('EMPTY-arc-1')
+        ->and($output)->not->toContain('C')
+        ->and($output)->not->toContain('EMPTY-arc-2');
+});
+
+it('pushes loop items into directive runtime context stacks', function (): void {
+    $output = renderBladeSnippet(
+        "@pt:test::arc(limit=1,id=parent)\n"
+        ."@pt:test::arc(limit=1,id=child)\n"
+        ."{{ \$child['context_parent_title'] }}\n"
+        ."@pt:end\n"
+        ."@pt:end"
+    );
+
+    expect($output)->toContain('arc-1');
 });
 
 it('compiles host seo title and meta directives', function (): void {

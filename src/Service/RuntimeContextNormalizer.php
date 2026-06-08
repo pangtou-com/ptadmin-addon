@@ -27,6 +27,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
         $normalized['resolved'] = $this->normalizeResolved($context['resolved'] ?? []);
         $normalized['page'] = $this->normalizePage($context['page'] ?? []);
         $normalized['seo'] = $this->normalizeSeo($context['seo'] ?? []);
+        $normalized['directives'] = \is_array($context['directives'] ?? null) ? $context['directives'] : [];
 
         return $normalized;
     }
@@ -123,6 +124,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
                 'twitter' => [],
                 'structured_data' => [],
             ],
+            'directives' => [],
         ];
     }
 

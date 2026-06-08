@@ -25,6 +25,7 @@ class TestRuntimeDirectives
                 'title' => 'arc-'.$i,
                 'context_route' => (string) data_get($context, 'route', ''),
                 'context_type' => (string) data_get($context, 'resolved.type', ''),
+                'context_parent_title' => (string) data_get($context, 'directives.test.stack.'.(max(0, \count((array) data_get($context, 'directives.test.stack', [])) - 1)).'.title', ''),
             ];
         }
 

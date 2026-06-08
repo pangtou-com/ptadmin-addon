@@ -359,3 +359,47 @@ function runtime_context_page(array $payload): array
 {
     return app(RuntimeContextNormalizerInterface::class)->page($payload);
 }
+
+/**
+ * 将当前循环项压入指令运行上下文栈。
+ *
+ * @param mixed $item
+ */
+function pt_directive_context_push(string $key, $item): void
+{
+    $key = trim($key);
+    if ('' === $key) {
+        return;
+    }
+
+    $context = runtime_context_current();
+    $stack = data_get($context, $key, []);
+    if (!\is_array($stack)) {
+        $stack = [];
+    }
+
+    $stack[] = $item;
+    data_set($context, $key, $stack);
+    runtime_context_replace($context);
+}
+
+/**
+ * 从指令运行上下文栈移除当前循环项。
+ */
+function pt_directive_context_pop(string $key): void
+{
+    $key = trim($key);
+    if ('' === $key) {
+        return;
+    }
+
+    $context = runtime_context_current();
+    $stack = data_get($context, $key, []);
+    if (!\is_array($stack) || [] === $stack) {
+        return;
+    }
+
+    array_pop($stack);
+    data_set($context, $key, array_values($stack));
+    runtime_context_replace($context);
+}

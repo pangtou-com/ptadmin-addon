@@ -36,6 +36,13 @@ class PTCompiler extends BladeCompiler
     use PTCompileExtend;
 
     /**
+     * @var array<int, array{empty_var:string, empty_attribute:string, has_empty_block:bool, loop_context_key:string|null}>
+     */
+    private array $ptLoopStack = [];
+
+    private int $ptLoopCounter = 0;
+
+    /**
      * 拷贝原始对象
      *
      * @param $baseCompiler
@@ -110,6 +117,9 @@ class PTCompiler extends BladeCompiler
         $data = $this->parserAction($match[1]);
         if (!$data['name']) {
             return $match[0];
+        }
+        if ($this->isEmpty($match[1])) {
+            return $this->empty($match, $data);
         }
         // 当为结束标签时返回结束标签内容
         if ($this->isEnd($match[1])) {
@@ -253,6 +263,30 @@ class PTCompiler extends BladeCompiler
     }
 
     /**
+     * 模板调试输出指令。
+     */
+    protected function PTCompileDump(array $match): string
+    {
+        $parse = Parser::make(Arr::get($match, 5));
+
+        return "<?php echo app(\\PTAdmin\\Addon\\Service\\TemplateDumpRenderer::class)->render({$this->buildDumpAttributesExpression($parse)}); ?>";
+    }
+
+    private function buildDumpAttributesExpression(Parser $parse): string
+    {
+        $attributes = [];
+        foreach ($parse->getAll() as $key => $value) {
+            if ('id' === $key) {
+                continue;
+            }
+
+            $attributes[] = "'".$key."' => ".$this->normalizeHostDirectiveValue($value);
+        }
+
+        return [] === $attributes ? '[]' : '['.implode(', ', $attributes).']';
+    }
+
+    /**
      * 解析出是否为结束标签.
      *
      * @pt:end // 简介默认为foreach关闭
@@ -270,19 +304,38 @@ class PTCompiler extends BladeCompiler
         }
         // @pt:end 的支持
         if ('end' === strtolower($data['name']) && null === $data['method']) {
-            return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
+            return $this->compilePtLoopEnd();
         }
         $instance = AddonDirectivesManage::getInstance();
         if (isset($data['name']) && Addon::hasAddon($data['name'])) {
             $data['method'] = mb_substr($data['method'], 3);
             if ($instance->isLoop($data['name'], $data['method'])) {
-                return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
+                return $this->compilePtLoopEnd();
             }
 
             return '<?php endif; ?>';
         }
 
         return $this->callLaravelDirective($match);
+    }
+
+    protected function empty($match, $data = null): string
+    {
+        if ([] === $this->ptLoopStack) {
+            throw new DirectivesException('@pt:empty must be used inside a loop directive.');
+        }
+
+        $index = \count($this->ptLoopStack) - 1;
+        if ($this->ptLoopStack[$index]['has_empty_block']) {
+            throw new DirectivesException('@pt:empty can only be used once inside the same loop directive.');
+        }
+
+        $this->ptLoopStack[$index]['has_empty_block'] = true;
+        $emptyVar = $this->ptLoopStack[$index]['empty_var'];
+
+        $contextPop = $this->compileLoopContextPop($this->ptLoopStack[$index]['loop_context_key']);
+
+        return "<?php {$contextPop} endforeach; \$__env->popLoop(); \$loop = \$__env->getLastLoop(); if ({$emptyVar}): ?>";
     }
 
     /**
@@ -409,15 +462,38 @@ class PTCompiler extends BladeCompiler
     {
         $directiveName = $name;
         $name = $this->wrapName($directiveName);
-        $initLoop = "<?php \$__currentLoopData = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); \$__env->addLoop(\$__currentLoopData);?>";
+        $emptyVar = '$__ptLoopEmpty_'.$this->ptLoopCounter++;
+        $initLoop = "<?php \$__currentLoopData = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); {$emptyVar} = true; \$__env->addLoop(\$__currentLoopData);?>";
 
-        $iterateLoop = '$__env->incrementLoopIndices(); $loop = $__env->getLastLoop();';
+        $loopContextKey = $this->resolveDirectiveLoopContext((string) ($directiveName['name'] ?? ''), (string) ($directiveName['method'] ?? ''));
+        $iterateLoop = "{$emptyVar} = false; \$__env->incrementLoopIndices(); \$loop = \$__env->getLastLoop(); ".$this->compileLoopContextPush($loopContextKey, $parse->getIteration());
         $empty = '';
         if ($parse->hasAttribute('empty')) {
             $empty = "<?php if (blank(\$__currentLoopData)): echo e({$parse->getEmpty()}); endif;?>";
         }
 
-        return "{$initLoop} {$empty} <?php foreach(\$__currentLoopData as {$parse->getIteration()}): {$iterateLoop} ?>";
+        $this->ptLoopStack[] = [
+            'empty_var' => $emptyVar,
+            'empty_attribute' => $empty,
+            'has_empty_block' => false,
+            'loop_context_key' => $loopContextKey,
+        ];
+
+        return "{$initLoop} <?php foreach(\$__currentLoopData as {$parse->getIteration()}): {$iterateLoop} ?>";
+    }
+
+    private function compilePtLoopEnd(): string
+    {
+        $loop = array_pop($this->ptLoopStack);
+        if (!\is_array($loop)) {
+            return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
+        }
+
+        if ($loop['has_empty_block']) {
+            return '<?php endif; ?>';
+        }
+
+        return '<?php '.$this->compileLoopContextPop($loop['loop_context_key']).' endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>'.$loop['empty_attribute'];
     }
 
     /**
@@ -496,6 +572,40 @@ class PTCompiler extends BladeCompiler
         return '' === $context ? null : $context;
     }
 
+    private function resolveDirectiveLoopContext(string $addonCode, string $method): ?string
+    {
+        if ('' === $addonCode || '' === $method) {
+            return null;
+        }
+
+        $definition = AddonDirectivesManage::getInstance()->getDirective($addonCode, $method);
+        if (!\is_array($definition)) {
+            return null;
+        }
+
+        $key = trim((string) ($definition['loop_context'] ?? ''));
+
+        return '' === $key ? null : $key;
+    }
+
+    private function compileLoopContextPush(?string $key, string $iteration): string
+    {
+        if (null === $key || '' === $key) {
+            return '';
+        }
+
+        return "\\pt_directive_context_push('".str_replace("'", "\\'", $key)."', {$iteration});";
+    }
+
+    private function compileLoopContextPop(?string $key): string
+    {
+        if (null === $key || '' === $key) {
+            return '';
+        }
+
+        return "\\pt_directive_context_pop('".str_replace("'", "\\'", $key)."');";
+    }
+
     /**
      * 判断是否为结束标签.
      *
@@ -513,6 +623,18 @@ class PTCompiler extends BladeCompiler
         $action = end($action);
 
         return 'end' === strtolower(mb_substr($action, 0, 3));
+    }
+
+    private function isEmpty($action): bool
+    {
+        if (false !== strpos($action, '::')) {
+            $action = explode('::', $action);
+        } else {
+            $action = explode(':', $action);
+        }
+        $action = end($action);
+
+        return 'empty' === strtolower((string) $action);
     }
 
     /**

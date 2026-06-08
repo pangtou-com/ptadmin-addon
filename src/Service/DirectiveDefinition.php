@@ -54,6 +54,9 @@ class DirectiveDefinition
     /** @var string|null */
     private $context;
 
+    /** @var string|null */
+    private $loopContextKey;
+
     private function __construct(string $name)
     {
         $this->name($name);
@@ -113,6 +116,14 @@ class DirectiveDefinition
         return $this;
     }
 
+    public function loopContext(string $key): self
+    {
+        $key = trim($key);
+        $this->loopContextKey = '' === $key ? null : $key;
+
+        return $this;
+    }
+
     public function getName(): string
     {
         return $this->name;
@@ -148,6 +159,11 @@ class DirectiveDefinition
         return blank($this->context) ? null : $this->context;
     }
 
+    public function getLoopContextKey(): ?string
+    {
+        return blank($this->loopContextKey) ? null : $this->loopContextKey;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -162,6 +178,9 @@ class DirectiveDefinition
         }
         if (null !== $this->getContext()) {
             $result['context'] = $this->getContext();
+        }
+        if (null !== $this->getLoopContextKey()) {
+            $result['loop_context'] = $this->getLoopContextKey();
         }
 
         return $result;
