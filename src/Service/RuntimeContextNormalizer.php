@@ -60,6 +60,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
                 'tag' => data_get($page, 'tag', []),
                 'tags' => data_get($page, 'tags', []),
                 'special' => data_get($page, 'special', []),
+                'module' => data_get($page, 'module', []),
                 'prev' => data_get($page, 'prev', []),
                 'next' => data_get($page, 'next', []),
                 'pagination' => [
@@ -105,6 +106,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
                 'tag' => [],
                 'tags' => [],
                 'special' => [],
+                'module' => [],
                 'prev' => [],
                 'next' => [],
                 'pagination' => [
@@ -163,6 +165,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
         $current['tag'] = \is_array($data['tag'] ?? null) ? $data['tag'] : [];
         $current['tags'] = \is_array($data['tags'] ?? null) ? array_values($data['tags']) : [];
         $current['special'] = \is_array($data['special'] ?? null) ? $data['special'] : [];
+        $current['module'] = \is_array($data['module'] ?? null) ? $data['module'] : [];
         $current['prev'] = \is_array($data['prev'] ?? null) ? $data['prev'] : [];
         $current['next'] = \is_array($data['next'] ?? null) ? $data['next'] : [];
         $current['pagination'] = [

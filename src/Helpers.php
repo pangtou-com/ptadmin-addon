@@ -248,15 +248,127 @@ function format_date($time, string $format = 'Y-m-d H:i:s'): ?string
 
 /**
  * 将金额转换为中文大写.
- * todo 待处理.
  *
  * @param $amount
  *
- * @return mixed
+ * @return mixed|string
  */
 function money_to_zh($amount)
 {
-    return $amount;
+    if (null === $amount || '' === trim((string) $amount)) {
+        return $amount;
+    }
+
+    $value = trim((string) $amount);
+    $negative = false;
+    if ('-' === substr($value, 0, 1)) {
+        $negative = true;
+        $value = substr($value, 1);
+    }
+
+    $value = str_replace(',', '', $value);
+    if (1 !== preg_match('/^\d+(?:\.\d+)?$/', $value)) {
+        return $amount;
+    }
+
+    [$integer, $decimal] = array_pad(explode('.', $value, 2), 2, '');
+    $integer = ltrim($integer, '0');
+    $integer = '' === $integer ? '0' : $integer;
+
+    if (strlen($integer) > 16) {
+        return $amount;
+    }
+
+    $decimal = substr(str_pad($decimal, 3, '0'), 0, 3);
+    $carry = ((int) $decimal[2]) >= 5 ? 1 : 0;
+    $jiao = (int) $decimal[0];
+    $fen = (int) $decimal[1] + $carry;
+    if ($fen >= 10) {
+        $fen = 0;
+        ++$jiao;
+    }
+    if ($jiao >= 10) {
+        $jiao = 0;
+        $integer = (string) ((int) $integer + 1);
+    }
+
+    $digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'];
+    $sectionUnits = ['', '万', '亿', '兆'];
+    $unitUnits = ['', '拾', '佰', '仟'];
+
+    $integerText = '';
+    if ('0' === $integer) {
+        $integerText = '零';
+    } else {
+        $sections = [];
+        while ('' !== $integer) {
+            array_unshift($sections, substr($integer, -4));
+            $integer = substr($integer, 0, -4);
+        }
+
+        $zeroPending = false;
+        $sectionCount = count($sections);
+        foreach ($sections as $index => $section) {
+            $sectionNumber = (int) $section;
+            $unitIndex = $sectionCount - $index - 1;
+            if (0 === $sectionNumber) {
+                $zeroPending = '' !== $integerText;
+                continue;
+            }
+
+            if ($zeroPending || ('' !== $integerText && $sectionNumber < 1000)) {
+                $integerText .= '零';
+            }
+
+            $integerText .= money_to_zh_section($section, $digits, $unitUnits).$sectionUnits[$unitIndex];
+            $zeroPending = false;
+        }
+    }
+
+    $result = $integerText.'元';
+    if (0 === $jiao && 0 === $fen) {
+        $result .= '整';
+    } else {
+        if ($jiao > 0) {
+            $result .= $digits[$jiao].'角';
+        } elseif ('0' !== $integerText && $fen > 0) {
+            $result .= '零';
+        }
+
+        if ($fen > 0) {
+            $result .= $digits[$fen].'分';
+        }
+    }
+
+    return $negative ? '负'.$result : $result;
+}
+
+/**
+ * @param array<int, string> $digits
+ * @param array<int, string> $unitUnits
+ */
+function money_to_zh_section(string $section, array $digits, array $unitUnits): string
+{
+    $section = str_pad($section, 4, '0', STR_PAD_LEFT);
+    $result = '';
+    $zeroPending = false;
+
+    for ($i = 0; $i < 4; ++$i) {
+        $number = (int) $section[$i];
+        $unitIndex = 3 - $i;
+        if (0 === $number) {
+            $zeroPending = '' !== $result;
+            continue;
+        }
+
+        if ($zeroPending) {
+            $result .= '零';
+        }
+        $result .= $digits[$number].$unitUnits[$unitIndex];
+        $zeroPending = false;
+    }
+
+    return $result;
 }
 
 /**

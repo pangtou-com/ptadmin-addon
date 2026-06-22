@@ -1453,7 +1453,7 @@ it('init addon scaffold and pulls frontend template when requested', function ()
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
+                'deploy_entry' => '/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
         ],
@@ -1559,14 +1559,14 @@ it('does not fallback when official frontend template source fails', function ()
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
+                'deploy_entry' => '/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
             'micro-app' => [
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
+                'deploy_url' => '/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -1649,7 +1649,7 @@ it('pulls module frontend template from official manifest url', function (): voi
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
+                'deploy_entry' => '/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
         ],
@@ -1798,7 +1798,7 @@ it('pulls micro app frontend template from official manifest url', function (): 
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
+                'deploy_url' => '/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -1956,14 +1956,14 @@ it('rewrites module frontend manifest entry with deploy url when addon is not in
                 'route_base' => '/{code}',
                 'remote_name' => '{code_snake}_remote',
                 'develop_entry' => 'http://localhost:4179/assets/remoteEntry.js',
-                'deploy_entry' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
+                'deploy_entry' => '/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js',
                 'expose' => './module',
             ],
             'micro-app' => [
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
+                'deploy_url' => '/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -2048,7 +2048,7 @@ it('rewrites module frontend manifest entry with deploy url when addon is not in
     );
 
     expect(data_get($frontendManifest, 'entry.federation.entry'))
-        ->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/assets/remoteEntry.js');
+        ->toEqual('/admin/modules/demo-addon/dist/assets/remoteEntry.js');
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -2069,7 +2069,7 @@ it('rewrites micro app frontend manifest entry with develop url when addon is in
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
+                'deploy_url' => '/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -2180,7 +2180,7 @@ it('rewrites micro app frontend manifest entry with deploy url when addon is not
                 'route_base' => '/{code}',
                 'app_name' => '{code_snake}',
                 'develop_url' => 'http://localhost:5182/',
-                'deploy_url' => '{app_url}/{admin_web_prefix}/modules/{code}/dist/',
+                'deploy_url' => '/{admin_web_prefix}/modules/{code}/dist/',
             ],
         ],
         'templates' => [
@@ -2271,7 +2271,7 @@ it('rewrites micro app frontend manifest entry with deploy url when addon is not
         ->and(data_get($frontendManifest, 'name'))->toEqual('demo-addon')
         ->and(data_get($frontendManifest, 'routeBase'))->toEqual('/demo-addon')
         ->and(data_get($frontendManifest, 'entry.wujie.name'))->toEqual('demo_addon')
-        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('https://demo.example.com/admin/modules/demo-addon/dist/');
+        ->and(data_get($frontendManifest, 'entry.wujie.url'))->toEqual('/admin/modules/demo-addon/dist/');
 
     $filesystem->deleteDirectory($basePath);
 });

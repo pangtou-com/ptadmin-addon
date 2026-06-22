@@ -173,6 +173,51 @@ $manager->register(
 - 业务模板为了可读性，可以显式写 `id`
 - 不要依赖编译器推导出的隐式变量名
 
+## 调试输出指令
+
+模板开发时可以使用通用调试指令查看当前上下文字段：
+
+```blade
+@pt:dump()
+```
+
+`@pt:dump()` 会根据当前运行时上下文自动推导最近的循环项；如果不在循环内，则尝试读取 `page.archive`、`page.category`、`page.tag`、`page.special`、`page.pagination` 或 `page`。
+
+输出内容包括：
+
+- 字段数
+- 当前上下文层级
+- 字段路径
+- 字段说明
+- 简易模板输出写法，例如 `{$archive.title}`
+- 官网帮助文档链接，并自动带入当前推导出的 `directive`
+
+循环中默认只输出一次，避免列表中重复刷屏：
+
+```blade
+@pt:demo::lists(id=item)
+    @pt:dump()
+@pt:end
+```
+
+需要重复输出时可以显式关闭一次性输出：
+
+```blade
+@pt:dump(once=false)
+```
+
+也可以手动指定上下文路径和模板变量名：
+
+```blade
+@pt:dump(context="page",as="page")
+```
+
+默认帮助链接使用 `https://docs.pangtou.com`，可以通过 `docs_url` 覆盖：
+
+```blade
+@pt:dump(docs_url="https://docs.pangtou.com/cms/directives")
+```
+
 ## 插件读取建议
 
 插件内部读取上下文时，建议优先读取标准结构：

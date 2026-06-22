@@ -611,7 +611,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 'entry' => $this->replaceManifestPlaceholders(
                     (string) config(
                         'addon.frontend_templates.manifest.module.'.($develop ? 'develop_entry' : 'deploy_entry'),
-                        $develop ? 'http://localhost:4179/assets/remoteEntry.js' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js'
+                        $develop ? 'http://localhost:4179/assets/remoteEntry.js' : '/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js'
                     ),
                     $code
                 ),
@@ -638,7 +638,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
                 'url' => $this->normalizeMicroAppUrl($this->replaceManifestPlaceholders(
                     (string) config(
                         'addon.frontend_templates.manifest.micro-app.'.($develop ? 'develop_url' : 'deploy_url'),
-                        $develop ? 'http://localhost:5182/' : '{app_url}/{admin_web_prefix}/modules/{code}/dist/'
+                        $develop ? 'http://localhost:5182/' : '/{admin_web_prefix}/modules/{code}/dist/'
                     ),
                     $code
                 )),
@@ -672,16 +672,10 @@ final class AddonFrontendPullAction extends AbstractAddonAction
 
     private function replaceManifestPlaceholders(string $pattern, string $code): string
     {
-        $appUrl = rtrim((string) config('app.url', ''), '/');
-        if ('' === $appUrl) {
-            $appUrl = 'http://localhost';
-        }
-
         return strtr($pattern, [
             '{code}' => $code,
             '{code_kebab}' => $code,
             '{code_snake}' => str_replace('-', '_', $code),
-            '{app_url}' => $appUrl,
             '{admin_web_prefix}' => $this->adminWebPrefix(),
         ]);
     }
