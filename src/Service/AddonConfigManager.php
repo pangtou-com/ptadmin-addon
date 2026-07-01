@@ -134,7 +134,11 @@ class AddonConfigManager
         if (isset($this->config['response'])) {
             $res = Arr::wrap($this->config['response']);
             foreach ($res as $item) {
-                $this->response[] = realpath($item);
+                if (!\is_string($item) || '' === $item) {
+                    continue;
+                }
+
+                $this->response[] = realpath($item) ?: $item;
             }
         }
 
