@@ -577,7 +577,7 @@ it('upgrade addon from downloaded package', function (): void {
     buildAddonPackageZip($packageDir.\DIRECTORY_SEPARATOR.'Test', $zipFile);
     $zipBody = file_get_contents($zipFile);
 
-    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+    writeMarketplaceSessionForTest();
     $postResponse = new class
     {
         public function status(): int
@@ -655,7 +655,7 @@ it('stops cloud install immediately when downloaded package cannot be unzipped',
     AddonInjectsManage::getInstance()->reset();
     AddonHooksManage::getInstance()->reset();
 
-    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+    writeMarketplaceSessionForTest();
 
     $postResponse = new class
     {
@@ -970,7 +970,7 @@ it('prevent local install when official addon is not purchased', function (): vo
     AddonInjectsManage::getInstance()->reset();
     AddonHooksManage::getInstance()->reset();
 
-    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+    writeMarketplaceSessionForTest();
 
     $existsResponse = new class
     {
@@ -1023,7 +1023,7 @@ it('prevent local install when official addon is not purchased', function (): vo
         }
     };
 
-    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withHeaders')->twice()->andReturnSelf();
     Http::shouldReceive('withToken')->twice()->with('test-token')->andReturnSelf();
     Http::shouldReceive('withOptions')->twice()->andReturnSelf();
     Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
@@ -1221,7 +1221,7 @@ it('keeps frontend source when cloud install requests source', function (): void
     AddonInjectsManage::getInstance()->reset();
     AddonHooksManage::getInstance()->reset();
     app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', new FakeAdminResourceServiceForAddonTest());
-    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+    writeMarketplaceSessionForTest();
 
     fakeAddonDownloadHttpForTest('test', (string) $zipBody);
 
@@ -1276,7 +1276,7 @@ it('cloud install source request succeeds when package has no frontend source', 
     AddonInjectsManage::getInstance()->reset();
     AddonHooksManage::getInstance()->reset();
     app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', new FakeAdminResourceServiceForAddonTest());
-    Cache::put('ptadmin:addon_user_keys', serialize(['token' => 'Bearer test-token']));
+    writeMarketplaceSessionForTest();
 
     fakeAddonDownloadHttpForTest('test', (string) $zipBody);
 
@@ -2636,6 +2636,16 @@ function fakeAddonDownloadHttpForTest(string $code, string $zipBody): void
         return 'https://www.pangtou.com/api-addon/download' === $url;
     })->andReturn($postResponse);
     Http::shouldReceive('get')->once()->with('https://example.com/'.$code.'.zip')->andReturn($getResponse);
+}
+
+function writeMarketplaceSessionForTest(string $token = 'Bearer test-token'): void
+{
+    $filesystem = new Filesystem();
+    $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
+    $filesystem->ensureDirectoryExists(\dirname($sessionFile));
+    $filesystem->put($sessionFile, AesUtil::encryptString((string) json_encode([
+        'token' => $token,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
 }
 
 function zipDirectoryForTest(string $sourceDir, string $zipFilename): void
