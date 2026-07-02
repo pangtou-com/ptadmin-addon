@@ -638,6 +638,38 @@ it('upgrade addon from downloaded package', function (): void {
     $filesystem->deleteDirectory($basePath);
 });
 
+it('backs up and restores addon public frontend runtime', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-rollback-'.uniqid();
+    $frontendPath = $basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test';
+    $oldFile = $frontendPath.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'old.js';
+    $newFile = $frontendPath.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'new.js';
+
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $filesystem->ensureDirectoryExists(\dirname($oldFile));
+    file_put_contents($oldFile, 'console.log("old");');
+
+    $this->app->setBasePath($basePath);
+
+    $reflection = new \ReflectionClass(AddonAction::class);
+    $action = $reflection->newInstanceWithoutConstructor();
+    $constructor = $reflection->getConstructor();
+    $constructor->setAccessible(true);
+    $constructor->invoke($action, 'test');
+
+    $backupPath = $action->backupFrontendRuntime('test');
+    $filesystem->deleteDirectory($frontendPath);
+    $filesystem->ensureDirectoryExists(\dirname($newFile));
+    file_put_contents($newFile, 'console.log("new");');
+
+    $action->restoreFrontendRuntime($backupPath, 'test');
+
+    expect(file_exists($oldFile))->toBeTrue()
+        ->and(file_exists($newFile))->toBeFalse();
+
+    $filesystem->deleteDirectory($basePath);
+});
+
 it('stops cloud install immediately when downloaded package cannot be unzipped', function (): void {
     $filesystem = new Filesystem();
     $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-install-cloud-invalid-'.uniqid();

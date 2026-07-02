@@ -156,6 +156,42 @@ class AddonAction
         $filesystem->delete($target.\DIRECTORY_SEPARATOR.'frontend.json');
     }
 
+    public function backupFrontendRuntime(string $code = null): ?string
+    {
+        $code = $code ?? $this->code;
+        $filesystem = new Filesystem();
+        $target = $this->addonFrontendPublicPath($code);
+        if (!is_dir($target)) {
+            return null;
+        }
+
+        $this->assertDirectoryWritable($target);
+        $backupPath = $this->getStorePath('backup_frontend'.\DIRECTORY_SEPARATOR.$code);
+        $this->ensureDirectoryWritable(\dirname($backupPath));
+        if (!$filesystem->copyDirectory($target, $backupPath)) {
+            throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $backupPath]));
+        }
+
+        return $backupPath;
+    }
+
+    public function restoreFrontendRuntime(?string $backupPath, string $code = null): void
+    {
+        $code = $code ?? $this->code;
+        $filesystem = new Filesystem();
+        $target = $this->addonFrontendPublicPath($code);
+
+        $this->deletePath($target, $filesystem);
+        if (null === $backupPath || !is_dir($backupPath)) {
+            return;
+        }
+
+        $this->ensureDirectoryWritable(\dirname($target));
+        if (!$filesystem->moveDirectory($backupPath, $target)) {
+            throw new AddonException(__('ptadmin-addon::messages.package.directory_not_writable', ['path' => $target]));
+        }
+    }
+
     public function deleteFrontendRuntime(string $code = null): void
     {
         $code = $code ?? $this->code;

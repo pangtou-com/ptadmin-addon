@@ -56,6 +56,7 @@ final class AddonUpgrade extends AbstractAddonAction
 
         $this->info(__('ptadmin-addon::messages.action.backup_start'));
         $backupPath = $this->backupAddon($currentPath);
+        $frontendBackupPath = $this->action->backupFrontendRuntime($this->code);
         $resolver = new AddonPackageSourceResolver($this->filesystem);
         $sourceDir = $this->downloadAndUnzip($versionId, $resolver);
         $this->action->setFrontendRuntimePath($resolver->getFrontendRuntimePath());
@@ -79,7 +80,7 @@ final class AddonUpgrade extends AbstractAddonAction
             ]));
         } catch (\Throwable $exception) {
             $this->restoreBackup($backupPath, $currentPath, $disabled);
-            $this->action->deleteFrontendRuntime($this->code);
+            $this->action->restoreFrontendRuntime($frontendBackupPath, $this->code);
 
             throw $exception;
         }
