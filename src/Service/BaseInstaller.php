@@ -29,4 +29,8 @@ abstract class BaseInstaller
     public function uninstall(): void
     {
     }
+
+    public function purge(): void
+    {
+    }
 }

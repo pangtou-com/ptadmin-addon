@@ -383,14 +383,14 @@ class AddonAction
      *
      * @return null|array|mixed
      */
-    public static function uninstall(string $code, bool $force = false)
+    public static function uninstall(string $code, bool $force = false, bool $purge = false)
     {
         $obj = new self($code);
         if (!$force) {
             $obj->addTask('checkRequired');
         }
 
-        return $obj->addTask(AddonUninstall::class)->action();
+        return $obj->addTask(AddonUninstall::class, $purge)->action();
     }
 
     /**

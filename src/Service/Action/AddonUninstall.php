@@ -20,13 +20,16 @@ use PTAdmin\Addon\Service\AddonAdminResourceSynchronizer;
 
 final class AddonUninstall extends AbstractAddonAction
 {
-    public function handle(): ?bool
+    public function handle(bool $purge = false): ?bool
     {
         $this->info(__('ptadmin-addon::messages.action.uninstall_start'));
         $installer = Addon::getAddonInstaller($this->code);
         if (null !== $installer) {
             try {
                 $installer->uninstall();
+                if ($purge) {
+                    $installer->purge();
+                }
             } catch (\Exception $exception) {
                 $this->error(__('ptadmin-addon::messages.action.uninstall_failed'));
                 $this->error($exception->getMessage());

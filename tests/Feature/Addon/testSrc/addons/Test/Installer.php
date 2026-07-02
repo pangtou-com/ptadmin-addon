@@ -28,4 +28,10 @@ class Installer extends BaseInstaller
         file_put_contents(base_path('addons/Test/uninstall.log'), 'uninstalled');
         file_put_contents(base_path('addon-uninstall.log'), 'uninstalled');
     }
+
+    public function purge(): void
+    {
+        file_put_contents(base_path('addons/Test/purge.log'), 'purged');
+        file_put_contents(base_path('addon-purge.log'), 'purged');
+    }
 }

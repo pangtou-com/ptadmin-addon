@@ -87,7 +87,9 @@ beforeEach(function (): void {
     @unlink(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'install.log');
     @unlink(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'init.log');
     @unlink(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'uninstall.log');
+    @unlink(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'purge.log');
     @unlink(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addon-uninstall.log');
+    @unlink(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addon-purge.log');
     touch(__DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2'.\DIRECTORY_SEPARATOR.'disable');
     $this->addon = new AddonManager();
     $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
@@ -1374,8 +1376,34 @@ it('run uninstall lifecycle when removing addon', function (): void {
     AddonAction::uninstall('test', true);
 
     expect(file_exists($basePath.\DIRECTORY_SEPARATOR.'addon-uninstall.log'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addon-purge.log'))->toBeFalse()
         ->and(is_dir($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'))->toBeFalse()
         ->and($fakeService->deleted)->toEqual(['test']);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('runs purge lifecycle only when uninstall requests purge', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-purge-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', new FakeAdminResourceServiceForAddonTest());
+
+    AddonAction::uninstall('test', true, true);
+
+    expect(file_exists($basePath.\DIRECTORY_SEPARATOR.'addon-uninstall.log'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addon-purge.log'))->toBeTrue()
+        ->and(is_dir($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'))->toBeFalse();
 
     $filesystem->deleteDirectory($basePath);
 });

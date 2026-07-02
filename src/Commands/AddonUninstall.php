@@ -30,12 +30,16 @@ use PTAdmin\Addon\Service\Action\AddonAction;
  */
 class AddonUninstall extends BaseAddonCommand
 {
-    protected $signature = 'addon:uninstall {code : 应用编码} {--f|force : 强制删除}';
+    protected $signature = 'addon:uninstall {code : 应用编码} {--f|force : 强制删除} {--purge : 同时执行插件彻底清理生命周期}';
     protected $description = '卸载插件应用';
 
     public function handle(): int
     {
-        AddonAction::uninstall((string) $this->argument('code'), (bool) $this->option('force'));
+        AddonAction::uninstall(
+            (string) $this->argument('code'),
+            (bool) $this->option('force'),
+            (bool) $this->option('purge')
+        );
 
         return 0;
     }
