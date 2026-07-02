@@ -146,7 +146,7 @@ class AddonAction
 
         $code = $code ?? $this->code;
         $filesystem = new Filesystem();
-        $target = $this->addonFrontendRuntimePath($code);
+        $target = $this->addonFrontendPublicPath($code);
         if (is_dir($target)) {
             $this->assertDirectoryWritable($target);
             $filesystem->deleteDirectory($target);
@@ -154,7 +154,6 @@ class AddonAction
         $this->ensureDirectoryWritable(\dirname($target));
         $filesystem->copyDirectory($source, $target);
         $filesystem->delete($target.\DIRECTORY_SEPARATOR.'frontend.json');
-        $this->publishFrontendRuntimeLink($filesystem, $code, $target);
     }
 
     public function deleteFrontendRuntime(string $code = null): void
@@ -162,34 +161,11 @@ class AddonAction
         $code = $code ?? $this->code;
         $filesystem = new Filesystem();
         $this->deletePath($this->addonFrontendPublicPath($code), $filesystem);
-        $filesystem->deleteDirectory($this->addonFrontendRuntimePath($code));
-    }
-
-    private function addonFrontendRuntimePath(string $code): string
-    {
-        $base = function_exists('addon_storage_path')
-            ? addon_storage_path($code)
-            : storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.$code);
-
-        return rtrim($base, \DIRECTORY_SEPARATOR);
     }
 
     private function addonFrontendPublicPath(string $code): string
     {
         return public_path($this->adminWebPrefix().\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.$code);
-    }
-
-    private function publishFrontendRuntimeLink(Filesystem $filesystem, string $code, string $target): void
-    {
-        $link = $this->addonFrontendPublicPath($code);
-        $this->deletePath($link, $filesystem);
-        $this->ensureDirectoryWritable(\dirname($link));
-
-        if (@symlink($target, $link)) {
-            return;
-        }
-
-        $filesystem->copyDirectory($target, $link);
     }
 
     private function deletePath(string $path, Filesystem $filesystem): void

@@ -631,7 +631,8 @@ it('upgrade addon from downloaded package', function (): void {
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'upgrade.log'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
+        ->and(is_link($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
@@ -1170,7 +1171,8 @@ it('installs addon from separated release package', function (): void {
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
+        ->and(is_link($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
         ->and($fakeService->synced)->toHaveCount(1);
 
@@ -1228,7 +1230,8 @@ it('keeps frontend source when cloud install requests source', function (): void
     AddonAction::install('test', 0, false, true);
 
     expect(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeTrue()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
+        ->and(is_link($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
@@ -1284,7 +1287,8 @@ it('cloud install source request succeeds when package has no frontend source', 
 
     expect(Addon::hasAddon('test'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'src'.\DIRECTORY_SEPARATOR.'main.ts'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
+        ->and(is_link($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
 
     $filesystem->deleteDirectory($basePath);
