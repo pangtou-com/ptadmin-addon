@@ -244,22 +244,52 @@ class PTCompiler extends BladeCompiler
 
         if ('head' === $method) {
             if ($parse->isParamEmpty()) {
-                return "<?php echo \\seo_meta_keywords(); ?>\n<?php echo \\seo_meta_description(); ?>\n<?php echo \\seo_link_canonical(); ?>\n<?php echo \\seo_meta_robots(); ?>\n<?php echo \\seo_social(); ?>\n<?php echo \\seo_jsonld_render(); ?>";
+                return implode("\n", [
+                    $this->compileHostSeoHeadLine('\\seo_meta_keywords()'),
+                    $this->compileHostSeoHeadLine('\\seo_meta_description()'),
+                    $this->compileHostSeoHeadLine('\\seo_link_canonical()'),
+                    $this->compileHostSeoHeadLine('\\seo_meta_robots()'),
+                    $this->compileHostSeoHeadLine('\\seo_social()'),
+                    $this->compileHostSeoHeadLine('\\seo_jsonld_render()'),
+                ]);
             }
 
             $overrides = $this->buildHostSeoOverrideExpression($parse);
             $overrideVar = '$__ptSeoHead';
 
-            return "<?php {$overrideVar} = {$overrides}; ?>\n"
-                ."<?php if (data_get({$overrideVar}, 'with_keywords', true)) echo \\seo_meta_keywords(data_get({$overrideVar}, 'keywords'), ['mode' => data_get({$overrideVar}, 'keywords_mode', 'append')]); ?>\n"
-                ."<?php if (data_get({$overrideVar}, 'with_description', true)) echo \\seo_meta_description(data_get({$overrideVar}, 'description'), ['mode' => data_get({$overrideVar}, 'description_mode', 'replace')]); ?>\n"
-                ."<?php if (data_get({$overrideVar}, 'with_canonical', true)) echo \\seo_link_canonical(data_get({$overrideVar}, 'canonical'), ['mode' => data_get({$overrideVar}, 'canonical_mode', 'replace')]); ?>\n"
-                ."<?php if (data_get({$overrideVar}, 'with_robots', true)) echo \\seo_meta_robots(data_get({$overrideVar}, 'robots'), ['mode' => data_get({$overrideVar}, 'robots_mode', 'replace')]); ?>\n"
-                ."<?php if (data_get({$overrideVar}, 'with_social', true)) echo \\seo_social({$overrideVar}); ?>\n"
-                ."<?php if (data_get({$overrideVar}, 'with_jsonld', true)) echo \\seo_jsonld_render({$overrideVar}); ?>";
+            return "<?php {$overrideVar} = {$overrides}; ?>\n".implode("\n", [
+                $this->compileHostSeoHeadLine(
+                    "\\seo_meta_keywords(data_get({$overrideVar}, 'keywords'), ['mode' => data_get({$overrideVar}, 'keywords_mode', 'append')])",
+                    "data_get({$overrideVar}, 'with_keywords', true)"
+                ),
+                $this->compileHostSeoHeadLine(
+                    "\\seo_meta_description(data_get({$overrideVar}, 'description'), ['mode' => data_get({$overrideVar}, 'description_mode', 'replace')])",
+                    "data_get({$overrideVar}, 'with_description', true)"
+                ),
+                $this->compileHostSeoHeadLine(
+                    "\\seo_link_canonical(data_get({$overrideVar}, 'canonical'), ['mode' => data_get({$overrideVar}, 'canonical_mode', 'replace')])",
+                    "data_get({$overrideVar}, 'with_canonical', true)"
+                ),
+                $this->compileHostSeoHeadLine(
+                    "\\seo_meta_robots(data_get({$overrideVar}, 'robots'), ['mode' => data_get({$overrideVar}, 'robots_mode', 'replace')])",
+                    "data_get({$overrideVar}, 'with_robots', true)"
+                ),
+                $this->compileHostSeoHeadLine("\\seo_social({$overrideVar})", "data_get({$overrideVar}, 'with_social', true)"),
+                $this->compileHostSeoHeadLine("\\seo_jsonld_render({$overrideVar})", "data_get({$overrideVar}, 'with_jsonld', true)"),
+            ]);
         }
 
         return "<?php \\apply_seo_overrides({$this->buildHostSeoOverrideExpression($parse)}); ?>";
+    }
+
+    private function compileHostSeoHeadLine(string $expression, ?string $condition = null): string
+    {
+        $output = "\$__ptSeoLine = {$expression}; if ('' !== \$__ptSeoLine) echo \$__ptSeoLine.PHP_EOL;";
+        if (null !== $condition) {
+            $output = "if ({$condition}) { {$output} }";
+        }
+
+        return "<?php {$output} ?>";
     }
 
     /**

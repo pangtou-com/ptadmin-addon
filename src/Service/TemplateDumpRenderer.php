@@ -150,20 +150,21 @@ final class TemplateDumpRenderer
     private function renderFields(array $value, string $label): string
     {
         $rows = '';
-        foreach (array_keys($this->flatten($value)) as $key) {
+        foreach ($this->fieldRows($value, $label) as $row) {
             $rows .= '<tr>'
-                .'<td><code>'.$this->escape($key).'</code></td>'
-                .'<td>'.$this->escape($this->describeField($label, $key)).'</td>'
-                .'<td><code>'.$this->escape('{$'.$label.'.'.$key.'}').'</code></td>'
+                .'<td><code>'.$this->escape($row['field']).'</code></td>'
+                .'<td>'.$this->escape($row['type']).'</td>'
+                .'<td>'.$this->escape($this->describeField($label, $row['field'])).'</td>'
+                .'<td><code>'.$this->escape($row['example']).'</code></td>'
                 .'</tr>';
         }
 
         if ('' === $rows) {
-            $rows = '<tr><td colspan="3">暂无字段。</td></tr>';
+            $rows = '<tr><td colspan="4">暂无字段。</td></tr>';
         }
 
         return '<div class="pt-dump__table-wrap"><table class="pt-dump__table">'
-            .'<thead><tr><th>字段</th><th>说明</th><th>模板输出</th></tr></thead>'
+            .'<thead><tr><th>字段</th><th>类型</th><th>说明</th><th>模板输出</th></tr></thead>'
             .'<tbody>'.$rows.'</tbody>'
             .'</table></div>';
     }
@@ -263,6 +264,229 @@ final class TemplateDumpRenderer
     private function isAssoc(array $value): bool
     {
         return [] !== $value && array_keys($value) !== range(0, \count($value) - 1);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     *
+     * @return array<int, array{field:string,type:string,example:string}>
+     */
+    private function fieldRows(array $value, string $label, string $prefix = ''): array
+    {
+        $rows = [];
+        foreach ($value as $key => $item) {
+            if (\is_int($key)) {
+                continue;
+            }
+
+            $field = '' === $prefix ? (string) $key : $prefix.'.'.$key;
+            $rows[] = [
+                'field' => $field,
+                'type' => $this->describeType($item),
+                'example' => $this->templateExample($label, $field, $item),
+            ];
+
+            if (\is_array($item) && $this->isAssoc($item)) {
+                $rows = array_merge($rows, $this->fieldRows($item, $label, $field));
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function describeType($value): string
+    {
+        if (null === $value) {
+            return 'null';
+        }
+        if (\is_bool($value)) {
+            return 'boolean';
+        }
+        if (\is_int($value) || \is_float($value)) {
+            return 'number';
+        }
+        if (\is_string($value)) {
+            return 'string';
+        }
+        if (\is_object($value)) {
+            return 'object';
+        }
+        if (!\is_array($value)) {
+            return 'mixed';
+        }
+        if ($this->isAssoc($value)) {
+            return 'object';
+        }
+        if ([] === $value) {
+            return 'list';
+        }
+
+        $types = array_values(array_unique(array_map(function ($item): string {
+            return $this->baseType($item);
+        }, $value)));
+
+        return 1 === \count($types) ? 'list<'.$types[0].'>' : 'list<mixed>';
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function baseType($value): string
+    {
+        if (null === $value) {
+            return 'null';
+        }
+        if (\is_bool($value)) {
+            return 'boolean';
+        }
+        if (\is_int($value) || \is_float($value)) {
+            return 'number';
+        }
+        if (\is_string($value)) {
+            return 'string';
+        }
+        if (\is_array($value) && $this->isAssoc($value)) {
+            return 'object';
+        }
+        if (\is_array($value)) {
+            return 'array';
+        }
+        if (\is_object($value)) {
+            return 'object';
+        }
+
+        return 'mixed';
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function templateExample(string $label, string $field, $value): string
+    {
+        if (\is_array($value)) {
+            if ($this->isAssoc($value)) {
+                $childPath = $this->firstScalarPath($value);
+                if (null !== $childPath) {
+                    return '{$'.$label.'.'.$field.'.'.$childPath.'}';
+                }
+
+                return '{{ json_encode('.$this->bracketAccess($label, $field).' ?? [], JSON_UNESCAPED_UNICODE) }}';
+            }
+
+            if ([] === $value) {
+                return '@foreach('.$this->bracketAccess($label, $field).' ?? [] as $item) ... @endforeach';
+            }
+
+            $first = $this->firstNonNull($value);
+            if (\is_array($first) && $this->isAssoc($first)) {
+                $variable = $this->loopVariable($field);
+                $childPath = $this->firstScalarPath($first);
+                $inner = null === $childPath ? '{{ json_encode('.$variable.', JSON_UNESCAPED_UNICODE) }}' : '{$'.ltrim($variable, '$').'.'.$childPath.'}';
+
+                return '@foreach('.$this->bracketAccess($label, $field).' ?? [] as '.$variable.') '.$inner.' @endforeach';
+            }
+
+            if ($this->isScalarList($value)) {
+                return '{{ implode(\',\', '.$this->bracketAccess($label, $field).' ?? []) }}';
+            }
+
+            return '{{ json_encode('.$this->bracketAccess($label, $field).' ?? [], JSON_UNESCAPED_UNICODE) }}';
+        }
+
+        if (\is_object($value)) {
+            return '{{ json_encode('.$this->bracketAccess($label, $field).' ?? null, JSON_UNESCAPED_UNICODE) }}';
+        }
+
+        return '{$'.$label.'.'.$field.'}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function firstScalarPath(array $value, string $prefix = ''): ?string
+    {
+        foreach ($value as $key => $item) {
+            if (\is_int($key)) {
+                continue;
+            }
+
+            $field = '' === $prefix ? (string) $key : $prefix.'.'.$key;
+            if (\is_array($item) && $this->isAssoc($item)) {
+                $nested = $this->firstScalarPath($item, $field);
+                if (null !== $nested) {
+                    return $nested;
+                }
+
+                continue;
+            }
+
+            if (!\is_array($item) && !\is_object($item)) {
+                return $field;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, mixed> $value
+     *
+     * @return mixed
+     */
+    private function firstNonNull(array $value)
+    {
+        foreach ($value as $item) {
+            if (null !== $item) {
+                return $item;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, mixed> $value
+     */
+    private function isScalarList(array $value): bool
+    {
+        foreach ($value as $item) {
+            if (null !== $item && !\is_scalar($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function bracketAccess(string $label, string $field): string
+    {
+        $expression = '$'.$label;
+        foreach (explode('.', $field) as $segment) {
+            $expression .= "['".str_replace("'", "\\'", $segment)."']";
+        }
+
+        return $expression;
+    }
+
+    private function loopVariable(string $field): string
+    {
+        $segments = explode('.', $field);
+        $name = (string) end($segments);
+        if (\strlen($name) > 3 && 'ies' === substr($name, -3)) {
+            $name = substr($name, 0, -3).'y';
+        } elseif (\strlen($name) > 1 && 's' === substr($name, -1)) {
+            $name = substr($name, 0, -1);
+        }
+        $name = preg_replace('/[^A-Za-z0-9_]+/', '_', $name) ?: 'item';
+        $name = trim($name, '_');
+        if ('' === $name || !preg_match('/^[A-Za-z_]/', $name)) {
+            $name = 'item';
+        }
+
+        return '$'.$name;
     }
 
     private function describeField(string $label, string $field): string

@@ -26,6 +26,17 @@ class TestRuntimeDirectives
                 'context_route' => (string) data_get($context, 'route', ''),
                 'context_type' => (string) data_get($context, 'resolved.type', ''),
                 'context_parent_title' => (string) data_get($context, 'directives.test.stack.'.(max(0, \count((array) data_get($context, 'directives.test.stack', [])) - 1)).'.title', ''),
+                'category' => [
+                    'title' => 'category-'.$i,
+                    'url' => '/category-'.$i,
+                ],
+                'tags' => ['cms', 'ptadmin'],
+                'images' => [
+                    [
+                        'url' => '/images/'.$i.'.jpg',
+                        'title' => 'image-'.$i,
+                    ],
+                ],
             ];
         }
 

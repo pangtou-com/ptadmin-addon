@@ -245,12 +245,16 @@ it('renders shared pt dump directive once inside loops', function (): void {
     );
 
     expect(substr_count($output, '@pt:dump(stack)'))->toBe(1)
-        ->and($output)->toContain('<th>字段</th><th>说明</th><th>模板输出</th>')
+        ->and($output)->toContain('<th>字段</th><th>类型</th><th>说明</th><th>模板输出</th>')
         ->and($output)->toContain('{$stack.title}')
+        ->and($output)->toContain('category')
+        ->and($output)->toContain('{$stack.category.title}')
+        ->and($output)->toContain('list&lt;string&gt;')
+        ->and($output)->toContain('{{ implode(\',\', $stack[\'tags\'] ?? []) }}')
+        ->and($output)->toContain('list&lt;object&gt;')
+        ->and($output)->toContain('@foreach($stack[\'images\'] ?? [] as $image) {$image.url} @endforeach')
         ->and($output)->toContain('查看帮助文档')
-        ->and($output)->toContain('https://docs.pangtou.com?directive=stack')
-        ->and($output)->not->toContain('<th>类型</th>')
-        ->and($output)->not->toContain('<th>示例值</th>');
+        ->and($output)->toContain('https://docs.pangtou.com?directive=stack');
 });
 
 it('renders shared pt dump directive from explicit context and alias', function (): void {
@@ -378,10 +382,11 @@ it('compiles host seo social and jsonld directives', function (): void {
 
     expect($compiled)->toContain('echo \seo_social();')
         ->and($compiled)->toContain('echo \seo_jsonld_render();')
-        ->and($compiled)->toContain('echo \seo_meta_keywords();')
-        ->and($compiled)->toContain('echo \seo_meta_description();')
-        ->and($compiled)->toContain('echo \seo_link_canonical();')
-        ->and($compiled)->toContain('echo \seo_meta_robots();');
+        ->and($compiled)->toContain('$__ptSeoLine = \seo_meta_keywords();')
+        ->and($compiled)->toContain('$__ptSeoLine = \seo_meta_description();')
+        ->and($compiled)->toContain('$__ptSeoLine = \seo_link_canonical();')
+        ->and($compiled)->toContain('$__ptSeoLine = \seo_meta_robots();')
+        ->and($compiled)->toContain('$__ptSeoLine.PHP_EOL');
 });
 
 it('renders host seo social and jsonld directives', function (): void {
@@ -398,14 +403,30 @@ it('renders host seo social and jsonld directives', function (): void {
         ->and($output)->toContain('<meta name="robots" content="index,follow">');
 });
 
+it('renders host seo head directive with one entry per line', function (): void {
+    $output = renderBladeSnippet('@pt:seo::head()');
+
+    expect($output)->toBe(implode(PHP_EOL, [
+        '<meta name="keywords" content="cms,ptadmin">',
+        '<meta name="description" content="shared description">',
+        '<link rel="canonical" href="/cms">',
+        '<meta name="robots" content="index,follow">',
+        '<meta property="og:title" content="shared title">',
+        '<meta name="twitter:card" content="summary">',
+        '<script type="application/ld+json">{"@type":"WebPage"}</script>',
+    ]));
+});
+
 it('renders host seo head directive with selective output toggles', function (): void {
     $output = renderBladeSnippet(
         '@pt:seo::head(keywords="activity",keywords_mode="append",with_social=false,with_jsonld=false,with_robots=false)'
     );
 
-    expect($output)->toContain('<meta name="keywords" content="cms,ptadmin, activity">')
-        ->and($output)->toContain('<meta name="description" content="shared description">')
-        ->and($output)->toContain('<link rel="canonical" href="/cms">')
+    expect($output)->toBe(implode(PHP_EOL, [
+        '<meta name="keywords" content="cms,ptadmin, activity">',
+        '<meta name="description" content="shared description">',
+        '<link rel="canonical" href="/cms">',
+    ]))
         ->and($output)->not->toContain('<meta name="robots" content="index,follow">')
         ->and($output)->not->toContain('twitter:card')
         ->and($output)->not->toContain('application/ld+json');
