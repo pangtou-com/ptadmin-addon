@@ -69,3 +69,10 @@ it('persists directive context definitions', function (): void {
     expect($definition)->toBeArray()
         ->and($definition['context'] ?? null)->toBe(DirectiveDefinition::CONTEXT_PAGE);
 });
+
+it('resolves short directive names to the unique addon definition', function (): void {
+    $manage = AddonDirectivesManage::getInstance();
+
+    expect($manage->resolveDirectiveAddon('lists'))->toBe('test')
+        ->and($manage->resolveDirectiveAddon('missing'))->toBeNull();
+});

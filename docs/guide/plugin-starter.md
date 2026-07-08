@@ -285,7 +285,7 @@ class ListsDirective
 模板中调用：
 
 ```blade
-@pt:demo::lists(limit=10)
+@pt:lists(limit=10,id=item)
     {{ $item['title'] }}
 @pt:end
 ```

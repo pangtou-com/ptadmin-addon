@@ -157,6 +157,24 @@ class PTCompiler extends BladeCompiler
             }
         }
 
+        $directive = $this->resolveShortDirectiveAction($data);
+        if (null !== $directive) {
+            $parse = Parser::make(Arr::get($match, 5));
+            if ($parse->isOutput()) {
+                return $this->outputCompile($parse, $directive);
+            }
+
+            if ($instance->isLoop($directive['name'], $directive['method'])) {
+                return $this->loopCompile($parse, $directive);
+            }
+
+            if ($instance->isOutput($directive['name'], $directive['method'])) {
+                return $this->echoCompile($parse, $directive);
+            }
+
+            return $this->ifCompile($parse, $directive);
+        }
+
         return $this->callLaravelDirective($match);
     }
 
@@ -320,7 +338,7 @@ class PTCompiler extends BladeCompiler
      * 解析出是否为结束标签.
      *
      * @pt:end // 简介默认为foreach关闭
-     * @pt:demo::endarc    // 根据配置关闭
+     * @pt:endarc    // 根据配置关闭
      *
      * @param $match
      * @param null|mixed $data
@@ -344,6 +362,18 @@ class PTCompiler extends BladeCompiler
             }
 
             return '<?php endif; ?>';
+        }
+
+        if (isset($data['name']) && null === $data['method']) {
+            $method = mb_substr((string) $data['name'], 3);
+            $directive = $this->resolveShortDirectiveAction(['name' => $method, 'method' => null]);
+            if (null !== $directive) {
+                if ($instance->isLoop($directive['name'], $directive['method'])) {
+                    return $this->compilePtLoopEnd();
+                }
+
+                return '<?php endif; ?>';
+            }
         }
 
         return $this->callLaravelDirective($match);
@@ -391,6 +421,29 @@ class PTCompiler extends BladeCompiler
         }
 
         return ['name' => $name, 'method' => $method];
+    }
+
+    /**
+     * @param array{name:string|null, method:string|null} $data
+     *
+     * @return array{name:string, method:string}|null
+     */
+    private function resolveShortDirectiveAction(array $data): ?array
+    {
+        $method = trim((string) ($data['name'] ?? ''));
+        if ('' === $method || null !== $data['method']) {
+            return null;
+        }
+
+        $addonCode = AddonDirectivesManage::getInstance()->resolveDirectiveAddon($method);
+        if (null === $addonCode) {
+            return null;
+        }
+
+        return [
+            'name' => $addonCode,
+            'method' => $method,
+        ];
     }
 
     private function compileHostSeoEchoDirective(array $match, string $helper, bool $escape = false): string

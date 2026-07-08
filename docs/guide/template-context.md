@@ -145,6 +145,14 @@ $manager->register(
 
 ## 模板变量规则
 
+插件指令默认使用短语法：
+
+```blade
+@pt:lists
+```
+
+编译器会按指令名查找唯一的插件定义；如果多个插件声明了同名指令，需要重命名指令，或通过 `addon.directives.default_addon` 固定默认插件。
+
 循环指令的模板变量规则固定如下：
 
 - 显式写了 `id`，使用显式变量名
@@ -154,7 +162,7 @@ $manager->register(
 示例一，使用默认变量：
 
 ```blade
-@pt:demo::lists
+@pt:lists
     {{ data_get($field, 'title') }}
 @pt:end
 ```
@@ -162,7 +170,7 @@ $manager->register(
 示例二，使用显式变量：
 
 ```blade
-@pt:demo::lists(id=item)
+@pt:lists(id=item)
     {{ data_get($item, 'title') }}
 @pt:end
 ```
@@ -195,7 +203,7 @@ $manager->register(
 循环中默认只输出一次，避免列表中重复刷屏：
 
 ```blade
-@pt:demo::lists(id=item)
+@pt:lists(id=item)
     @pt:dump()
 @pt:end
 ```

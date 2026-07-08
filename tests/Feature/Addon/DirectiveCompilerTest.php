@@ -162,7 +162,7 @@ function renderBladeSnippet(string $template): string
 
 it('compiles plugin loop directives with generic end tag', function (): void {
     $compiled = app('blade.compiler')->compileString(
-        "@pt:test::arc(limit=2,id=item)\n{{ \$item['title'] }}\n@pt:end"
+        "@pt:arc(limit=2,id=item)\n{{ \$item['title'] }}\n@pt:end"
     );
 
     expect($compiled)->toContain("\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle('test','arc'")
@@ -172,7 +172,7 @@ it('compiles plugin loop directives with generic end tag', function (): void {
 
 it('compiles plugin loop directives with explicit end directive', function (): void {
     $compiled = app('blade.compiler')->compileString(
-        "@pt:test::arc(limit=2,id=item)\n{{ \$item['title'] }}\n@pt:test::endarc"
+        "@pt:arc(limit=2,id=item)\n{{ \$item['title'] }}\n@pt:endarc"
     );
 
     expect($compiled)->toContain("\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle('test','arc'")
@@ -182,7 +182,7 @@ it('compiles plugin loop directives with explicit end directive', function (): v
 
 it('renders plugin loop directives and executes directive handler', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=2,id=item)\n{{ \$item['title'] }}|\n@pt:test::endarc"
+        "@pt:arc(limit=2,id=item)\n{{ \$item['title'] }}|\n@pt:endarc"
     );
 
     expect($output)->toContain('arc-1|')
@@ -190,18 +190,18 @@ it('renders plugin loop directives and executes directive handler', function ():
 });
 
 it('renders plugin output directives directly', function (): void {
-    $compiled = app('blade.compiler')->compileString('@pt:test::badge(label="状态")');
+    $compiled = app('blade.compiler')->compileString('@pt:badge(label="状态")');
 
     expect($compiled)->toContain('echo \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle');
 
-    $output = renderBladeSnippet('@pt:test::badge(label="状态")');
+    $output = renderBladeSnippet('@pt:badge(label="状态")');
 
     expect($output)->toBe('<strong>状态</strong>');
 });
 
 it('uses $field as the default loop variable when id is omitted', function (): void {
     $compiled = app('blade.compiler')->compileString(
-        "@pt:test::arc(limit=2)\n{{ \$field['title'] }}\n@pt:end"
+        "@pt:arc(limit=2)\n{{ \$field['title'] }}\n@pt:end"
     );
 
     expect($compiled)->toContain('foreach($__currentLoopData as $field)')
@@ -211,7 +211,7 @@ it('uses $field as the default loop variable when id is omitted', function (): v
 
 it('renders plugin loop directives with the default $field variable', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=2)\n{{ \$field[0]['title'] ?? \$field['title'] }}|\n@pt:end"
+        "@pt:arc(limit=2)\n{{ \$field[0]['title'] ?? \$field['title'] }}|\n@pt:end"
     );
 
     expect($output)->toContain('arc-1|')
@@ -220,7 +220,7 @@ it('renders plugin loop directives with the default $field variable', function (
 
 it('compiles plugin directives to assigned output variables', function (): void {
     $compiled = app('blade.compiler')->compileString(
-        "@pt:test::arc(limit=2,out=field)\n{{ \$field[0]['title'] }}"
+        "@pt:arc(limit=2,out=field)\n{{ \$field[0]['title'] }}"
     );
 
     expect($compiled)->toContain("\$field = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle('test','arc'")
@@ -229,7 +229,7 @@ it('compiles plugin directives to assigned output variables', function (): void 
 
 it('renders assigned output variables from plugin directives', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=2,out=field)\n{{ \$field[0]['title'] }}|{{ \$field[1]['title'] }}"
+        "@pt:arc(limit=2,out=field)\n{{ \$field[0]['title'] }}|{{ \$field[1]['title'] }}"
     );
 
     expect($output)->toContain('arc-1|arc-2');
@@ -241,7 +241,7 @@ it('renders shared pt dump directive once inside loops', function (): void {
     expect($compiled)->toContain('TemplateDumpRenderer::class');
 
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=2,id=archive)\n@pt:dump()\n@pt:end"
+        "@pt:arc(limit=2,id=archive)\n@pt:dump()\n@pt:end"
     );
 
     expect(substr_count($output, '@pt:dump(stack)'))->toBe(1)
@@ -268,7 +268,7 @@ it('renders shared pt dump directive from explicit context and alias', function 
 
 it('passes runtime context through dto payload', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=1)\n{{ \$field['context_route'] }}|{{ \$field['context_type'] }}\n@pt:end"
+        "@pt:arc(limit=1)\n{{ \$field['context_route'] }}|{{ \$field['context_type'] }}\n@pt:end"
     );
 
     expect($output)->toContain('/runtime/demo|archive');
@@ -276,7 +276,7 @@ it('passes runtime context through dto payload', function (): void {
 
 it('compiles empty fallback text for loop directives', function (): void {
     $compiled = app('blade.compiler')->compileString(
-        "@pt:test::arc(limit=0,id=item,empty=\"暂无数据\")\n{{ \$item['title'] }}\n@pt:end"
+        "@pt:arc(limit=0,id=item,empty=\"暂无数据\")\n{{ \$item['title'] }}\n@pt:end"
     );
 
     expect($compiled)->toContain("if (blank(\$__currentLoopData)): echo e('暂无数据'); endif;")
@@ -285,7 +285,7 @@ it('compiles empty fallback text for loop directives', function (): void {
 
 it('renders empty fallback text for loop directives', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=0,id=item,empty=\"暂无数据\")\n{{ \$item['title'] }}\n@pt:end"
+        "@pt:arc(limit=0,id=item,empty=\"暂无数据\")\n{{ \$item['title'] }}\n@pt:end"
     );
 
     expect($output)->toContain('暂无数据')
@@ -294,7 +294,7 @@ it('renders empty fallback text for loop directives', function (): void {
 
 it('compiles empty blocks for loop directives', function (): void {
     $compiled = app('blade.compiler')->compileString(
-        "@pt:test::arc(limit=0,id=item)\n{{ \$item['title'] }}\n@pt:empty\n暂无数据\n@pt:end"
+        "@pt:arc(limit=0,id=item)\n{{ \$item['title'] }}\n@pt:empty\n暂无数据\n@pt:end"
     );
 
     expect($compiled)->toContain('foreach($__currentLoopData as $item)')
@@ -305,7 +305,7 @@ it('compiles empty blocks for loop directives', function (): void {
 
 it('renders empty blocks for loop directives', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=0,id=item)\n{{ \$item['title'] }}\n@pt:empty\n暂无数据\n@pt:end"
+        "@pt:arc(limit=0,id=item)\n{{ \$item['title'] }}\n@pt:empty\n暂无数据\n@pt:end"
     );
 
     expect($output)->toContain('暂无数据')
@@ -314,7 +314,7 @@ it('renders empty blocks for loop directives', function (): void {
 
 it('uses explicit empty blocks before empty attributes', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=0,id=item,empty=\"参数空数据\")\n{{ \$item['title'] }}\n@pt:empty\n块空数据\n@pt:end"
+        "@pt:arc(limit=0,id=item,empty=\"参数空数据\")\n{{ \$item['title'] }}\n@pt:empty\n块空数据\n@pt:end"
     );
 
     expect($output)->toContain('块空数据')
@@ -323,9 +323,9 @@ it('uses explicit empty blocks before empty attributes', function (): void {
 
 it('binds empty blocks to the nearest loop directive', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=1,id=parent)\n"
+        "@pt:arc(limit=1,id=parent)\n"
         ."P{{ \$parent['title'] }}\n"
-        ."@pt:test::arc(limit=0,id=child)\n"
+        ."@pt:arc(limit=0,id=child)\n"
         ."C{{ \$child['title'] }}\n"
         ."@pt:empty\n"
         ."EMPTY-{{ \$parent['title'] }}\n"
@@ -341,8 +341,8 @@ it('binds empty blocks to the nearest loop directive', function (): void {
 
 it('pushes loop items into directive runtime context stacks', function (): void {
     $output = renderBladeSnippet(
-        "@pt:test::arc(limit=1,id=parent)\n"
-        ."@pt:test::arc(limit=1,id=child)\n"
+        "@pt:arc(limit=1,id=parent)\n"
+        ."@pt:arc(limit=1,id=child)\n"
         ."{{ \$child['context_parent_title'] }}\n"
         ."@pt:end\n"
         ."@pt:end"

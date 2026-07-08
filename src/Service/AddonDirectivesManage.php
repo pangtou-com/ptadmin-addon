@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service;
 
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\Exception\DirectivesException;
 
 /**
  * PTAdmin 插件模版指令管理器.
@@ -176,6 +177,40 @@ class AddonDirectivesManage
         $this->bootstrap($addonCode);
 
         return $this->definitions[$addonCode][$name] ?? null;
+    }
+
+    public function resolveDirectiveAddon(string $name): ?string
+    {
+        $name = trim($name);
+        if ('' === $name) {
+            return null;
+        }
+
+        $configured = trim((string) config('addon.directives.default_addon', ''));
+        if ('' !== $configured && Addon::hasAddon($configured) && \is_array($this->getDirective($configured, $name))) {
+            return $configured;
+        }
+
+        $matches = [];
+        foreach (array_keys(Addon::getAddons()) as $addonCode) {
+            if (\is_array($this->getDirective((string) $addonCode, $name))) {
+                $matches[] = (string) $addonCode;
+            }
+        }
+
+        if ([] === $matches) {
+            return null;
+        }
+
+        if (\count($matches) > 1) {
+            throw new DirectivesException(sprintf(
+                'PT directive [%s] is registered by multiple addons [%s]. Please rename one directive or configure addon.directives.default_addon.',
+                $name,
+                implode(', ', $matches)
+            ));
+        }
+
+        return $matches[0];
     }
 
     public function getAll(): array
