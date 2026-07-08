@@ -29,6 +29,18 @@ function seo_title(?string $value = null, array $options = []): string {
 PHP);
     }
 
+    if (!\function_exists('seo_favicon')) {
+        eval(<<<'PHP'
+function seo_favicon(?string $value = null, array $options = []): string {
+    $href = null === $value ? '/favicon.ico' : $value;
+
+    return '<link rel="icon" href="'.$href.'" type="image/x-icon">'.PHP_EOL
+        .'<link rel="shortcut icon" href="'.$href.'" type="image/x-icon">'.PHP_EOL
+        .'<link rel="apple-touch-icon" href="'.$href.'">';
+}
+PHP);
+    }
+
     if (!\function_exists('seo_meta_keywords')) {
         eval(<<<'PHP'
 function seo_meta_keywords(?string $value = null, array $options = []): string {
@@ -382,6 +394,7 @@ it('compiles host seo social and jsonld directives', function (): void {
 
     expect($compiled)->toContain('echo \seo_social();')
         ->and($compiled)->toContain('echo \seo_jsonld_render();')
+        ->and($compiled)->toContain('$__ptSeoLine = \seo_favicon();')
         ->and($compiled)->toContain('$__ptSeoLine = \seo_meta_keywords();')
         ->and($compiled)->toContain('$__ptSeoLine = \seo_meta_description();')
         ->and($compiled)->toContain('$__ptSeoLine = \seo_link_canonical();')
@@ -397,6 +410,9 @@ it('renders host seo social and jsonld directives', function (): void {
     expect($output)->toContain('<meta property="og:title" content="shared title">')
         ->and($output)->toContain('<meta name="twitter:card" content="summary">')
         ->and($output)->toContain('"@type":"WebPage"')
+        ->and($output)->toContain('<link rel="icon" href="/favicon.ico" type="image/x-icon">')
+        ->and($output)->toContain('<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">')
+        ->and($output)->toContain('<link rel="apple-touch-icon" href="/favicon.ico">')
         ->and($output)->toContain('<meta name="keywords" content="cms,ptadmin">')
         ->and($output)->toContain('<meta name="description" content="shared description">')
         ->and($output)->toContain('<link rel="canonical" href="/cms">')
@@ -407,6 +423,9 @@ it('renders host seo head directive with one entry per line', function (): void 
     $output = renderBladeSnippet('@pt:seo::head()');
 
     expect($output)->toBe(implode(PHP_EOL, [
+        '<link rel="icon" href="/favicon.ico" type="image/x-icon">',
+        '<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">',
+        '<link rel="apple-touch-icon" href="/favicon.ico">',
         '<meta name="keywords" content="cms,ptadmin">',
         '<meta name="description" content="shared description">',
         '<link rel="canonical" href="/cms">',
@@ -419,7 +438,7 @@ it('renders host seo head directive with one entry per line', function (): void 
 
 it('renders host seo head directive with selective output toggles', function (): void {
     $output = renderBladeSnippet(
-        '@pt:seo::head(keywords="activity",keywords_mode="append",with_social=false,with_jsonld=false,with_robots=false)'
+        '@pt:seo::head(keywords="activity",keywords_mode="append",with_favicon=false,with_social=false,with_jsonld=false,with_robots=false)'
     );
 
     expect($output)->toBe(implode(PHP_EOL, [
@@ -430,6 +449,18 @@ it('renders host seo head directive with selective output toggles', function ():
         ->and($output)->not->toContain('<meta name="robots" content="index,follow">')
         ->and($output)->not->toContain('twitter:card')
         ->and($output)->not->toContain('application/ld+json');
+});
+
+it('renders host seo head directive with favicon override', function (): void {
+    $output = renderBladeSnippet(
+        '@pt:seo::head(favicon="/custom.ico",with_keywords=false,with_description=false,with_canonical=false,with_robots=false,with_social=false,with_jsonld=false)'
+    );
+
+    expect($output)->toBe(implode(PHP_EOL, [
+        '<link rel="icon" href="/custom.ico" type="image/x-icon">',
+        '<link rel="shortcut icon" href="/custom.ico" type="image/x-icon">',
+        '<link rel="apple-touch-icon" href="/custom.ico">',
+    ]));
 });
 
 it('compiles host seo override directive to apply shared context overrides', function (): void {

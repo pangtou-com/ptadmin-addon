@@ -263,6 +263,7 @@ class PTCompiler extends BladeCompiler
         if ('head' === $method) {
             if ($parse->isParamEmpty()) {
                 return implode("\n", [
+                    $this->compileHostSeoHeadLine('\\seo_favicon()'),
                     $this->compileHostSeoHeadLine('\\seo_meta_keywords()'),
                     $this->compileHostSeoHeadLine('\\seo_meta_description()'),
                     $this->compileHostSeoHeadLine('\\seo_link_canonical()'),
@@ -276,6 +277,10 @@ class PTCompiler extends BladeCompiler
             $overrideVar = '$__ptSeoHead';
 
             return "<?php {$overrideVar} = {$overrides}; ?>\n".implode("\n", [
+                $this->compileHostSeoHeadLine(
+                    "\\seo_favicon(data_get({$overrideVar}, 'favicon'), ['mode' => data_get({$overrideVar}, 'favicon_mode', 'replace')])",
+                    "data_get({$overrideVar}, 'with_favicon', true)"
+                ),
                 $this->compileHostSeoHeadLine(
                     "\\seo_meta_keywords(data_get({$overrideVar}, 'keywords'), ['mode' => data_get({$overrideVar}, 'keywords_mode', 'append')])",
                     "data_get({$overrideVar}, 'with_keywords', true)"
