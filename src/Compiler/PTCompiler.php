@@ -81,6 +81,24 @@ class PTCompiler extends BladeCompiler
     }
 
     /**
+     * 编译 Blade 字符串。
+     *
+     * PT 循环栈只应该在单次模板编译内生效，避免一次未闭合或异常编译污染后续模板。
+     *
+     * @param string $value
+     */
+    public function compileString($value)
+    {
+        $this->resetPtLoopState();
+
+        try {
+            return parent::compileString($value);
+        } finally {
+            $this->resetPtLoopState();
+        }
+    }
+
+    /**
      * 编译以“@”开头的Blade语句。
      *
      * @param $value
@@ -574,7 +592,7 @@ class PTCompiler extends BladeCompiler
     {
         $loop = array_pop($this->ptLoopStack);
         if (!\is_array($loop)) {
-            return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>';
+            throw new DirectivesException('@pt:end must be used inside a loop directive.');
         }
 
         if ($loop['has_empty_block']) {
@@ -582,6 +600,12 @@ class PTCompiler extends BladeCompiler
         }
 
         return '<?php '.$this->compileLoopContextPop($loop['loop_context_key']).' endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();  ?>'.$loop['empty_attribute'];
+    }
+
+    private function resetPtLoopState(): void
+    {
+        $this->ptLoopStack = [];
+        $this->ptLoopCounter = 0;
     }
 
     /**

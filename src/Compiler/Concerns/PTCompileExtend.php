@@ -45,14 +45,15 @@ trait PTCompileExtend
      */
     protected function PTCompileEchos($value)
     {
-        $pattern = '/(@)?\{(:)?[ ]*(\$[a-zA-Z_](?:[^=]+?)(\.[a-zA-Z_](?:.+?))*(\(.*\))*)[ ]*}+/';
+        $pattern = '/(@)?\{(:)?\s*(\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*(?:\|[^\(\}]+?)?(\((?:[^()"\'\\\\]|\\\\.|"[^"\\\\]*(?:\\\\.[^"\\\\]*)*"|\'[^\'\\\\]*(?:\\\\.[^\'\\\\]*)*\')*\))?)\s*\}/u';
         $callback = function ($matches) {
             // @开头，不进行编译
             if ('@' === $matches[1]) {
                 return mb_substr($matches[0], 1);
             }
-            if (isset($matches[5]) && '' !== $matches[5]) {
-                $matches[3] = str_replace($matches[5], '', $matches[3]);
+            $arguments = $matches[4] ?? '';
+            if ('' !== $arguments) {
+                $matches[3] = str_replace($arguments, '', $matches[3]);
             }
             $out = $this->getOutputContent($matches);
             // 当未使用 {: $field } 调用时，默认为转译处理
@@ -86,7 +87,7 @@ trait PTCompileExtend
      */
     private function getOutputContent(array $matches): string
     {
-        $parse = Parser::make($matches[5] ?? '');
+        $parse = Parser::make($matches[4] ?? '');
         $default = $this->getDefaultValue($parse, $matches);
         list($name, $key) = $this->getVariableName($matches);
         $params = [$name, $key];

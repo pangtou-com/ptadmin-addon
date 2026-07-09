@@ -182,6 +182,37 @@ it('compiles plugin loop directives with generic end tag', function (): void {
         ->and($compiled)->toContain('endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();');
 });
 
+it('compiles plugin loops inside blade sections', function (): void {
+    $compiled = app('blade.compiler')->compileString(
+        "@section('content')\n"
+        ."@pt:arc(limit=2,id=item)\n"
+        ."<li>{{ \$item['title'] }}</li>\n"
+        ."@pt:end\n"
+        ."@endsection"
+    );
+
+    expect($compiled)->toContain('$__env->startSection')
+        ->and($compiled)->toContain("\\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle('test','arc'")
+        ->and($compiled)->toContain('foreach($__currentLoopData as $item)')
+        ->and($compiled)->toContain('endforeach; $__env->popLoop(); $loop = $__env->getLastLoop();')
+        ->and($compiled)->toContain('$__env->stopSection');
+});
+
+it('resets plugin loop state between template compilations', function (): void {
+    app('blade.compiler')->compileString("@pt:arc(limit=2,id=item)\n{{ \$item['title'] }}");
+
+    $compiled = app('blade.compiler')->compileString(
+        "@pt:arc(limit=2,id=archive)\n{{ \$archive['title'] }}\n@pt:end"
+    );
+
+    expect($compiled)->toContain('foreach($__currentLoopData as $archive)')
+        ->and($compiled)->toContain("\\pt_directive_context_pop('directives.test.stack'); endforeach;");
+});
+
+it('rejects generic end tags outside plugin loops', function (): void {
+    app('blade.compiler')->compileString('@pt:end');
+})->throws(\PTAdmin\Addon\Exception\DirectivesException::class, '@pt:end must be used inside a loop directive.');
+
 it('compiles plugin loop directives with explicit end directive', function (): void {
     $compiled = app('blade.compiler')->compileString(
         "@pt:arc(limit=2,id=item)\n{{ \$item['title'] }}\n@pt:endarc"
