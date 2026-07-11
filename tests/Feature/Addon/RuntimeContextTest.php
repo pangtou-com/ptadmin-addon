@@ -28,6 +28,26 @@ it('stores and reads runtime context through helpers', function (): void {
         ->and(runtime_context('page.pagination.total'))->toBe(10);
 });
 
+it('keeps custom page payload fields in runtime context', function (): void {
+    runtime_context_replace(runtime_context_page([
+        'route' => '/articles/1',
+        'resolved' => ['type' => 'archive'],
+        'page' => [
+            'id' => 1,
+            'title' => '文章标题',
+            'content' => [
+                'gallery' => [
+                    ['url' => '/uploads/one.jpg'],
+                    ['url' => '/uploads/two.jpg'],
+                ],
+            ],
+        ],
+    ]));
+
+    expect(runtime_context('page.content.gallery.0.url'))->toBe('/uploads/one.jpg')
+        ->and(runtime_context('page.content.gallery.1.url'))->toBe('/uploads/two.jpg');
+});
+
 it('merges runtime context with existing data', function (): void {
     runtime_context_replace(runtime_context_page([
         'route' => '/articles/1',

@@ -163,11 +163,14 @@ class Parser
         return $this->getExpression();
     }
 
-    public function toArray(): array
+    /**
+     * @param array<int, string> $includedControlAttributes
+     */
+    public function toArray(array $includedControlAttributes = []): array
     {
         $data = [];
         foreach ($this->result as $key => $value) {
-            if (\in_array($key,  ['empty', 'id'], true)) {
+            if (\in_array($key,  ['empty', 'id'], true) && !\in_array($key, $includedControlAttributes, true)) {
 
                 continue;
             }
@@ -189,14 +192,15 @@ class Parser
 
     /**
      * @param array<string, mixed> $extraAttributes
+     * @param array<int, string>   $includedControlAttributes
      */
-    public function buildExpression(array $extraAttributes = []): string
+    public function buildExpression(array $extraAttributes = [], array $includedControlAttributes = []): string
     {
         if ($this->isParamEmpty() && [] === $extraAttributes) {
             return '\\PTAdmin\\Addon\\Service\\DirectivesDTO::build()';
         }
         $result = '';
-        $data = $this->toArray();
+        $data = $this->toArray($includedControlAttributes);
         if ($this->hasAttribute('current') && !isset($extraAttributes['__pt_context'])) {
             $data['__pt_context'] = $this->buildCurrentContextExpression();
         }

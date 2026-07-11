@@ -48,7 +48,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
             'resolved' => [
                 'type' => data_get($resolved, 'type', ''),
             ],
-            'page' => [
+            'page' => array_replace_recursive($page, [
                 'id' => data_get($page, 'id'),
                 'title' => data_get($page, 'title'),
                 'subtitle' => data_get($page, 'subtitle'),
@@ -69,7 +69,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
                     'current_page' => data_get($page, 'current_page', data_get($page, 'pagination.current_page', 1)),
                     'per_page' => data_get($page, 'per_page', data_get($page, 'pagination.per_page', 0)),
                 ],
-            ],
+            ]),
             'seo' => [
                 'title' => data_get($page, 'seo.title', ''),
                 'keywords' => data_get($page, 'seo.keywords', ''),
@@ -175,7 +175,7 @@ class RuntimeContextNormalizer implements RuntimeContextNormalizerInterface
             'per_page' => max(0, (int) data_get($data, 'pagination.per_page', 0)),
         ];
 
-        return $current;
+        return array_replace_recursive($data, $current);
     }
 
     /**

@@ -453,7 +453,7 @@ class PTCompiler extends BladeCompiler
      */
     private function resolveShortDirectiveAction(array $data): ?array
     {
-        $method = trim((string) ($data['name'] ?? ''));
+        $method = trim($data['name'] ?? '');
         if ('' === $method || null !== $data['method']) {
             return null;
         }
@@ -621,7 +621,7 @@ class PTCompiler extends BladeCompiler
         $directiveName = $name;
         $name = $this->wrapName($directiveName);
 
-        return "<?php {$parse->getOutput()} = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); ?>";
+        return "<?php {$parse->getOutput()} = \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName, ['empty'])}); ?>";
     }
 
     /**
@@ -635,7 +635,7 @@ class PTCompiler extends BladeCompiler
         $directiveName = $name;
         $name = $this->wrapName($directiveName);
 
-        return "<?php echo \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName)}); ?>";
+        return "<?php echo \\PTAdmin\\Addon\\Service\\AddonDirectivesActuator::handle({$name} {$this->buildDirectiveExpression($parse, $directiveName, ['empty'])}); ?>";
     }
 
     /**
@@ -656,16 +656,17 @@ class PTCompiler extends BladeCompiler
 
     /**
      * @param array{name:string|null, method:string|null} $name
+     * @param array<int, string>                         $includedControlAttributes
      */
-    private function buildDirectiveExpression(Parser $parse, array $name): string
+    private function buildDirectiveExpression(Parser $parse, array $name, array $includedControlAttributes = []): string
     {
         $extraAttributes = [];
-        $context = $this->resolveDirectiveContext((string) ($name['name'] ?? ''), (string) ($name['method'] ?? ''));
+        $context = $this->resolveDirectiveContext($name['name'] ?? '', $name['method'] ?? '');
         if (null !== $context) {
             $extraAttributes['__pt_context'] = "\\runtime_context_current()";
         }
 
-        return $parse->buildExpression($extraAttributes);
+        return $parse->buildExpression($extraAttributes, $includedControlAttributes);
     }
 
     private function resolveDirectiveContext(string $addonCode, string $method): ?string
@@ -746,7 +747,7 @@ class PTCompiler extends BladeCompiler
         }
         $action = end($action);
 
-        return 'empty' === strtolower((string) $action);
+        return 'empty' === strtolower($action);
     }
 
     /**
