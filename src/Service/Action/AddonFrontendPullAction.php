@@ -269,7 +269,7 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         }
 
         throw new AddonException(__('ptadmin-addon::messages.command.frontend_pull_manifest_version_missing', [
-            'version' => $targetVersion ?: $requested,
+            'version' => '' !== $targetVersion ? $targetVersion : $requested,
         ]));
     }
 
@@ -310,9 +310,13 @@ final class AddonFrontendPullAction extends AbstractAddonAction
             return $url;
         }
 
-        $path = (string) (parse_url($base, PHP_URL_PATH) ?: '');
+        $parsedPath = parse_url($base, PHP_URL_PATH);
+        $path = \is_string($parsedPath) ? $parsedPath : '';
         if (preg_match('#\.[a-z0-9]+$#i', $path)) {
-            $base = preg_replace('#/[^/]*$#', '/', $base) ?: $base;
+            $replaced = preg_replace('#/[^/]*$#', '/', $base);
+            if (\is_string($replaced) && '' !== $replaced) {
+                $base = $replaced;
+            }
         }
 
         return rtrim($base, '/').'/'.ltrim($url, '/');
@@ -331,7 +335,9 @@ final class AddonFrontendPullAction extends AbstractAddonAction
             return $normalized;
         }
 
-        return strtolower(trim((string) config('addon.frontend_templates.default_template', 'module'))) ?: 'module';
+        $configured = strtolower(trim((string) config('addon.frontend_templates.default_template', 'module')));
+
+        return '' !== $configured ? $configured : 'module';
     }
 
     private function downloadArchive(string $url, string $downloadFile): void
@@ -368,7 +374,9 @@ final class AddonFrontendPullAction extends AbstractAddonAction
         if (\is_array($resolve) && [] !== $resolve) {
             $options['curl'] = [
                 CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                CURLOPT_RESOLVE => array_values(array_filter($resolve, static fn ($value): bool => \is_string($value) && '' !== trim($value))),
+                CURLOPT_RESOLVE => array_values(array_filter($resolve, static function ($value): bool {
+                    return \is_string($value) && '' !== trim($value);
+                })),
             ];
         }
 
@@ -391,7 +399,8 @@ final class AddonFrontendPullAction extends AbstractAddonAction
 
         $zip->close();
 
-        $entries = array_values(array_filter(scandir($extractPath) ?: [], static function (string $entry): bool {
+        $scanned = scandir($extractPath);
+        $entries = array_values(array_filter(\is_array($scanned) ? $scanned : [], static function (string $entry): bool {
             return !\in_array($entry, ['.', '..'], true);
         }));
 

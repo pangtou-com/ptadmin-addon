@@ -107,7 +107,7 @@ final class AddonPackageSourceResolver
             }
         }
 
-        return (string) Str::studly((string) $manifest['code']);
+        return Str::studly((string) $manifest['code']);
     }
 
     /**
@@ -180,7 +180,7 @@ final class AddonPackageSourceResolver
         );
 
         foreach ($iterator as $file) {
-            $relativePath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $iterator->getSubPathName()), DIRECTORY_SEPARATOR);
+            $relativePath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $iterator->getSubPathname()), DIRECTORY_SEPARATOR);
             $destinationPath = $targetPath.\DIRECTORY_SEPARATOR.$relativePath;
 
             if ($file->isDir()) {
@@ -201,7 +201,8 @@ final class AddonPackageSourceResolver
             return [];
         }
 
-        $dirs = array_diff(scandir($packageBase) ?: [], ['.', '..']);
+        $scanned = scandir($packageBase);
+        $dirs = array_diff(\is_array($scanned) ? $scanned : [], ['.', '..']);
         sort($dirs);
         $paths = [];
         foreach ($dirs as $dir) {

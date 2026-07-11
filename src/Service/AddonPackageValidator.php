@@ -81,13 +81,13 @@ final class AddonPackageValidator
                 continue;
             }
 
-            if (!Addon::hasAddon((string) $code)) {
+            if (!Addon::hasAddon($code)) {
                 throw new AddonException(__('ptadmin-addon::messages.validator.dependency_missing', [
                     'code' => $manifest['code'],
                     'target' => $code,
                 ]));
             }
-            if (\is_string($constraint) && '' !== trim($constraint) && !Addon::checkAddonVersion((string) $code, $constraint)) {
+            if (\is_string($constraint) && '' !== trim($constraint) && !Addon::checkAddonVersion($code, $constraint)) {
                 throw new AddonException(__('ptadmin-addon::messages.validator.dependency_version_failed', [
                     'code' => $manifest['code'],
                     'target' => $code,
@@ -183,7 +183,10 @@ final class AddonPackageValidator
 
     private function satisfies(string $actual, string $constraint): bool
     {
-        $segments = preg_split('/\s*,\s*|\s+/', trim($constraint)) ?: [];
+        $segments = preg_split('/\s*,\s*|\s+/', trim($constraint));
+        if (!\is_array($segments)) {
+            $segments = [];
+        }
         foreach ($segments as $segment) {
             if ('' === $segment) {
                 continue;
@@ -192,7 +195,7 @@ final class AddonPackageValidator
             if (!preg_match('/^(>=|<=|>|<|==|=|!=)?\s*(.+)$/', $segment, $matches)) {
                 return false;
             }
-            $operator = $matches[1] ?: '>=';
+            $operator = '' !== $matches[1] ? $matches[1] : '>=';
             $version = trim($matches[2]);
             if ('=' === $operator) {
                 $operator = '==';

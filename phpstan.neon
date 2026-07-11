@@ -9,14 +9,10 @@ parameters:
     checkFunctionNameCase: true
     checkInternalClassCaseSensitivity: true
     ignoreErrors:
-        - '#^Static call to instance method [a-zA-Z0-9\\_]+::[a-zA-Z0-9\\_]+\(\)\.#'
         # 忽略变量方法调用的警告
         - '#^Variable property access on \$this\([a-zA-Z0-9\\_]+\)\.#'
         - '#^Variable method call on \$this\([a-zA-Z0-9\\_]+\)\.#'
-        - '#^Variable property access on [a-zA-Z0-9\|\\_]+\.#'
-        - '#^Variable static method call on [a-zA-Z0-9\|\\_]+\.#'
         - '#^Variable method call on mixed\.#'
-        - '#^Undefined variable: \$this#'
         - '#^Unsafe usage of new static\(\)\.#'
         # - '#^Variable method call on Illuminate\\Database\\Schema\\Blueprint\.#'
         - '#^Variable method call on [a-zA-Z0-9\|\\_]+\.#'

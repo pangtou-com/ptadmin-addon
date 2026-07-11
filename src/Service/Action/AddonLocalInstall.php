@@ -20,7 +20,7 @@ final class AddonLocalInstall extends AbstractAddonAction
         if (!is_file($packageFile)) {
             throw new AddonException(__('ptadmin-addon::messages.package.local_not_exists', ['file' => $packageFile]));
         }
-        if (!\in_array(strtolower((string) pathinfo($packageFile, PATHINFO_EXTENSION)), ['zip'], true)) {
+        if (!\in_array(strtolower(pathinfo($packageFile, PATHINFO_EXTENSION)), ['zip'], true)) {
             throw new AddonException(__('ptadmin-addon::messages.package.local_zip_only'));
         }
 
@@ -87,7 +87,7 @@ final class AddonLocalInstall extends AbstractAddonAction
     private function validateChecksum(string $packageFile, string $checksum): void
     {
         list($algorithm, $hash) = array_pad(explode(':', $checksum, 2), 2, null);
-        $algorithm = $algorithm ?: 'sha256';
+        $algorithm = '' !== $algorithm ? $algorithm : 'sha256';
         if (null === $hash || '' === $hash) {
             throw new AddonException(__('ptadmin-addon::messages.package.checksum_format_invalid'));
         }

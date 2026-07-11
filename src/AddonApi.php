@@ -334,8 +334,10 @@ class AddonApi
 
     private function networkException(string $method, ConnectionException $e): AddonException
     {
+        $host = parse_url($this->getUrl($method), PHP_URL_HOST);
+
         return new AddonException(__('ptadmin-addon::messages.api.network_failed', [
-            'host' => parse_url($this->getUrl($method), PHP_URL_HOST) ?: '',
+            'host' => \is_string($host) ? $host : '',
             'message' => $e->getMessage(),
         ]), 20000, $e);
     }
@@ -368,8 +370,10 @@ class AddonApi
         try {
             $response = $res->get($url);
         } catch (ConnectionException $e) {
+            $host = parse_url($url, PHP_URL_HOST);
+
             throw new AddonException(__('ptadmin-addon::messages.api.network_failed', [
-                'host' => parse_url($url, PHP_URL_HOST) ?: '',
+                'host' => \is_string($host) ? $host : '',
                 'message' => $e->getMessage(),
             ]), 20000, $e);
         }
@@ -418,7 +422,7 @@ class AddonApi
         $filesystem = new Filesystem();
         $path = $this->getSessionFilePath();
         if ($filesystem->exists($path)) {
-            $content = trim((string) $filesystem->get($path));
+            $content = trim($filesystem->get($path));
             if ('' === $content) {
                 return [];
             }

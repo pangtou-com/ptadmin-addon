@@ -32,7 +32,7 @@ final class AddonInitAction
     public function handle(string $title = '', bool $force = false): array
     {
         $code = strtolower(trim($this->code));
-        $title = '' === trim($title) ? (string) Str::headline($code) : trim($title);
+        $title = '' === trim($title) ? Str::headline($code) : trim($title);
         $basePath = Str::studly($code);
         $target = base_path('addons'.\DIRECTORY_SEPARATOR.$basePath);
 

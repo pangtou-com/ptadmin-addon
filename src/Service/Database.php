@@ -97,7 +97,7 @@ class Database
             $this->backupFilesystem->clearTable($table);
         }
         $exportSql = $this->exportDataSql($table, $page, $limit);
-        if ($exportSql) {
+        if (\is_string($exportSql) && '' !== $exportSql) {
             $this->backupFilesystem->write($exportSql, $table);
 
             return true;

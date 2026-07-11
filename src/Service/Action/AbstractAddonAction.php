@@ -234,7 +234,10 @@ abstract class AbstractAddonAction
      */
     protected function shouldExcludePackagePath(string $path): bool
     {
-        $segments = preg_split('/[\\\\\\/]+/', trim($path, "\\/")) ?: [];
+        $segments = preg_split('/[\\\\\\/]+/', trim($path, "\\/"));
+        if (!\is_array($segments)) {
+            $segments = [];
+        }
         foreach ($segments as $segment) {
             if ($this->shouldExcludePackageEntry($segment)) {
                 return true;

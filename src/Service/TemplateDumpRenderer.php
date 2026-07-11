@@ -229,7 +229,8 @@ final class TemplateDumpRenderer
 
     private function normalizeLabel(string $label): string
     {
-        $label = preg_replace('/[^A-Za-z0-9_]+/', '_', trim($label)) ?: 'field';
+        $normalized = preg_replace('/[^A-Za-z0-9_]+/', '_', trim($label));
+        $label = \is_string($normalized) && '' !== $normalized ? $normalized : 'field';
         $label = trim($label, '_');
 
         return '' === $label ? 'field' : $label;
@@ -248,7 +249,7 @@ final class TemplateDumpRenderer
                 continue;
             }
 
-            $field = '' === $prefix ? (string) $key : $prefix.'.'.$key;
+            $field = '' === $prefix ? $key : $prefix.'.'.$key;
             if (\is_array($item) && $this->isAssoc($item)) {
                 $result += $this->flatten($item, $field);
 
@@ -279,7 +280,7 @@ final class TemplateDumpRenderer
                 continue;
             }
 
-            $field = '' === $prefix ? (string) $key : $prefix.'.'.$key;
+            $field = '' === $prefix ? $key : $prefix.'.'.$key;
             $rows[] = [
                 'field' => $field,
                 'type' => $this->describeType($item),
@@ -413,7 +414,7 @@ final class TemplateDumpRenderer
                 continue;
             }
 
-            $field = '' === $prefix ? (string) $key : $prefix.'.'.$key;
+            $field = '' === $prefix ? $key : $prefix.'.'.$key;
             if (\is_array($item) && $this->isAssoc($item)) {
                 $nested = $this->firstScalarPath($item, $field);
                 if (null !== $nested) {
@@ -474,13 +475,17 @@ final class TemplateDumpRenderer
     private function loopVariable(string $field): string
     {
         $segments = explode('.', $field);
-        $name = (string) end($segments);
+        $name = end($segments);
+        if (!\is_string($name)) {
+            $name = 'item';
+        }
         if (\strlen($name) > 3 && 'ies' === substr($name, -3)) {
             $name = substr($name, 0, -3).'y';
         } elseif (\strlen($name) > 1 && 's' === substr($name, -1)) {
             $name = substr($name, 0, -1);
         }
-        $name = preg_replace('/[^A-Za-z0-9_]+/', '_', $name) ?: 'item';
+        $normalized = preg_replace('/[^A-Za-z0-9_]+/', '_', $name);
+        $name = \is_string($normalized) && '' !== $normalized ? $normalized : 'item';
         $name = trim($name, '_');
         if ('' === $name || !preg_match('/^[A-Za-z_]/', $name)) {
             $name = 'item';

@@ -70,6 +70,9 @@ class FakeAdminResourceServiceForAddonTest
 }
 
 beforeEach(function (): void {
+    $this->trackedAddonCacheFile = __DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'bootstrap'.\DIRECTORY_SEPARATOR.'cache'.\DIRECTORY_SEPARATOR.'addons.php';
+    $this->trackedAddonCacheContents = is_file($this->trackedAddonCacheFile) ? file_get_contents($this->trackedAddonCacheFile) : null;
+
     $app = $this->app;
     $app->setBasePath(__DIR__.\DIRECTORY_SEPARATOR.'testSrc');
     $app->forgetInstance('addon');
@@ -94,6 +97,20 @@ beforeEach(function (): void {
     $this->addon = new AddonManager();
     $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
     @unlink($sessionFile);
+});
+
+afterEach(function (): void {
+    if (!isset($this->trackedAddonCacheFile)) {
+        return;
+    }
+
+    if (null === $this->trackedAddonCacheContents) {
+        @unlink($this->trackedAddonCacheFile);
+
+        return;
+    }
+
+    file_put_contents($this->trackedAddonCacheFile, $this->trackedAddonCacheContents);
 });
 
 it('has addon', function (): void {

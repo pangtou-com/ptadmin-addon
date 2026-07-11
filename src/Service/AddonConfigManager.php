@@ -138,7 +138,8 @@ class AddonConfigManager
                     continue;
                 }
 
-                $this->response[] = realpath($item) ?: $item;
+                $realpath = realpath($item);
+                $this->response[] = \is_string($realpath) ? $realpath : $item;
             }
         }
 

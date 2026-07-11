@@ -242,7 +242,7 @@ final class AddonUpload extends AbstractAddonAction
         );
 
         foreach ($iterator as $file) {
-            $relative = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $iterator->getSubPathName()), DIRECTORY_SEPARATOR);
+            $relative = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $iterator->getSubPathname()), DIRECTORY_SEPARATOR);
             if ('' === $relative || $this->shouldExcludePackagePath($relative)) {
                 continue;
             }
@@ -272,7 +272,7 @@ final class AddonUpload extends AbstractAddonAction
         );
 
         foreach ($iterator as $file) {
-            $relativePath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $iterator->getSubPathName()), DIRECTORY_SEPARATOR);
+            $relativePath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $iterator->getSubPathname()), DIRECTORY_SEPARATOR);
             if ('' === $relativePath || !$filter($relativePath)) {
                 continue;
             }

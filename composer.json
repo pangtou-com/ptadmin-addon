@@ -50,7 +50,7 @@
         }
     },
     "scripts": {
-        "phpstan": "vendor/bin/phpstan.phar analyse src --configuration phpstan.neon",
+        "phpstan": "php -d memory_limit=512M vendor/bin/phpstan.phar analyse src --configuration phpstan.neon --no-progress",
         "test:pest": "./vendor/bin/pest --no-interaction",
         "test:build": "XDEBUG_MODE=coverage ./vendor/bin/pest --coverage"
     },
