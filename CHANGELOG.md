@@ -8,6 +8,10 @@
 -   [Gitee](https://gitee.com/ptadmin/ptadmin-addon)
 
 ## 更新日志
+[更新] 2026-07-15
+-【新增】支付网关增加可选关闭支付单能力与标准请求、结果对象
+-【兼容】使用 `ClosablePaymentInterface` 扩展关闭能力，不影响已有 `PaymentInterface` 实现
+
 [更新] 2024-12-19
 -【BUG】修复addon安装bug
 -【BUG】修复addon上传bug

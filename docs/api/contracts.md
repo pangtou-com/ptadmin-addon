@@ -36,6 +36,7 @@ Addon::payment($addonCode, $code)->channel('jsapi')->create($payload)
 | inject 分组 | 接口 | 动作 |
 | --- | --- | --- |
 | `payment` | `PTAdmin\Addon\Contracts\Payment\PaymentInterface` | `create` `query` `refund` `queryRefund` `parseNotify` `acknowledgeNotify` |
+| `payment`（可选关闭能力） | `PTAdmin\Addon\Contracts\Payment\ClosablePaymentInterface` | 在基础支付动作上增加 `close` |
 | `auth` | `PTAdmin\Addon\Contracts\Auth\AuthInterface` | `getAuthorizeUrl` `handleCallback` `getUser` `refreshToken` |
 | `notify` | `PTAdmin\Addon\Contracts\Notify\NotifyInterface` | `send` `sendBatch` `query` `parseCallback` |
 | `storage` | `PTAdmin\Addon\Contracts\Storage\StorageInterface` | `upload` `delete` `exists` `temporaryUrl` |
@@ -82,6 +83,14 @@ Addon::payment($addonCode, $code)->channel('jsapi')->create($payload)
 固定输入：`order_no` `channel_trade_no` `meta`
 
 固定输出：`order_no` `channel_trade_no` `status` `paid_at` `amount` `meta` `raw`
+
+### `close`
+
+关闭支付单是可选能力。需要主动关单的实现应使用 `ClosablePaymentInterface`，旧支付插件可以继续只实现 `PaymentInterface`。
+
+固定输入：`order_no` `channel_trade_no` `meta`
+
+固定输出：`order_no` `channel_trade_no` `status` `closed_at` `meta` `raw`
 
 ### `refund`
 

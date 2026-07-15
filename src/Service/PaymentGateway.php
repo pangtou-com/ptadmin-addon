@@ -6,6 +6,8 @@ namespace PTAdmin\Addon\Service;
 
 use PTAdmin\Addon\Contracts\Payment\Data\AcknowledgePaymentNotifyRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\AcknowledgePaymentNotifyResult;
+use PTAdmin\Addon\Contracts\Payment\Data\ClosePaymentRequest;
+use PTAdmin\Addon\Contracts\Payment\Data\ClosePaymentResult;
 use PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentResult;
 use PTAdmin\Addon\Contracts\Payment\Data\ParsePaymentNotifyRequest;
@@ -16,6 +18,7 @@ use PTAdmin\Addon\Contracts\Payment\Data\QueryRefundRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\QueryRefundResult;
 use PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentResult;
+use PTAdmin\Addon\Contracts\Payment\ClosablePaymentInterface;
 use PTAdmin\Addon\Contracts\Payment\PaymentInterface;
 use PTAdmin\Addon\Exception\AddonException;
 
@@ -83,6 +86,24 @@ class PaymentGateway
             QueryPaymentResult::class,
             $this->invoke('query', $this->normalizeRequest(QueryPaymentRequest::class, $payload))
         );
+    }
+
+    public function close($payload = []): ClosePaymentResult
+    {
+        $request = $this->normalizeRequest(ClosePaymentRequest::class, $payload);
+        $definition = $this->resolveDefinition();
+        $instance = app($definition['class']);
+        if (!$instance instanceof PaymentInterface) {
+            throw new AddonException(__('ptadmin-addon::messages.definition.payment_interface_required', ['target' => 'payment:'.$definition['addon_code']]));
+        }
+        if (!$instance instanceof ClosablePaymentInterface || !$instance->supports('close')) {
+            throw new AddonException(__('ptadmin-addon::messages.definition.payment_method_unsupported', [
+                'target' => 'payment:'.$definition['addon_code'],
+                'method' => 'close',
+            ]));
+        }
+
+        return $this->normalizeResult(ClosePaymentResult::class, $instance->close($request));
     }
 
     public function refund($payload = [], ?string $channel = null): RefundPaymentResult

@@ -6,6 +6,8 @@ namespace PTAdmin\AddonTests\Feature\Addon\testSrc\addons\Test;
 
 use PTAdmin\Addon\Contracts\Payment\Data\AcknowledgePaymentNotifyRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\AcknowledgePaymentNotifyResult;
+use PTAdmin\Addon\Contracts\Payment\Data\ClosePaymentRequest;
+use PTAdmin\Addon\Contracts\Payment\Data\ClosePaymentResult;
 use PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentResult;
 use PTAdmin\Addon\Contracts\Payment\Data\ParsePaymentNotifyRequest;
@@ -16,15 +18,16 @@ use PTAdmin\Addon\Contracts\Payment\Data\QueryRefundRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\QueryRefundResult;
 use PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentResult;
-use PTAdmin\Addon\Contracts\Payment\PaymentInterface;
+use PTAdmin\Addon\Contracts\Payment\ClosablePaymentInterface;
 
-class TestPaymentService implements PaymentInterface
+class TestPaymentService implements ClosablePaymentInterface
 {
     public function supports(string $operation): bool
     {
         return \in_array($operation, [
             'create',
             'query',
+            'close',
             'refund',
             'queryRefund',
             'parseNotify',
@@ -52,6 +55,15 @@ class TestPaymentService implements PaymentInterface
             'order_no' => $payload->get('order_no'),
             'channel_trade_no' => $payload->get('channel_trade_no'),
             'status' => 'paid',
+        ]);
+    }
+
+    public function close(ClosePaymentRequest $payload): ClosePaymentResult
+    {
+        return ClosePaymentResult::fromArray([
+            'order_no' => $payload->get('order_no'),
+            'channel_trade_no' => $payload->get('channel_trade_no'),
+            'status' => 'closed',
         ]);
     }
 

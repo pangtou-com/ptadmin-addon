@@ -9,11 +9,13 @@ use PTAdmin\Addon\Contracts\Captcha\CaptchaInterface;
 use PTAdmin\Addon\Contracts\Logistics\LogisticsInterface;
 use PTAdmin\Addon\Contracts\Notify\NotifyInterface;
 use PTAdmin\Addon\Contracts\Payment\PaymentInterface;
+use PTAdmin\Addon\Contracts\Payment\ClosablePaymentInterface;
 use PTAdmin\Addon\Contracts\Sms\SmsInterface;
 use PTAdmin\Addon\Contracts\Storage\StorageInterface;
 
 it('defines inject contracts for common capability groups', function (): void {
     expect(interface_exists(PaymentInterface::class))->toBeTrue()
+        ->and(interface_exists(ClosablePaymentInterface::class))->toBeTrue()
         ->and(interface_exists(CapabilityInterface::class))->toBeTrue()
         ->and(interface_exists(AuthInterface::class))->toBeTrue()
         ->and(interface_exists(NotifyInterface::class))->toBeTrue()
@@ -29,6 +31,15 @@ it('defines realistic operations for common capability contracts', function (): 
         'supports',
         'create',
         'query',
+        'refund',
+        'queryRefund',
+        'parseNotify',
+        'acknowledgeNotify',
+    ])->and(get_class_methods(ClosablePaymentInterface::class))->toEqualCanonicalizing([
+        'supports',
+        'create',
+        'query',
+        'close',
         'refund',
         'queryRefund',
         'parseNotify',

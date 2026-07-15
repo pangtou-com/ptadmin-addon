@@ -40,6 +40,14 @@ $payments = Addon::payments();
 $wechat = Addon::payment('payment-addon', 'wechat_pay');
 ```
 
+需要处理超时关单时，支付实现可扩展 `ClosablePaymentInterface`，业务侧通过支付网关关闭原支付单：
+
+```php
+$closed = Addon::payment('payment-addon', 'wechat_pay')->close([
+    'order_no' => 'T1001',
+]);
+```
+
 ## 第三方登录插件
 
 ```php

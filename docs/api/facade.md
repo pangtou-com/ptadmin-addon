@@ -49,6 +49,15 @@ $refund = Addon::payment('payment-addon', 'wechat_pay')->refund([
 ]);
 ```
 
+实现 `ClosablePaymentInterface` 的支付能力可以主动关闭支付单：
+
+```php
+$closed = Addon::payment('payment-addon', 'wechat_pay')->close([
+    'order_no' => 'T1001',
+    'channel_trade_no' => null,
+]);
+```
+
 ## 调用 inject
 
 `executeInject()` 仍然保留，适合底层能力分发或非支付类能力场景。

@@ -116,6 +116,7 @@ $manager->register(
 如果某个 inject 分组已经有正式接口约定，建议实现对应 `Contracts`：
 
 - `payment` -> `PaymentInterface`
+- `payment` 主动关闭支付单 -> 可选实现 `ClosablePaymentInterface`
 - `auth` -> `AuthInterface`
 - `notify` -> `NotifyInterface`
 - `storage` -> `StorageInterface`

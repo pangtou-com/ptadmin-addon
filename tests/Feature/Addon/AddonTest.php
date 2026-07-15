@@ -412,6 +412,29 @@ it('calls payment gateway by channel and addon code', function (): void {
         ]);
 });
 
+it('closes payment through an explicitly closable implementation', function (): void {
+    $result = Addon::payment('test', 'wechat_pay')->close([
+        'order_no' => 'T2002',
+        'channel_trade_no' => 'trade-test-2002',
+    ]);
+
+    expect($result)->toBeInstanceOf(\PTAdmin\Addon\Contracts\Payment\Data\ClosePaymentResult::class)
+        ->and($result->toArray())->toMatchArray([
+            'order_no' => 'T2002',
+            'channel_trade_no' => 'trade-test-2002',
+            'status' => 'closed',
+        ]);
+});
+
+it('rejects close when a payment implementation does not provide the optional capability', function (): void {
+    expect(fn () => Addon::payment('test', 'alipay')->close([
+        'order_no' => 'T3002',
+    ]))->toThrow(AddonException::class, __('ptadmin-addon::messages.definition.payment_method_unsupported', [
+        'target' => 'payment:test',
+        'method' => 'close',
+    ]));
+});
+
 it('calls another payment implementation in same addon', function (): void {
     $result = Addon::payment('test', 'alipay')->create([
         'order_no' => 'T3001',
