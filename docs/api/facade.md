@@ -20,6 +20,50 @@ $injects = Addon::getInjects('payment');
 $hooks = Addon::getHooks();
 ```
 
+## 公开能力目录
+
+使用 `Addon::capabilities()` 或 `addon_cap()` 获取经过清理的公开能力描述。目录不会返回处理类等内部实现字段。
+
+```php
+$registered = Addon::capabilities('auth')->all();
+$available = addon_cap('auth')->available();
+
+$supportsWechat = addon_cap('auth')->has('wechat');
+$wechatReady = addon_cap('auth')->isAvailable('wechat', 'wechat_login');
+```
+
+`all()` 表示插件已经注册该能力；`available()` 会额外调用能力可选的 `ready` 动作。未声明 `ready` 的已有插件仍按可用处理。宿主应用仍需继续检查业务场景、平台开关、订单和终端类型，不能把能力目录直接当作结算方式列表。
+
+公开定义使用稳定结构：
+
+```php
+[
+    'addon_code' => 'wechat_login',
+    'group' => 'auth',
+    'code' => 'wechat',
+    'title' => '微信',
+    'types' => ['login', 'connect'],
+]
+```
+
+## 第三方认证能力
+
+第三方认证能力推荐使用 `Addon::auth()` 或 `addon_auth()` 调用：
+
+```php
+$auth = addon_auth('wechat');
+
+if ($auth->ready()) {
+    $authorization = $auth->getAuthorizeUrl([
+        'redirect_url' => 'https://example.com/auth/callback',
+        'state' => $state,
+        'scope' => 'snsapi_login',
+        'scene' => 'website',
+        'meta' => [],
+    ]);
+}
+```
+
 ## 支付能力
 
 支付能力推荐直接通过 `Addon::payment()` 调用，而不是手动拼 `group + code + action`。
@@ -28,6 +72,7 @@ $hooks = Addon::getHooks();
 $payment = Addon::payment();
 $payments = Addon::payments();
 $wechat = Addon::payment('payment-addon', 'wechat_pay');
+$alipay = addon_payment('alipay');
 ```
 
 ```php

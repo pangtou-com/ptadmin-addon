@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PTAdmin\Addon\Contracts\CapabilityInterface;
+use PTAdmin\Addon\Contracts\CapabilityReadinessInterface;
 use PTAdmin\Addon\Contracts\AI\AIInterface;
 use PTAdmin\Addon\Contracts\Auth\AuthInterface;
 use PTAdmin\Addon\Contracts\Captcha\CaptchaInterface;
@@ -17,6 +18,7 @@ it('defines inject contracts for common capability groups', function (): void {
     expect(interface_exists(PaymentInterface::class))->toBeTrue()
         ->and(interface_exists(ClosablePaymentInterface::class))->toBeTrue()
         ->and(interface_exists(CapabilityInterface::class))->toBeTrue()
+        ->and(interface_exists(CapabilityReadinessInterface::class))->toBeTrue()
         ->and(interface_exists(AuthInterface::class))->toBeTrue()
         ->and(interface_exists(NotifyInterface::class))->toBeTrue()
         ->and(interface_exists(StorageInterface::class))->toBeTrue()

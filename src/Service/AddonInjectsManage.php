@@ -68,12 +68,20 @@ class AddonInjectsManage
 
     public function getDefinition(string $group, string $code): array
     {
+        $definitions = [];
         foreach (array_keys(Addon::getAddons()) as $addonCode) {
             foreach ($this->getInject($addonCode)[$group] ?? [] as $definition) {
                 if (($definition['code'] ?? null) === $code) {
-                    return $definition;
+                    $definitions[] = ['addon_code' => $addonCode] + $definition;
                 }
             }
+        }
+
+        if (1 < \count($definitions)) {
+            throw new AddonException(__('ptadmin-addon::messages.definition.inject_ambiguous', ['target' => $group.':'.$code]));
+        }
+        if (1 === \count($definitions)) {
+            return $definitions[0];
         }
 
         throw new AddonException(__('ptadmin-addon::messages.definition.inject_missing', ['target' => $group.':'.$code]));

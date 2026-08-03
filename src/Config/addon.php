@@ -102,6 +102,7 @@ return [
     |
     */
     'defaults' => [
+        'auth' => null,
         'payment' => null,
     ],
 ];

@@ -22,8 +22,10 @@ use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
 use PTAdmin\Addon\Service\AddonInjectsActuator;
 use PTAdmin\Addon\Service\AddonManager;
+use PTAdmin\Addon\Service\AuthGateway;
 use PTAdmin\Addon\Service\BaseBootstrap;
 use PTAdmin\Addon\Service\BaseInstaller;
+use PTAdmin\Addon\Service\CapabilityCatalog;
 use PTAdmin\Addon\Service\DirectivesDTO;
 use PTAdmin\Addon\Service\PaymentGateway;
 
@@ -104,6 +106,22 @@ class Addon extends Facade
     public static function executeInject(string $group, string $code, array $payload = [], ?string $action = null)
     {
         return AddonInjectsActuator::handle($group, $code, $payload, $action);
+    }
+
+    /**
+     * 获取指定分组的公开能力目录。
+     */
+    public static function capabilities(string $group): CapabilityCatalog
+    {
+        return new CapabilityCatalog($group);
+    }
+
+    /**
+     * 获取默认或指定插件的第三方认证能力代理。
+     */
+    public static function auth(?string $addonCode = null, ?string $code = null): AuthGateway
+    {
+        return new AuthGateway($addonCode, $code);
     }
 
     /**

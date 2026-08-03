@@ -15,7 +15,34 @@ declare(strict_types=1);
 
 use PTAdmin\Addon\Contracts\RuntimeContextNormalizerInterface;
 use PTAdmin\Addon\Contracts\RuntimeContextProviderInterface;
+use PTAdmin\Addon\Service\AuthGateway;
+use PTAdmin\Addon\Service\CapabilityCatalog;
 use PTAdmin\Addon\Service\DirectivesDTO;
+use PTAdmin\Addon\Service\PaymentGateway;
+
+/**
+ * 获取指定分组的公开能力目录。
+ */
+function addon_cap(string $group): CapabilityCatalog
+{
+    return \PTAdmin\Addon\Addon::capabilities($group);
+}
+
+/**
+ * 获取默认或指定插件的第三方认证能力代理。
+ */
+function addon_auth(?string $code = null, ?string $addonCode = null): AuthGateway
+{
+    return \PTAdmin\Addon\Addon::auth($addonCode, $code);
+}
+
+/**
+ * 获取默认或指定插件的支付能力代理。
+ */
+function addon_payment(?string $code = null, ?string $addonCode = null): PaymentGateway
+{
+    return \PTAdmin\Addon\Addon::payment($addonCode, $code);
+}
 
 /**
  * 验证插件是否存在.

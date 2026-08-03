@@ -8,6 +8,12 @@
 -   [Gitee](https://gitee.com/ptadmin/ptadmin-addon)
 
 ## 更新日志
+[更新] 2026-08-03
+-【新增】增加 `addon_cap()` 公共能力目录，区分已注册能力与当前可用能力
+-【新增】增加 `addon_auth()` 认证网关与 `addon_payment()` 支付网关助手函数
+-【新增】增加能力 readiness 正式契约，并在能力编码重复时要求指定插件编码
+-【安全】公开能力描述不再暴露能力处理类等内部实现字段
+
 [更新] 2026-07-15
 -【新增】支付网关增加可选关闭支付单能力与标准请求、结果对象
 -【兼容】使用 `ClosablePaymentInterface` 扩展关闭能力，不影响已有 `PaymentInterface` 实现

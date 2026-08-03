@@ -21,6 +21,17 @@ Addon::payments()
 Addon::payment($addonCode, $code)->channel('jsapi')->create($payload)
 ```
 
+能力发现和第三方认证可以使用公共 helper：
+
+```php
+addon_cap('auth')->all();
+addon_cap('auth')->available();
+addon_auth($code, $addonCode)->getAuthorizeUrl($payload);
+addon_payment($code, $addonCode)->create($payload);
+```
+
+`addon_cap()` 只返回 `addon_code`、`group`、`code`、`title` 和 `types`，不会公开能力处理类。`all()` 表示能力已注册，`available()` 表示可选的 `ready` 检查已经通过。支付、存储等业务仍需由宿主继续实施业务场景和权限检查。
+
 ## 总体原则
 
 - 同一能力分组下，输入字段名固定

@@ -181,11 +181,7 @@ class PaymentGateway
         }
 
         if (!blank($this->code)) {
-            foreach ($manager->getDefinitionsByGroup('payment') as $definition) {
-                if (($definition['code'] ?? null) === $this->code) {
-                    return $definition;
-                }
-            }
+            return $manager->getDefinition('payment', (string) $this->code);
         }
 
         $definitions = $manager->getDefinitionsByGroup('payment');
