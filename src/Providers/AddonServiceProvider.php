@@ -31,6 +31,7 @@ use Illuminate\Support\Str;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Contracts\RuntimeContextNormalizerInterface;
 use PTAdmin\Addon\Contracts\RuntimeContextProviderInterface;
+use PTAdmin\Addon\Contracts\ApplicationInstanceProviderInterface;
 use PTAdmin\Addon\Commands\AddonCache;
 use PTAdmin\Addon\Commands\AddonCacheClear;
 use PTAdmin\Addon\Commands\AddonDisable;
@@ -46,10 +47,13 @@ use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpgrade;
 use PTAdmin\Addon\Commands\AddonUpload;
 use PTAdmin\Addon\Compiler\PTCompiler;
+use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Middleware\AddonMiddleware;
 use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\RuntimeContextNormalizer;
 use PTAdmin\Addon\Service\RuntimeContextProvider;
+use PTAdmin\Addon\Service\AddonLicenseService;
+use PTAdmin\Addon\Service\HostApplicationInstanceProvider;
 
 class AddonServiceProvider extends ServiceProvider
 {
@@ -66,6 +70,8 @@ class AddonServiceProvider extends ServiceProvider
         });
         $this->app->singleton(RuntimeContextNormalizerInterface::class, RuntimeContextNormalizer::class);
         $this->app->singleton(RuntimeContextProviderInterface::class, RuntimeContextProvider::class);
+        $this->app->singleton(ApplicationInstanceProviderInterface::class, HostApplicationInstanceProvider::class);
+        $this->app->singleton(AddonLicenseService::class, AddonLicenseService::class);
         $this->registerProvider($this->app);
     }
 
@@ -217,6 +223,12 @@ class AddonServiceProvider extends ServiceProvider
     {
         $providers = Addon::getProviders();
         foreach ($providers as $key => $item) {
+            try {
+                app(AddonLicenseService::class)->assertCanBoot((string) $key);
+            } catch (AddonException $exception) {
+                continue;
+            }
+
             $item = Arr::wrap($item);
             foreach ($item as $val) {
                 $provider = $app->register($val);

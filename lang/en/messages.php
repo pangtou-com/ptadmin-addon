@@ -43,6 +43,7 @@ return [
         'purchase_required' => 'Addon [:code] has not been purchased and cannot be installed',
         'purchase_required_with_url' => 'Addon [:code] has not been purchased and cannot be installed. Please purchase it here: :url',
         'cloud_verify_skip' => 'Addon [:code] cloud verification could not be completed, continue as a local addon',
+        'license_protocol_invalid' => 'Addon [:code] has an invalid application license protocol. It must declare license_required=true and license_protocol=:protocol',
     ],
     'action' => [
         'backup_start' => 'Backing up addon',

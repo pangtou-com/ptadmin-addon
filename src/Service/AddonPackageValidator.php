@@ -21,11 +21,29 @@ final class AddonPackageValidator
 
     public function validate(array $manifest, bool $verifyPurchase = false): void
     {
+        $this->validateLicenseProtocol($manifest);
         $this->validateCompatibility($manifest);
         $this->validateDependencies($manifest);
 
         if ($verifyPurchase) {
             $this->validatePurchase($manifest);
+        }
+    }
+
+    private function validateLicenseProtocol(array $manifest): void
+    {
+        $required = true === ($manifest['license_required'] ?? false);
+        $protocol = trim((string) ($manifest['license_protocol'] ?? ''));
+
+        if (!$required && '' === $protocol) {
+            return;
+        }
+
+        if (!$required || AddonLicenseService::PROTOCOL !== $protocol) {
+            throw new AddonException(__('ptadmin-addon::messages.validator.license_protocol_invalid', [
+                'code' => (string) ($manifest['code'] ?? ''),
+                'protocol' => AddonLicenseService::PROTOCOL,
+            ]));
         }
     }
 

@@ -24,12 +24,14 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Middleware;
 
 use Illuminate\Http\Request;
+use PTAdmin\Addon\Service\AddonLicenseService;
 
 class AddonMiddleware
 {
     public function handle(Request  $request, \Closure $next, ...$addons)
     {
         if (isset($addons[0])) {
+            app(AddonLicenseService::class)->assertCanRun((string) $addons[0]);
             $request->offsetSet("__addon__", app("addon")->getAddon($addons[0]));
         }
         return $next($request);

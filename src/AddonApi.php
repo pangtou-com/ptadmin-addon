@@ -146,6 +146,26 @@ class AddonApi
         return (new static())->send('verify', $data);
     }
 
+    public static function getAddonLicenses(string $code): array
+    {
+        return (new static())->send('licenses', ['code' => $code]);
+    }
+
+    public static function activateAddonLicense(array $data): array
+    {
+        return (new static())->send('license-activate', $data);
+    }
+
+    public static function transferAddonLicense(array $data): array
+    {
+        return (new static())->send('license-transfer', $data);
+    }
+
+    public static function verifyAddonLicense(array $data): array
+    {
+        return (new static())->send('license-verify', $data, false);
+    }
+
     /**
      * 获取平台快照数据.
      *
@@ -292,7 +312,14 @@ class AddonApi
                 $this->clearSession();
             }
             if (0 !== $results['code']) {
-                throw new AddonException($results['message']);
+                $message = $results['message'] ?? __('ptadmin-addon::messages.api.request_failed', [
+                    'status' => $res->status(),
+                    'message' => '',
+                ]);
+                if (is_array($message)) {
+                    $message = (string) ($message['message'] ?? json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                }
+                throw new AddonException((string) $message, (int) $results['code']);
             }
 
             return $res->json('data');

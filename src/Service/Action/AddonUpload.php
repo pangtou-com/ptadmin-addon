@@ -194,6 +194,8 @@ final class AddonUpload extends AbstractAddonAction
             'kind' => $kind,
             'develop' => false,
             'type' => (string) data_get($manifest, 'type', ''),
+            'license_required' => true === data_get($manifest, 'license_required', false),
+            'license_protocol' => (string) data_get($manifest, 'license_protocol', ''),
             'packed_at' => date(DATE_ATOM),
             'components' => [
                 'backend' => [

@@ -43,6 +43,7 @@ return [
         'purchase_required' => '插件【:code】未购买，无法安装',
         'purchase_required_with_url' => '插件【:code】未购买，无法安装，请前往购买：:url',
         'cloud_verify_skip' => '插件【:code】未完成云端登记校验，按本地插件继续安装',
+        'license_protocol_invalid' => '插件【:code】的应用实例授权协议无效，必须声明 license_required=true 和 license_protocol=:protocol',
     ],
     'action' => [
         'backup_start' => '开始备份插件',
