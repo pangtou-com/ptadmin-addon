@@ -199,7 +199,7 @@ class AddonApi
     }
 
     /**
-     * 获取云市场数据.
+     * 获取云市场实时数据。目录包含价格、版本和上下架状态，不在宿主缓存。
      *
      * @param array $data
      *
@@ -207,9 +207,7 @@ class AddonApi
      */
     public static function getCloudMarket(array $data = [])
     {
-        return self::getCacheData('addon-market', $data, function ($data) {
-            return (new static())->send('cloud', $data, false);
-        }, 60);
+        return (new static())->send('cloud', $data, false);
     }
 
     public static function getCacheData($type, $data, $callback, $ttl = 10)
@@ -230,7 +228,7 @@ class AddonApi
     }
 
     /**
-     * 获取我的插件.
+     * 获取我的插件实时状态，不在宿主缓存。
      *
      * @param $data
      *
@@ -238,17 +236,15 @@ class AddonApi
      */
     public static function getMyAddon($data)
     {
-        return self::getCacheData('my-addon', $data, function ($data) {
-            $result = (new static())->send('my-addon', $data);
-            $addons = Addon::getInstalledAddonsCode();
-            foreach ($result['results'] as &$value) {
-                $value['is_install'] = (int) \in_array($value['addon_code'], $addons, true);
-                $value['is_enable'] = (int) Addon::hasAddon($value['addon_code']);
-            }
-            unset($value);
+        $result = (new static())->send('my-addon', $data);
+        $addons = Addon::getInstalledAddonsCode();
+        foreach ($result['results'] as &$value) {
+            $value['is_install'] = (int) \in_array($value['addon_code'], $addons, true);
+            $value['is_enable'] = (int) Addon::hasAddon($value['addon_code']);
+        }
+        unset($value);
 
-            return $result;
-        });
+        return $result;
     }
 
     /**

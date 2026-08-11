@@ -2456,6 +2456,95 @@ it('wraps marketplace connection failures as addon exceptions with official host
         ->toThrow(AddonException::class, 'www.pangtou.com');
 });
 
+it('requests the cloud market catalog on every call', function (): void {
+    Cache::flush();
+
+    $firstResponse = \Mockery::mock();
+    $firstResponse->shouldReceive('status')->once()->andReturn(200);
+    $firstResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => ['total' => 1, 'results' => [['code' => 'demo-addon', 'title' => '旧目录名称']]],
+    ]);
+    $firstResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'total' => 1,
+        'results' => [['code' => 'demo-addon', 'title' => '旧目录名称']],
+    ]);
+
+    $secondResponse = \Mockery::mock();
+    $secondResponse->shouldReceive('status')->once()->andReturn(200);
+    $secondResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => ['total' => 1, 'results' => [['code' => 'demo-addon', 'title' => '最新目录名称']]],
+    ]);
+    $secondResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'total' => 1,
+        'results' => [['code' => 'demo-addon', 'title' => '最新目录名称']],
+    ]);
+
+    Http::shouldReceive('withHeaders')->twice()->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->twice()->withArgs(function (string $url, array $payload): bool {
+        return 'https://www.pangtou.com/api-addon/cloud' === $url
+            && isset($payload['time'], $payload['state'], $payload['sign']);
+    })->andReturn($firstResponse, $secondResponse);
+
+    $first = AddonApi::getCloudMarket();
+    $second = AddonApi::getCloudMarket();
+
+    expect(data_get($first, 'results.0.title'))->toBe('旧目录名称')
+        ->and(data_get($second, 'results.0.title'))->toBe('最新目录名称');
+});
+
+it('requests my cloud addons on every call', function (): void {
+    Cache::flush();
+    $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');
+    $filesystem = new Filesystem();
+    $filesystem->ensureDirectoryExists(\dirname($sessionFile));
+    $filesystem->put($sessionFile, AesUtil::encryptString((string) json_encode([
+        'token' => 'Bearer test-token',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+
+    $firstResponse = \Mockery::mock();
+    $firstResponse->shouldReceive('status')->once()->andReturn(200);
+    $firstResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => ['total' => 1, 'results' => [['addon_code' => 'demo-addon', 'title' => '旧授权状态']]],
+    ]);
+    $firstResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'total' => 1,
+        'results' => [['addon_code' => 'demo-addon', 'title' => '旧授权状态']],
+    ]);
+
+    $secondResponse = \Mockery::mock();
+    $secondResponse->shouldReceive('status')->once()->andReturn(200);
+    $secondResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => ['total' => 1, 'results' => [['addon_code' => 'demo-addon', 'title' => '最新授权状态']]],
+    ]);
+    $secondResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'total' => 1,
+        'results' => [['addon_code' => 'demo-addon', 'title' => '最新授权状态']],
+    ]);
+
+    Http::shouldReceive('withHeaders')->twice()->andReturnSelf();
+    Http::shouldReceive('withToken')->twice()->with('test-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->twice()->withArgs(function (string $url, array $payload): bool {
+        return 'https://www.pangtou.com/api-addon/my-addon' === $url
+            && isset($payload['time'], $payload['state'], $payload['sign']);
+    })->andReturn($firstResponse, $secondResponse);
+
+    $first = AddonApi::getMyAddon([]);
+    $second = AddonApi::getMyAddon([]);
+
+    expect(data_get($first, 'results.0.title'))->toBe('旧授权状态')
+        ->and(data_get($second, 'results.0.title'))->toBe('最新授权状态');
+});
+
 it('persists marketplace login token and user profile to encrypted file storage', function (): void {
     Cache::flush();
 
