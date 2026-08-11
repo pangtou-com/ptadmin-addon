@@ -53,6 +53,7 @@ use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\RuntimeContextNormalizer;
 use PTAdmin\Addon\Service\RuntimeContextProvider;
 use PTAdmin\Addon\Service\AddonLicenseService;
+use PTAdmin\Addon\Service\CloudMarketPurchaseService;
 use PTAdmin\Addon\Service\HostApplicationInstanceProvider;
 
 class AddonServiceProvider extends ServiceProvider
@@ -72,6 +73,7 @@ class AddonServiceProvider extends ServiceProvider
         $this->app->singleton(RuntimeContextProviderInterface::class, RuntimeContextProvider::class);
         $this->app->singleton(ApplicationInstanceProviderInterface::class, HostApplicationInstanceProvider::class);
         $this->app->singleton(AddonLicenseService::class, AddonLicenseService::class);
+        $this->app->singleton(CloudMarketPurchaseService::class, CloudMarketPurchaseService::class);
         $this->registerProvider($this->app);
     }
 

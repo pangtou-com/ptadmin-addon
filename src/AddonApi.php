@@ -146,6 +146,26 @@ class AddonApi
         return (new static())->send('verify', $data);
     }
 
+    public static function createCloudPurchaseOrder(array $data): array
+    {
+        return (new static())->send('purchase-order-create', $data);
+    }
+
+    public static function createCloudPurchasePayment(array $data): array
+    {
+        return (new static())->send('purchase-payment-create', $data);
+    }
+
+    public static function queryCloudPurchaseOrder(string $orderNumber): array
+    {
+        return (new static())->send('purchase-order-query', ['order_no' => $orderNumber]);
+    }
+
+    public static function closeCloudPurchaseOrder(string $orderNumber): array
+    {
+        return (new static())->send('purchase-order-close', ['order_no' => $orderNumber]);
+    }
+
     public static function getAddonLicenses(string $code): array
     {
         return (new static())->send('licenses', ['code' => $code]);
