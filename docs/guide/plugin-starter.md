@@ -141,6 +141,12 @@ use PTAdmin\Addon\Service\BaseBootstrap;
 use PTAdmin\Addon\Service\DirectiveDefinition;
 use PTAdmin\Addon\Service\HookDefinition;
 use PTAdmin\Addon\Service\InjectDefinition;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentDefinition;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentInteraction;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentOperation;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentScene;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentSceneDefinition;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentTarget;
 
 class Bootstrap extends BaseBootstrap
 {
@@ -164,8 +170,17 @@ class Bootstrap extends BaseBootstrap
             'payment',
             InjectDefinition::make('demo_pay')
                 ->title('Demo 支付')
-                ->types(['jsapi', 'qrcode'])
                 ->handler(DemoPayService::class)
+                ->paymentDefinition(PaymentDefinition::make('demo_pay', [
+                    PaymentSceneDefinition::make(
+                        PaymentScene::QR,
+                        [PaymentTarget::PC],
+                        [PaymentInteraction::QR_CODE],
+                        [PaymentOperation::CREATE, PaymentOperation::QUERY, PaymentOperation::PARSE_NOTIFY, PaymentOperation::ACKNOWLEDGE_NOTIFY],
+                        [],
+                        ['CNY']
+                    ),
+                ])->title('Demo 支付'))
         );
 
         $manager->register(
@@ -294,55 +309,20 @@ class ListsDirective
 
 ### 支付
 
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace Addon\Demo\Inject;
-
-use PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentRequest;
-use PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentResult;
-use PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentRequest;
-use PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentResult;
-
-class DemoPayService
-{
-    public function create(CreatePaymentRequest $payload): CreatePaymentResult
-    {
-        return CreatePaymentResult::fromArray([
-            'status' => 'created',
-            'scene' => $payload->get('scene'),
-            'action' => 'invoke',
-            'payload' => [
-                'prepay_id' => 'demo-prepay-id',
-            ],
-        ]);
-    }
-
-    public function refund(RefundPaymentRequest $payload): RefundPaymentResult
-    {
-        return RefundPaymentResult::fromArray([
-            'refund_no' => $payload->get('refund_no'),
-            'amount' => $payload->get('amount'),
-            'status' => 'success',
-        ]);
-    }
-}
-```
-
-调用方式：
+支付处理器必须实现 `PaymentInterface`，并将渠道结果转换为标准状态和标准交互。调用方通过平台保存的完整引用调用：
 
 ```php
-$result = Addon::payment('demo', 'demo_pay')
-    ->channel('jsapi')
-    ->create([
-        'order_no' => 'T1001',
-        'amount' => 99.9,
-        'subject' => '演示订单',
-        'notify_url' => 'https://example.com/pay/notify',
-    ]);
+$reference = PaymentCapabilityReference::fromArray($storedMethodReference);
+$result = addon_payments()->gateway($reference)->create([
+    'order_no' => 'T1001',
+    'amount_minor' => 9900,
+    'currency' => 'CNY',
+    'subject' => '演示订单',
+    'notify_url' => 'https://example.com/pay/notify',
+]);
 ```
+
+支付处理器、就绪检查和四种交互结果的完整实现见[支付能力协议 v2](/api/payment-protocol-v2.md)。
 
 ### 第三方登录
 

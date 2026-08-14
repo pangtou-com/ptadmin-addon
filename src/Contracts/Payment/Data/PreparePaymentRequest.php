@@ -6,19 +6,14 @@ namespace PTAdmin\Addon\Contracts\Payment\Data;
 
 use PTAdmin\Addon\Support\ArrayData;
 
-class CreatePaymentRequest extends ArrayData
+class PreparePaymentRequest extends ArrayData
 {
     protected static function defaults(): array
     {
         return [
             'order_no' => null,
-            'amount_minor' => null,
-            'subject' => null,
-            'notify_url' => null,
             'return_url' => null,
             'payer_reference' => null,
-            'client_ip' => null,
-            'currency' => null,
             'meta' => [],
         ];
     }

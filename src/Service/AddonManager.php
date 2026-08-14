@@ -79,6 +79,10 @@ final class AddonManager
 
     public function getInjects($type = null): array
     {
+        if ('payment' === $type) {
+            throw new \InvalidArgumentException('Use PaymentCatalog for payment capability discovery.');
+        }
+
         return AddonInjectsManage::getInstance()->getInjects($type);
     }
 

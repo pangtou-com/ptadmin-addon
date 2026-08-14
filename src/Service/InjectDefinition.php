@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Service;
 
+use InvalidArgumentException;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentDefinition;
+
 class InjectDefinition
 {
     /** @var string */
@@ -17,6 +20,9 @@ class InjectDefinition
 
     /** @var string */
     private $handler;
+
+    /** @var PaymentDefinition|null */
+    private $paymentDefinition;
 
     private function __construct(string $code)
     {
@@ -44,6 +50,9 @@ class InjectDefinition
 
     public function types(array $types): self
     {
+        if (null !== $this->paymentDefinition && [] !== $types) {
+            throw new InvalidArgumentException('Payment scenes must be declared through PaymentDefinition, not types().');
+        }
         $this->types = array_values($types);
 
         return $this;
@@ -56,15 +65,33 @@ class InjectDefinition
         return $this;
     }
 
+    public function paymentDefinition(PaymentDefinition $definition): self
+    {
+        if ($definition->code() !== $this->code) {
+            throw new InvalidArgumentException('Payment definition code must match the inject definition code.');
+        }
+        if ([] !== $this->types) {
+            throw new InvalidArgumentException('Payment scenes must be declared through PaymentDefinition, not types().');
+        }
+        $this->paymentDefinition = $definition;
+
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
             'code' => $this->code,
-            'type' => $this->types,
             'class' => $this->handler,
         ];
+        if (null === $this->paymentDefinition) {
+            $result['type'] = $this->types;
+        }
         if (!blank($this->title)) {
             $result['title'] = $this->title;
+        }
+        if (null !== $this->paymentDefinition) {
+            $result['payment_definition'] = $this->paymentDefinition->toArray();
         }
 
         return $result;

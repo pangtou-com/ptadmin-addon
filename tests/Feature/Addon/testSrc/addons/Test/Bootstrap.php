@@ -11,6 +11,14 @@ use PTAdmin\Addon\Service\BaseBootstrap;
 use PTAdmin\Addon\Service\DirectiveDefinition;
 use PTAdmin\Addon\Service\HookDefinition;
 use PTAdmin\Addon\Service\InjectDefinition;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentDefinition;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentExecutor;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentInput;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentInteraction;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentOperation;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentScene;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentSceneDefinition;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentTarget;
 use PTAdmin\AddonTests\Feature\Addon\testSrc\addons\Test\TestAlipayService;
 use PTAdmin\AddonTests\Feature\Addon\testSrc\addons\Test\TestDirectives;
 use PTAdmin\AddonTests\Feature\Addon\testSrc\addons\Test\TestInjectServices;
@@ -96,8 +104,18 @@ class Bootstrap extends BaseBootstrap
             'payment',
             InjectDefinition::make('wechat_pay')
                 ->title('微信支付')
-                ->types(['jsapi', 'qrcode'])
                 ->handler(TestPaymentService::class)
+                ->paymentDefinition(PaymentDefinition::make('wechat_pay', [
+                    PaymentSceneDefinition::make(
+                        PaymentScene::JSAPI,
+                        [PaymentTarget::WECHAT_WEBVIEW],
+                        [PaymentInteraction::CLIENT_INVOKE],
+                        [PaymentOperation::CREATE, PaymentOperation::QUERY, PaymentOperation::CLOSE, PaymentOperation::REFUND, PaymentOperation::QUERY_REFUND, PaymentOperation::PARSE_NOTIFY, PaymentOperation::ACKNOWLEDGE_NOTIFY],
+                        [PaymentInput::PAYER_REFERENCE],
+                        ['CNY'],
+                        [PaymentExecutor::make('test.jsapi', '1')]
+                    ),
+                ])->title('微信支付'))
         );
 
         $manager->register(
@@ -105,8 +123,17 @@ class Bootstrap extends BaseBootstrap
             'payment',
             InjectDefinition::make('alipay')
                 ->title('支付宝')
-                ->types(['web'])
                 ->handler(TestAlipayService::class)
+                ->paymentDefinition(PaymentDefinition::make('alipay', [
+                    PaymentSceneDefinition::make(
+                        PaymentScene::WEB,
+                        [PaymentTarget::PC],
+                        [PaymentInteraction::FORM_SUBMIT],
+                        [PaymentOperation::CREATE, PaymentOperation::QUERY, PaymentOperation::REFUND, PaymentOperation::QUERY_REFUND, PaymentOperation::PARSE_NOTIFY, PaymentOperation::ACKNOWLEDGE_NOTIFY],
+                        [],
+                        ['CNY']
+                    ),
+                ])->title('支付宝'))
         );
 
         $manager->register(

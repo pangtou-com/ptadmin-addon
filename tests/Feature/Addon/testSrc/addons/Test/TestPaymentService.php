@@ -22,30 +22,26 @@ use PTAdmin\Addon\Contracts\Payment\ClosablePaymentInterface;
 
 class TestPaymentService implements ClosablePaymentInterface
 {
-    public function supports(string $operation): bool
-    {
-        return \in_array($operation, [
-            'create',
-            'query',
-            'close',
-            'refund',
-            'queryRefund',
-            'parseNotify',
-            'acknowledgeNotify',
-        ], true);
-    }
-
     public function create(CreatePaymentRequest $payload): CreatePaymentResult
     {
+        $context = (array) ($payload->meta()['payment_context'] ?? []);
+
         return CreatePaymentResult::fromArray([
-            'status' => 'created',
-            'scene' => $payload->get('scene'),
-            'action' => 'invoke',
-            'channel_trade_no' => 'trade-test-1001',
-            'payload' => [
-                'order_no' => $payload->get('order_no'),
-                'amount' => $payload->get('amount'),
+            'protocol_version' => 2,
+            'status' => 'pending',
+            'scene' => $context['scene'] ?? null,
+            'interaction' => [
+                'type' => 'client_invoke',
+                'payload' => [
+                    'executor' => 'test.jsapi',
+                    'version' => '1',
+                    'parameters' => [
+                        'order_no' => $payload->get('order_no'),
+                        'amount_minor' => $payload->get('amount_minor'),
+                    ],
+                ],
             ],
+            'channel_trade_no' => 'trade-test-1001',
         ]);
     }
 
@@ -54,7 +50,7 @@ class TestPaymentService implements ClosablePaymentInterface
         return QueryPaymentResult::fromArray([
             'order_no' => $payload->get('order_no'),
             'channel_trade_no' => $payload->get('channel_trade_no'),
-            'status' => 'paid',
+            'status' => 'pending',
         ]);
     }
 
@@ -72,8 +68,8 @@ class TestPaymentService implements ClosablePaymentInterface
         return RefundPaymentResult::fromArray([
             'order_no' => $payload->get('order_no'),
             'refund_no' => $payload->get('refund_no'),
-            'amount' => $payload->get('amount'),
-            'status' => 'success',
+            'amount_minor' => $payload->get('amount_minor'),
+            'status' => 'pending',
         ]);
     }
 
@@ -81,16 +77,16 @@ class TestPaymentService implements ClosablePaymentInterface
     {
         return QueryRefundResult::fromArray([
             'refund_no' => $payload->get('refund_no'),
-            'status' => 'success',
+            'status' => 'pending',
         ]);
     }
 
     public function parseNotify(ParsePaymentNotifyRequest $payload): ParsePaymentNotifyResult
     {
         return ParsePaymentNotifyResult::fromArray([
-            'event' => 'payment.paid',
+            'event' => 'payment.succeeded',
             'order_no' => data_get($payload->get('body', []), 'order_no', $payload->get('order_no')),
-            'status' => 'paid',
+            'status' => 'succeeded',
         ]);
     }
 

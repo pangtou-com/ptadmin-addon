@@ -18,7 +18,7 @@ use PTAdmin\Addon\Contracts\RuntimeContextProviderInterface;
 use PTAdmin\Addon\Service\AuthGateway;
 use PTAdmin\Addon\Service\CapabilityCatalog;
 use PTAdmin\Addon\Service\DirectivesDTO;
-use PTAdmin\Addon\Service\PaymentGateway;
+use PTAdmin\Addon\Service\PaymentCatalog;
 
 /**
  * 获取指定分组的公开能力目录。
@@ -37,11 +37,11 @@ function addon_auth(?string $code = null, ?string $addonCode = null): AuthGatewa
 }
 
 /**
- * 获取默认或指定插件的支付能力代理。
+ * 获取支付协议 v2 技术目录。
  */
-function addon_payment(?string $code = null, ?string $addonCode = null): PaymentGateway
+function addon_payments(): PaymentCatalog
 {
-    return \PTAdmin\Addon\Addon::payment($addonCode, $code);
+    return \PTAdmin\Addon\Addon::paymentCatalog();
 }
 
 /**

@@ -12,6 +12,10 @@ class AddonInjectsActuator
 {
     public static function handle(string $group, string $code, array $payload = [], ?string $action = null)
     {
+        if ('payment' === $group) {
+            throw new AddonException('Payment capabilities must be called through PaymentCatalog with an exact capability reference.');
+        }
+
         $definition = AddonInjectsManage::getInstance()->getDefinition($group, $code);
         list($class, $method) = self::parseHandler($definition['class'] ?? '', $action);
         $instance = app($class);

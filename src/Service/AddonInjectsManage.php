@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service;
 
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentDefinition;
 use PTAdmin\Addon\Exception\AddonException;
 
 class AddonInjectsManage
@@ -36,7 +37,15 @@ class AddonInjectsManage
             $definition = $this->normalizeDefinition($definition);
         }
 
-        $this->definitions[$addonCode][$group][] = $definition->toArray();
+        $registered = $definition->toArray();
+        if ('payment' === $group && !isset($registered['payment_definition'])) {
+            throw new \InvalidArgumentException('Payment inject definitions must declare payment protocol v2.');
+        }
+        if ('payment' === $group && [] !== ($registered['type'] ?? [])) {
+            throw new \InvalidArgumentException('Payment scenes must be declared through PaymentDefinition, not types().');
+        }
+
+        $this->definitions[$addonCode][$group][] = $registered;
 
         return $this;
     }
@@ -171,6 +180,12 @@ class AddonInjectsManage
         }
         if (isset($definition['class'])) {
             $result->handler($definition['class']);
+        }
+        if (isset($definition['payment_definition'])) {
+            $paymentDefinition = $definition['payment_definition'] instanceof PaymentDefinition
+                ? $definition['payment_definition']
+                : PaymentDefinition::fromArray((array) $definition['payment_definition']);
+            $result->paymentDefinition($paymentDefinition);
         }
 
         return $result;

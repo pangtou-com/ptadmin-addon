@@ -20,31 +20,23 @@ use PTAdmin\Addon\Contracts\Payment\PaymentInterface;
 
 class TestAlipayService implements PaymentInterface
 {
-    public function supports(string $operation): bool
-    {
-        return \in_array($operation, [
-            'create',
-            'query',
-            'refund',
-            'queryRefund',
-            'parseNotify',
-            'acknowledgeNotify',
-        ], true);
-    }
-
     public function create(CreatePaymentRequest $payload): CreatePaymentResult
     {
+        $context = (array) ($payload->meta()['payment_context'] ?? []);
+
         return CreatePaymentResult::fromArray([
-            'status' => 'created',
-            'scene' => $payload->get('scene'),
-            'action' => 'form',
+            'protocol_version' => 2,
+            'status' => 'pending',
+            'scene' => $context['scene'] ?? null,
+            'interaction' => [
+                'type' => 'form_submit',
+                'payload' => [
+                    'url' => 'https://pay.example.test/submit',
+                    'method' => 'POST',
+                    'fields' => ['order_no' => $payload->get('order_no')],
+                ],
+            ],
             'channel_trade_no' => 'trade-ali-1001',
-            'payload' => [
-                'order_no' => $payload->get('order_no'),
-            ],
-            'display' => [
-                'form' => '<form id="alipay"></form>',
-            ],
         ]);
     }
 
@@ -52,7 +44,7 @@ class TestAlipayService implements PaymentInterface
     {
         return QueryPaymentResult::fromArray([
             'order_no' => $payload->get('order_no'),
-            'status' => 'paid',
+            'status' => 'pending',
         ]);
     }
 
@@ -61,8 +53,8 @@ class TestAlipayService implements PaymentInterface
         return RefundPaymentResult::fromArray([
             'order_no' => $payload->get('order_no'),
             'refund_no' => $payload->get('refund_no'),
-            'amount' => $payload->get('amount'),
-            'status' => 'success',
+            'amount_minor' => $payload->get('amount_minor'),
+            'status' => 'pending',
         ]);
     }
 
@@ -70,16 +62,16 @@ class TestAlipayService implements PaymentInterface
     {
         return QueryRefundResult::fromArray([
             'refund_no' => $payload->get('refund_no'),
-            'status' => 'success',
+            'status' => 'pending',
         ]);
     }
 
     public function parseNotify(ParsePaymentNotifyRequest $payload): ParsePaymentNotifyResult
     {
         return ParsePaymentNotifyResult::fromArray([
-            'event' => 'payment.paid',
+            'event' => 'payment.succeeded',
             'order_no' => data_get($payload->get('body', []), 'order_no'),
-            'status' => 'paid',
+            'status' => 'succeeded',
         ]);
     }
 

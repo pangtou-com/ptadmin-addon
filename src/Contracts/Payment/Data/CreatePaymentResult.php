@@ -11,12 +11,11 @@ class CreatePaymentResult extends ArrayData
     protected static function defaults(): array
     {
         return [
+            'protocol_version' => null,
             'status' => null,
             'scene' => null,
-            'action' => null,
+            'interaction' => null,
             'channel_trade_no' => null,
-            'payload' => [],
-            'display' => [],
             'expires_at' => null,
             'meta' => [],
             'raw' => null,

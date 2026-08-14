@@ -11,12 +11,16 @@ use PTAdmin\Addon\Contracts\Logistics\LogisticsInterface;
 use PTAdmin\Addon\Contracts\Notify\NotifyInterface;
 use PTAdmin\Addon\Contracts\Payment\PaymentInterface;
 use PTAdmin\Addon\Contracts\Payment\ClosablePaymentInterface;
+use PTAdmin\Addon\Contracts\Payment\PaymentReadinessInterface;
+use PTAdmin\Addon\Contracts\Payment\PreparablePaymentInterface;
 use PTAdmin\Addon\Contracts\Sms\SmsInterface;
 use PTAdmin\Addon\Contracts\Storage\StorageInterface;
 
 it('defines inject contracts for common capability groups', function (): void {
     expect(interface_exists(PaymentInterface::class))->toBeTrue()
         ->and(interface_exists(ClosablePaymentInterface::class))->toBeTrue()
+        ->and(interface_exists(PaymentReadinessInterface::class))->toBeTrue()
+        ->and(interface_exists(PreparablePaymentInterface::class))->toBeTrue()
         ->and(interface_exists(CapabilityInterface::class))->toBeTrue()
         ->and(interface_exists(CapabilityReadinessInterface::class))->toBeTrue()
         ->and(interface_exists(AuthInterface::class))->toBeTrue()
@@ -30,7 +34,6 @@ it('defines inject contracts for common capability groups', function (): void {
 
 it('defines realistic operations for common capability contracts', function (): void {
     expect(get_class_methods(PaymentInterface::class))->toEqualCanonicalizing([
-        'supports',
         'create',
         'query',
         'refund',
@@ -38,10 +41,17 @@ it('defines realistic operations for common capability contracts', function (): 
         'parseNotify',
         'acknowledgeNotify',
     ])->and(get_class_methods(ClosablePaymentInterface::class))->toEqualCanonicalizing([
-        'supports',
         'create',
         'query',
         'close',
+        'refund',
+        'queryRefund',
+        'parseNotify',
+        'acknowledgeNotify',
+    ])->and(get_class_methods(PreparablePaymentInterface::class))->toEqualCanonicalizing([
+        'prepare',
+        'create',
+        'query',
         'refund',
         'queryRefund',
         'parseNotify',

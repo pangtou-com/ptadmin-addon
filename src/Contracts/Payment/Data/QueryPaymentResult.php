@@ -15,7 +15,8 @@ class QueryPaymentResult extends ArrayData
             'channel_trade_no' => null,
             'status' => null,
             'paid_at' => null,
-            'amount' => null,
+            'amount_minor' => null,
+            'currency' => null,
             'meta' => [],
             'raw' => null,
         ];

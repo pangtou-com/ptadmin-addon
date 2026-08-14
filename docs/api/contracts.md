@@ -1,6 +1,6 @@
 # 能力接口约定
 
-插件管理器中的底层能力调用统一约定为：
+非支付能力可以通过底层能力调用：
 
 ```php
 Addon::executeInject($group, $code, $payload, $action);
@@ -8,17 +8,17 @@ Addon::executeInject($group, $code, $payload, $action);
 
 说明：
 
-- `$group`：能力分组，如 `payment`
+- `$group`：能力分组，如 `auth`
 - `$code`：具体实现编码，如 `wechat_pay`
 - `$payload`：固定输入字段集合
-- `$action`：具体动作，如 `create`、`refund`、`send`
+- `$action`：具体动作，如 `getAuthorizeUrl`、`send`
 
-支付能力在业务层推荐优先使用：
+支付能力只能通过支付技术目录发现，并使用完整能力引用调用：
 
 ```php
-Addon::payment()
-Addon::payments()
-Addon::payment($addonCode, $code)->channel('jsapi')->create($payload)
+$methods = addon_payments()->discover($requirements);
+$gateway = addon_payments()->gateway($reference);
+$result = $gateway->create($payload);
 ```
 
 能力发现和第三方认证可以使用公共 helper：
@@ -27,10 +27,9 @@ Addon::payment($addonCode, $code)->channel('jsapi')->create($payload)
 addon_cap('auth')->all();
 addon_cap('auth')->available();
 addon_auth($code, $addonCode)->getAuthorizeUrl($payload);
-addon_payment($code, $addonCode)->create($payload);
 ```
 
-`addon_cap()` 只返回 `addon_code`、`group`、`code`、`title` 和 `types`，不会公开能力处理类。`all()` 表示能力已注册，`available()` 表示可选的 `ready` 检查已经通过。支付、存储等业务仍需由宿主继续实施业务场景和权限检查。
+`addon_cap()` 只用于非支付能力。支付不允许通过通用目录或 `executeInject()` 调用，完整流程见[支付能力协议 v2](/api/payment-protocol-v2.md)。
 
 ## 总体原则
 
@@ -47,6 +46,7 @@ addon_payment($code, $addonCode)->create($payload);
 | inject 分组 | 接口 | 动作 |
 | --- | --- | --- |
 | `payment` | `PTAdmin\Addon\Contracts\Payment\PaymentInterface` | `create` `query` `refund` `queryRefund` `parseNotify` `acknowledgeNotify` |
+| `payment`（可选准备能力） | `PTAdmin\Addon\Contracts\Payment\PreparablePaymentInterface` | 在基础支付动作上增加 `prepare` |
 | `payment`（可选关闭能力） | `PTAdmin\Addon\Contracts\Payment\ClosablePaymentInterface` | 在基础支付动作上增加 `close` |
 | `auth` | `PTAdmin\Addon\Contracts\Auth\AuthInterface` | `getAuthorizeUrl` `handleCallback` `getUser` `refreshToken` |
 | `notify` | `PTAdmin\Addon\Contracts\Notify\NotifyInterface` | `send` `sendBatch` `query` `parseCallback` |
@@ -64,13 +64,12 @@ addon_payment($code, $addonCode)->create($payload);
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `scene` | `string` | 支付场景，固定取值如 `jsapi` `app` `h5` `native` `miniapp` |
 | `order_no` | `string` | 业务订单号 |
-| `amount` | `string\|int\|float` | 支付金额 |
+| `amount_minor` | `int` | 最小货币单位整数 |
 | `subject` | `string` | 订单标题 |
 | `notify_url` | `string` | 异步回调地址 |
 | `return_url` | `string\|null` | 同步返回地址 |
-| `open_id` | `string\|null` | 用户标识 |
+| `payer_reference` | `string\|null` | 短期付款人引用 |
 | `client_ip` | `string\|null` | 客户端 IP |
 | `currency` | `string\|null` | 币种 |
 | `meta` | `array` | 渠道专属参数 |
@@ -79,12 +78,11 @@ addon_payment($code, $addonCode)->create($payload);
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
+| `protocol_version` | `int` | 固定为 `2` |
 | `status` | `string` | 支付单状态 |
 | `scene` | `string` | 当前支付场景 |
-| `action` | `string` | 前端动作，固定取值如 `invoke` `redirect` `form` `qrcode` `none` |
+| `interaction` | `array` | 受约束的标准交互类型和载荷 |
 | `channel_trade_no` | `string\|null` | 渠道交易号 |
-| `payload` | `array` | 标准拉起参数 |
-| `display` | `array` | 展示辅助数据，如二维码链接、表单片段 |
 | `expires_at` | `string\|null` | 过期时间 |
 | `meta` | `array` | 渠道扩展输出 |
 | `raw` | `mixed` | 原始响应 |
@@ -93,11 +91,11 @@ addon_payment($code, $addonCode)->create($payload);
 
 固定输入：`order_no` `channel_trade_no` `meta`
 
-固定输出：`order_no` `channel_trade_no` `status` `paid_at` `amount` `meta` `raw`
+固定输出：`order_no` `channel_trade_no` `status` `paid_at` `amount_minor` `currency` `meta` `raw`
 
 ### `close`
 
-关闭支付单是可选能力。需要主动关单的实现应使用 `ClosablePaymentInterface`，旧支付插件可以继续只实现 `PaymentInterface`。
+关闭支付单是可选能力。声明 `close` 的插件必须实现 `ClosablePaymentInterface`。
 
 固定输入：`order_no` `channel_trade_no` `meta`
 
@@ -105,21 +103,21 @@ addon_payment($code, $addonCode)->create($payload);
 
 ### `refund`
 
-固定输入：`order_no` `refund_no` `amount` `reason` `meta`
+固定输入：`order_no` `refund_no` `amount_minor` `currency` `reason` `meta`
 
-固定输出：`order_no` `refund_no` `channel_refund_no` `status` `refunded_at` `amount` `meta` `raw`
+固定输出：`order_no` `refund_no` `channel_refund_no` `status` `refunded_at` `amount_minor` `currency` `meta` `raw`
 
 ### `queryRefund`
 
 固定输入：`refund_no` `channel_refund_no` `meta`
 
-固定输出：`refund_no` `channel_refund_no` `status` `refunded_at` `amount` `meta` `raw`
+固定输出：`refund_no` `channel_refund_no` `status` `refunded_at` `amount_minor` `currency` `meta` `raw`
 
 ### `parseNotify`
 
 固定输入：`body` `headers` `query` `meta`
 
-固定输出：`event` `order_no` `refund_no` `channel_trade_no` `channel_refund_no` `status` `amount` `paid_at` `meta` `raw`
+固定输出：`event` `order_no` `refund_no` `channel_trade_no` `channel_refund_no` `status` `amount_minor` `currency` `paid_at` `meta` `raw`
 
 ### `acknowledgeNotify`
 
@@ -293,24 +291,4 @@ addon_payment($code, $addonCode)->create($payload);
 
 ## 注册与调用示例
 
-```php
-$manager->register(
-    'payment-addon',
-    'payment',
-    InjectDefinition::make('wechat_pay')
-        ->title('微信支付')
-        ->types(['jsapi', 'app', 'refund'])
-        ->handler(WechatPayService::class)
-);
-```
-
-```php
-$result = Addon::payment('payment-addon', 'wechat_pay')
-    ->channel('jsapi')
-    ->create([
-        'order_no' => 'T1001',
-        'amount' => 99.9,
-        'subject' => '订单支付',
-        'notify_url' => 'https://example.com/pay/notify',
-    ]);
-```
+支付注册、发现、就绪检查和精确调用统一见[支付能力协议 v2](/api/payment-protocol-v2.md)。支付注册缺少 `PaymentDefinition` 会失败，不存在旧 `types + channel` 调用路径。

@@ -33,6 +33,9 @@ use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\AddonApi;
 use PTAdmin\Addon\AesUtil;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentCapabilityReference;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentRequirements;
+use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentTarget;
 use PTAdmin\Addon\Service\AddonConfigManager;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
 use PTAdmin\Addon\Service\AddonHooksManage;
@@ -172,59 +175,33 @@ it('get addon path', function (): void {
 });
 
 it('get addon injects', function (): void {
-    expect($this->addon->getInject('test'))->toEqual([
-        'payment' => [
-            [
-                'code' => 'wechat_pay',
-                'type' => ['jsapi', 'qrcode'],
-                'class' => 'PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestPaymentService',
-                'title' => '微信支付',
-            ],
-            [
-                'code' => 'alipay',
-                'type' => ['web'],
-                'class' => 'PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestAlipayService',
-                'title' => '支付宝',
-            ],
-        ],
-        'auth' => [
-            [
-                'code' => 'qq_login',
-                'type' => ['pc', 'mobile'],
-                'class' => 'PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestInjectServices',
-                'title' => 'QQ登录',
-            ],
-        ],
-        'notify' => [
-            [
-                'code' => 'site_notify',
-                'type' => ['site', 'template'],
-                'class' => 'PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestInjectServices',
-                'title' => '站内通知',
-            ],
-        ],
-        'storage' => [
-            [
-                'code' => 'oss_storage',
-                'type' => ['oss', 'private'],
-                'class' => 'PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestInjectServices',
-                'title' => 'OSS 存储',
-            ],
-        ],
-    ])->and($this->addon->getInjects('payment'))->toEqual([
-        [
+    $inject = $this->addon->getInject('test');
+
+    expect($inject['payment'])->toHaveCount(2)
+        ->and($inject['payment'][0])->toMatchArray([
             'code' => 'wechat_pay',
-            'type' => ['jsapi', 'qrcode'],
             'class' => 'PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestPaymentService',
             'title' => '微信支付',
-        ],
-        [
+        ])->and($inject['payment'][0]['payment_definition'])->toMatchArray([
+            'code' => 'wechat_pay',
+            'protocol_version' => 2,
+        ])->and($inject['payment'][0]['payment_definition']['scenes'][0])->toMatchArray([
+            'scene' => 'jsapi',
+            'targets' => ['wechat_webview'],
+            'interactions' => ['client_invoke'],
+        ])->and($inject['payment'][1])->toMatchArray([
             'code' => 'alipay',
-            'type' => ['web'],
-            'class' => 'PTAdmin\\AddonTests\\Feature\\Addon\\testSrc\\addons\\Test\\TestAlipayService',
-            'title' => '支付宝',
-        ],
-    ])->and(Addon::getInjectNotify())->toEqual([
+        ])->and($inject['payment'][1]['payment_definition'])->toMatchArray([
+            'code' => 'alipay',
+            'protocol_version' => 2,
+        ])->and($inject['payment'][1]['payment_definition']['scenes'][0])->toMatchArray([
+            'scene' => 'web',
+            'targets' => ['pc'],
+            'interactions' => ['form_submit'],
+        ])->and(fn () => $this->addon->getInjects('payment'))->toThrow(\InvalidArgumentException::class)
+        ->and($inject['auth'][0]['type'])->toEqual(['pc', 'mobile'])
+        ->and($inject['storage'][0]['type'])->toEqual(['oss', 'private'])
+        ->and(Addon::getInjectNotify())->toEqual([
         [
             'code' => 'site_notify',
             'type' => ['site', 'template'],
@@ -318,33 +295,9 @@ it('dispatch addon hooks', function (): void {
 });
 
 it('execute addon injects', function (): void {
-    $create = Addon::executeInject('payment', 'wechat_pay', [
-        'scene' => 'jsapi',
-        'order_no' => 'T1001',
-        'amount' => 99.9,
-    ], 'create');
-    $refund = Addon::executeInject('payment', 'wechat_pay', [
-        'order_no' => 'T1001',
-        'refund_no' => 'R1001',
-        'amount' => 20,
-    ], 'refund');
-
-    expect($create)->toBeInstanceOf(\PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentResult::class)
-        ->and($create->toArray())->toMatchArray([
-            'status' => 'created',
-            'scene' => 'jsapi',
-            'channel_trade_no' => 'trade-test-1001',
-            'payload' => [
-                'order_no' => 'T1001',
-                'amount' => 99.9,
-            ],
-        ])->and($refund)->toBeInstanceOf(\PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentResult::class)
-        ->and($refund->toArray())->toMatchArray([
-            'order_no' => 'T1001',
-            'refund_no' => 'R1001',
-            'amount' => 20,
-            'status' => 'success',
-        ])->and(Addon::executeInject('auth', 'qq_login', [
+    expect(fn () => Addon::executeInject('payment', 'wechat_pay', [], 'create'))
+        ->toThrow(AddonException::class)
+        ->and(Addon::executeInject('auth', 'qq_login', [
         'scene' => 'pc',
     ], 'getAuthorizeUrl'))->toEqual([
         'group' => 'auth',
@@ -378,42 +331,49 @@ it('execute addon injects', function (): void {
 });
 
 it('resolves payment gateways', function (): void {
-    $payments = Addon::payments();
-    $default = Addon::payment();
-    $specified = Addon::payment('test', 'wechat_pay');
-    $alipayList = Addon::payments('test');
+    $pc = Addon::paymentCatalog()->discover(PaymentRequirements::make()->target(PaymentTarget::PC));
+    $wechat = Addon::paymentCatalog()->discover(PaymentRequirements::make()->target(PaymentTarget::WECHAT_WEBVIEW));
 
-    expect($payments)->toHaveCount(2)
-        ->and($payments[0]['addon_code'])->toEqual('test')
-        ->and($default->definition()['addon_code'])->toEqual('test')
-        ->and($specified->definition()['addon_code'])->toEqual('test')
-        ->and($specified->definition()['code'])->toEqual('wechat_pay')
-        ->and($alipayList)->toHaveCount(2);
+    expect($pc)->toHaveCount(1)
+        ->and($pc[0])->toMatchArray(['addon_code' => 'test', 'capability_code' => 'alipay', 'scene' => 'web'])
+        ->and($wechat)->toHaveCount(1)
+        ->and($wechat[0])->toMatchArray(['addon_code' => 'test', 'capability_code' => 'wechat_pay', 'scene' => 'jsapi']);
 });
 
-it('calls payment gateway by channel and addon code', function (): void {
-    $result = Addon::payment('test', 'wechat_pay')
-        ->channel('jsapi')
+it('calls payment gateway by exact capability reference', function (): void {
+    $reference = new PaymentCapabilityReference('test', 'wechat_pay', 'default', 'jsapi');
+    $result = Addon::paymentCatalog()->gateway($reference)
         ->create([
             'order_no' => 'T2001',
-            'amount' => 199,
+            'amount_minor' => 199,
+            'currency' => 'CNY',
+            'payer_reference' => 'payer-test-2001',
             'subject' => '支付测试',
             'notify_url' => 'https://example.test/notify',
         ]);
 
     expect($result)->toBeInstanceOf(\PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentResult::class)
         ->and($result->toArray())->toMatchArray([
-            'status' => 'created',
+            'protocol_version' => 2,
+            'status' => 'pending',
             'scene' => 'jsapi',
-            'payload' => [
-                'order_no' => 'T2001',
-                'amount' => 199,
+            'interaction' => [
+                'type' => 'client_invoke',
+                'payload' => [
+                    'executor' => 'test.jsapi',
+                    'version' => '1',
+                    'parameters' => [
+                        'order_no' => 'T2001',
+                        'amount_minor' => 199,
+                    ],
+                ],
             ],
         ]);
 });
 
 it('closes payment through an explicitly closable implementation', function (): void {
-    $result = Addon::payment('test', 'wechat_pay')->close([
+    $reference = new PaymentCapabilityReference('test', 'wechat_pay', 'default', 'jsapi');
+    $result = Addon::paymentCatalog()->gateway($reference)->close([
         'order_no' => 'T2002',
         'channel_trade_no' => 'trade-test-2002',
     ]);
@@ -427,26 +387,35 @@ it('closes payment through an explicitly closable implementation', function (): 
 });
 
 it('rejects close when a payment implementation does not provide the optional capability', function (): void {
-    expect(fn () => Addon::payment('test', 'alipay')->close([
+    $reference = new PaymentCapabilityReference('test', 'alipay', 'default', 'web');
+
+    expect(fn () => Addon::paymentCatalog()->gateway($reference)->close([
         'order_no' => 'T3002',
-    ]))->toThrow(AddonException::class, __('ptadmin-addon::messages.definition.payment_method_unsupported', [
-        'target' => 'payment:test',
-        'method' => 'close',
-    ]));
+    ]))->toThrow(AddonException::class);
 });
 
 it('calls another payment implementation in same addon', function (): void {
-    $result = Addon::payment('test', 'alipay')->create([
+    $reference = new PaymentCapabilityReference('test', 'alipay', 'default', 'web');
+    $result = Addon::paymentCatalog()->gateway($reference)->create([
         'order_no' => 'T3001',
-        'amount' => 88.8,
+        'amount_minor' => 8880,
+        'currency' => 'CNY',
         'subject' => '支付宝支付',
         'notify_url' => 'https://example.test/alipay/notify',
-    ], 'web');
+    ]);
 
     expect($result->toArray())->toMatchArray([
-        'status' => 'created',
+        'protocol_version' => 2,
+        'status' => 'pending',
         'scene' => 'web',
-        'action' => 'form',
+        'interaction' => [
+            'type' => 'form_submit',
+            'payload' => [
+                'url' => 'https://pay.example.test/submit',
+                'method' => 'POST',
+                'fields' => ['order_no' => 'T3001'],
+            ],
+        ],
         'channel_trade_no' => 'trade-ali-1001',
     ]);
 });

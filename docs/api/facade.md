@@ -16,7 +16,7 @@ $path = Addon::getAddonPath('demo-addon');
 
 ```php
 $directives = Addon::getDirectives();
-$injects = Addon::getInjects('payment');
+$injects = Addon::getInjects('auth');
 $hooks = Addon::getHooks();
 ```
 
@@ -66,46 +66,20 @@ if ($auth->ready()) {
 
 ## 支付能力
 
-支付能力推荐直接通过 `Addon::payment()` 调用，而不是手动拼 `group + code + action`。
+支付能力不提供默认插件或按编码直接调用的 Facade。调用方必须先按明确目标发现，再使用完整引用调用：
 
 ```php
-$payment = Addon::payment();
-$payments = Addon::payments();
-$wechat = Addon::payment('payment-addon', 'wechat_pay');
-$alipay = addon_payment('alipay');
+$methods = Addon::paymentCatalog()->discover($requirements);
+$reference = PaymentCapabilityReference::fromArray($storedMethodReference);
+$gateway = Addon::paymentCatalog()->gateway($reference);
+$result = $gateway->create($payload);
 ```
 
-```php
-$result = Addon::payment('payment-addon', 'wechat_pay')
-    ->channel('jsapi')
-    ->create([
-        'order_no' => 'T1001',
-        'amount' => 99.9,
-        'subject' => '订单支付',
-        'notify_url' => 'https://example.com/pay/notify',
-    ]);
-```
-
-```php
-$refund = Addon::payment('payment-addon', 'wechat_pay')->refund([
-    'order_no' => 'T1001',
-    'refund_no' => 'R1001',
-    'amount' => 20,
-]);
-```
-
-实现 `ClosablePaymentInterface` 的支付能力可以主动关闭支付单：
-
-```php
-$closed = Addon::payment('payment-addon', 'wechat_pay')->close([
-    'order_no' => 'T1001',
-    'channel_trade_no' => null,
-]);
-```
+完整声明和结果结构见[支付能力协议 v2](/api/payment-protocol-v2.md)。
 
 ## 调用 inject
 
-`executeInject()` 仍然保留，适合底层能力分发或非支付类能力场景。
+`executeInject()` 仍然保留，但只适合非支付能力。`payment` 分组会被拒绝。
 
 ```php
 $result = Addon::executeInject('notify', 'site_notify', [

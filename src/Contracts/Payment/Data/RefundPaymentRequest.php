@@ -13,7 +13,8 @@ class RefundPaymentRequest extends ArrayData
         return [
             'order_no' => null,
             'refund_no' => null,
-            'amount' => null,
+            'amount_minor' => null,
+            'currency' => null,
             'reason' => null,
             'meta' => [],
         ];

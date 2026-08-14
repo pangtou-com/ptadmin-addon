@@ -23,6 +23,9 @@ final class CapabilityCatalog
         if (1 !== preg_match('/\A[a-z][a-z0-9_-]{0,49}\z/', $group)) {
             throw new \InvalidArgumentException('Addon capability group is invalid.');
         }
+        if ('payment' === $group) {
+            throw new \InvalidArgumentException('Use PaymentCatalog for payment capability discovery.');
+        }
 
         $this->group = $group;
     }

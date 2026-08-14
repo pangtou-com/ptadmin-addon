@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PTAdmin\Addon\Contracts\Payment;
 
-use PTAdmin\Addon\Contracts\CapabilityInterface;
 use PTAdmin\Addon\Contracts\Payment\Data\AcknowledgePaymentNotifyRequest;
 use PTAdmin\Addon\Contracts\Payment\Data\AcknowledgePaymentNotifyResult;
 use PTAdmin\Addon\Contracts\Payment\Data\CreatePaymentRequest;
@@ -22,24 +21,23 @@ use PTAdmin\Addon\Contracts\Payment\Data\RefundPaymentResult;
  * 支付能力接口。
  *
  * 适用于微信支付、支付宝、银联等支付渠道实现。
- * 统一通过 group=payment 注册，并通过 action 分发具体动作。
+ * 统一通过 group=payment 注册，并通过 PaymentDefinition 声明场景和操作。
  *
- * 输入字段固定，渠道差异统一通过 meta 透传。
- * 输出字段固定，渠道原始响应统一放入 raw，渠道扩展信息统一放入 meta。
+ * 网关通过 meta.payment_context 传递固定的插件、能力、配置档案、场景和协议版本。
+ * 渠道原始响应统一放入 raw，渠道扩展信息统一放入 meta。
  */
-interface PaymentInterface extends CapabilityInterface
+interface PaymentInterface
 {
     /**
      * 发起支付并生成拉起参数。
      *
      * 输入字段约定：
-     * - scene: 支付场景，固定取值如 jsapi、app、h5、native、miniapp
      * - order_no: 业务订单号
-     * - amount: 支付金额，单位由业务侧自行约定
+     * - amount_minor: 最小货币单位整数
      * - subject: 订单标题
      * - notify_url: 异步通知地址
      * - return_url: 同步返回地址
-     * - open_id: 用户 open_id，不需要时传 null
+     * - payer_reference: 短期付款人引用，不需要时传 null
      * - client_ip: 客户端 IP，不需要时传 null
      * - currency: 币种，不需要时传 null
      * - meta: 渠道专属扩展参数
@@ -64,7 +62,8 @@ interface PaymentInterface extends CapabilityInterface
      * 输入字段约定：
      * - order_no: 业务订单号
      * - refund_no: 业务退款单号
-     * - amount: 退款金额
+     * - amount_minor: 最小货币单位整数
+     * - currency: 大写 ISO 币种代码
      * - reason: 退款原因，不需要时传 null
      * - meta: 渠道专属扩展参数
      *

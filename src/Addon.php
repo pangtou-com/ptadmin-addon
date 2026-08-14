@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Facade;
 use PTAdmin\Addon\Service\AddonConfigManager;
 use PTAdmin\Addon\Service\AddonDirectivesActuator;
 use PTAdmin\Addon\Service\AddonHooksManage;
-use PTAdmin\Addon\Service\AddonInjectsManage;
 use PTAdmin\Addon\Service\AddonInjectsActuator;
 use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\AuthGateway;
@@ -27,7 +26,7 @@ use PTAdmin\Addon\Service\BaseBootstrap;
 use PTAdmin\Addon\Service\BaseInstaller;
 use PTAdmin\Addon\Service\CapabilityCatalog;
 use PTAdmin\Addon\Service\DirectivesDTO;
-use PTAdmin\Addon\Service\PaymentGateway;
+use PTAdmin\Addon\Service\PaymentCatalog;
 
 /**
  * @method static AddonConfigManager getAddonManager()                     插件配置管理对象
@@ -125,36 +124,11 @@ class Addon extends Facade
     }
 
     /**
-     * 获取默认或指定插件的支付能力代理。
+     * 获取支付协议 v2 技术目录。
      */
-    public static function payment(?string $addonCode = null, ?string $code = null): PaymentGateway
+    public static function paymentCatalog(): PaymentCatalog
     {
-        return new PaymentGateway($addonCode, $code);
-    }
-
-    /**
-     * 获取当前所有可用支付插件代理。
-     *
-     * @param string|null $addonCode
-     * @return array
-     */
-    public static function payments(?string $addonCode = null): array
-    {
-        if (!blank($addonCode)) {
-            return AddonInjectsManage::getInstance()->getDefinitionsByAddonCode('payment', $addonCode);
-        }
-
-        return AddonInjectsManage::getInstance()->getDefinitionsByGroup('payment');
-    }
-
-    /**
-     * 获取支持的支付.
-     *
-     * @return array
-     */
-    public static function getInjectPayment(): array
-    {
-        return self::getInjects('payment');
+        return new PaymentCatalog();
     }
 
     /**

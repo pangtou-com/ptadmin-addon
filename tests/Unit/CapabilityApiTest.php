@@ -13,7 +13,7 @@ use PTAdmin\Addon\Service\AuthGateway;
 use PTAdmin\Addon\Service\CapabilityCatalog;
 use PTAdmin\Addon\Service\InjectDefinition;
 use PTAdmin\Addon\Service\InjectPayload;
-use PTAdmin\Addon\Service\PaymentGateway;
+use PTAdmin\Addon\Service\PaymentCatalog;
 
 beforeEach(function (): void {
     $this->originalBasePath = $this->app->basePath();
@@ -46,14 +46,6 @@ beforeEach(function (): void {
             ->title('Fake Login')
             ->types(['login', 'connect'])
             ->handler(CapabilityApiFakeAuth::class)
-    );
-    AddonInjectsManage::getInstance()->register(
-        'legacy_payment',
-        'payment',
-        InjectDefinition::make('legacy_pay')
-            ->title('Legacy Pay')
-            ->types(['web'])
-            ->handler(CapabilityApiLegacyPayment::class)
     );
 });
 
@@ -95,16 +87,10 @@ it('filters capabilities through optional readiness checks', function (): void {
         ->and(addon_cap('auth')->isAvailable('fake', 'fake_auth', ['enabled' => false]))->toBeFalse();
 });
 
-it('keeps registered capabilities without readiness checks compatible', function (): void {
-    expect(addon_cap('payment')->available())->toBe([
-        [
-            'addon_code' => 'legacy_payment',
-            'group' => 'payment',
-            'code' => 'legacy_pay',
-            'title' => 'Legacy Pay',
-            'types' => ['web'],
-        ],
-    ]);
+it('requires the dedicated catalog for payment discovery', function (): void {
+    expect(addon_payments())->toBeInstanceOf(PaymentCatalog::class)
+        ->and(fn () => addon_cap('payment'))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Addon::capabilities('payment'))->toThrow(InvalidArgumentException::class);
 });
 
 it('executes auth capabilities through the public gateway and helper', function (): void {
@@ -128,15 +114,12 @@ it('rejects unsupported auth operations through the gateway', function (): void 
         ->toThrow(AddonException::class);
 });
 
-it('provides a payment gateway helper without changing payment selection rules', function (): void {
-    expect(addon_payment('legacy_pay', 'legacy_payment'))->toBeInstanceOf(PaymentGateway::class)
-        ->and(Addon::capabilities('payment'))->toBeInstanceOf(CapabilityCatalog::class)
-        ->and(Addon::auth('fake_auth', 'fake'))->toBeInstanceOf(AuthGateway::class);
+it('keeps non-payment capability gateways unchanged', function (): void {
+    expect(Addon::auth('fake_auth', 'fake'))->toBeInstanceOf(AuthGateway::class);
 });
 
 it('resolves helper gateways by capability code', function (): void {
-    expect(addon_auth('fake')->definition()['addon_code'])->toBe('fake_auth')
-        ->and(addon_payment('legacy_pay')->definition()['addon_code'])->toBe('legacy_payment');
+    expect(addon_auth('fake')->definition()['addon_code'])->toBe('fake_auth');
 });
 
 it('rejects ambiguous capability codes unless the addon is specified', function (): void {
@@ -197,8 +180,4 @@ final class CapabilityApiFakeAuth implements AuthInterface, CapabilityReadinessI
     {
         return ['access_token' => (string) $payload->get('refresh_token')];
     }
-}
-
-final class CapabilityApiLegacyPayment
-{
 }

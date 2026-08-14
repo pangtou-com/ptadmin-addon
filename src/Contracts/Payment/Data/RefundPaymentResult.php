@@ -16,7 +16,8 @@ class RefundPaymentResult extends ArrayData
             'channel_refund_no' => null,
             'status' => null,
             'refunded_at' => null,
-            'amount' => null,
+            'amount_minor' => null,
+            'currency' => null,
             'meta' => [],
             'raw' => null,
         ];

@@ -2,51 +2,30 @@
 
 ## 支付能力插件
 
-适合通过 `inject` 暴露能力：
+支付插件必须通过 `PaymentDefinition` 声明能力。业务侧先按运行目标发现：
 
 ```php
-$manager->register(
-    'payment-addon',
-    'payment',
-    InjectDefinition::make('wechat_pay')
-        ->title('微信支付')
-        ->types(['jsapi', 'qrcode'])
-        ->handler(WechatPayService::class)
-);
+$requirements = PaymentRequirements::make()
+    ->target(PaymentTarget::PC)
+    ->scenes([PaymentScene::QR, PaymentScene::WEB]);
+
+$methods = addon_payments()->discover($requirements);
 ```
 
-业务侧调用：
+平台将用户选择的方式解析为完整引用后调用：
 
 ```php
-$result = Addon::payment('payment-addon', 'wechat_pay')
-    ->channel('jsapi')
-    ->create([
-        'order_no' => 'T1001',
-        'amount' => 99.9,
-        'subject' => '订单支付',
-        'notify_url' => 'https://example.com/pay/notify',
-    ]);
-```
-
-如果需要展示所有可用支付插件：
-
-```php
-$payments = Addon::payments();
-```
-
-如果需要直接切指定支付插件：
-
-```php
-$wechat = Addon::payment('payment-addon', 'wechat_pay');
-```
-
-需要处理超时关单时，支付实现可扩展 `ClosablePaymentInterface`，业务侧通过支付网关关闭原支付单：
-
-```php
-$closed = Addon::payment('payment-addon', 'wechat_pay')->close([
+$reference = PaymentCapabilityReference::fromArray($storedMethodReference);
+$result = addon_payments()->gateway($reference)->create([
     'order_no' => 'T1001',
+    'amount_minor' => 9900,
+    'currency' => 'CNY',
+    'subject' => '订单支付',
+    'notify_url' => 'https://example.com/pay/notify',
 ]);
 ```
+
+查询、关单、退款和通知必须继续使用同一引用，不能重新发现或默认选择。完整示例见[支付能力协议 v2](/api/payment-protocol-v2.md)。
 
 ## 第三方登录插件
 

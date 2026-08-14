@@ -5,6 +5,7 @@
 - [命令行 API](/api/commands.md)
 - [Facade API](/api/facade.md)
 - [能力接口](/api/contracts.md)
+- [支付能力协议 v2](/api/payment-protocol-v2.md)
 - [运行期注册 API](/api/runtime.md)
 
 最常用的入口是：

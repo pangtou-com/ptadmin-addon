@@ -97,25 +97,26 @@ use PTAdmin\Addon\Service\InjectDefinition;
 
 $manager->register(
     'demo-addon',
-    'payment',
-    InjectDefinition::make('wechat_pay')
-        ->title('微信支付')
-        ->types(['jsapi', 'qrcode'])
-        ->handler(WechatPayService::class)
+    'auth',
+    InjectDefinition::make('qq_login')
+        ->title('QQ 登录')
+        ->types(['pc', 'mobile'])
+        ->handler(QqLoginService::class)
 );
 ```
 
 推荐做法：
 
 - `handler()` 直接指向能力类，而不是固定某个方法
-- 支付能力优先通过 `Addon::payment()`、`Addon::payments()` 暴露统一入口
+- 支付能力必须使用 `paymentDefinition()` 声明，并通过 `addon_payments()` 发现和调用，详见[支付能力协议 v2](/api/payment-protocol-v2.md)
 - 其他能力可继续通过 `Addon::executeInject(..., 'action')` 指定动作
-- 能力类应实现对应 `Contracts`，并通过 `supports()` 说明支持哪些动作
+- 能力类应实现对应 `Contracts`；非支付能力通过 `supports()` 说明支持动作，支付操作以 `PaymentDefinition` 为准
 - 复杂能力建议直接使用请求对象和响应对象约束输入输出
 
 如果某个 inject 分组已经有正式接口约定，建议实现对应 `Contracts`：
 
 - `payment` -> `PaymentInterface`
+- `payment` 付款人准备 -> 可选实现 `PreparablePaymentInterface`
 - `payment` 主动关闭支付单 -> 可选实现 `ClosablePaymentInterface`
 - `auth` -> `AuthInterface`
 - `notify` -> `NotifyInterface`
