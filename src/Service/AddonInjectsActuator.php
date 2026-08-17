@@ -17,6 +17,21 @@ class AddonInjectsActuator
         }
 
         $definition = AddonInjectsManage::getInstance()->getDefinition($group, $code);
+        return self::handleDefinition($definition, $group, $code, $payload, $action);
+    }
+
+    public static function handleForAddon(string $addonCode, string $group, string $code, array $payload = [], ?string $action = null)
+    {
+        if ('payment' === $group) {
+            throw new AddonException('Payment capabilities must be called through PaymentCatalog with an exact capability reference.');
+        }
+
+        $definition = AddonInjectsManage::getInstance()->getDefinitionByAddonAndCode($group, $addonCode, $code);
+        return self::handleDefinition($definition, $group, $addonCode.':'.$code, $payload, $action);
+    }
+
+    private static function handleDefinition(array $definition, string $group, string $code, array $payload, ?string $action = null)
+    {
         list($class, $method) = self::parseHandler($definition['class'] ?? '', $action);
         $instance = app($class);
         if (!blank($action) && $instance instanceof CapabilityInterface && !$instance->supports($method)) {

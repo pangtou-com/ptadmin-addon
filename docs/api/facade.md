@@ -81,6 +81,10 @@ $result = $gateway->create($payload);
 
 `executeInject()` 仍然保留，但只适合非支付能力。`payment` 分组会被拒绝。
 
+当能力编码可能在多个插件中重复时，使用
+`Addon::executeInjectForAddon($addonCode, $group, $code, $payload, $action)`
+按插件精确调用。反自动化挑战验证必须使用这个精确入口，避免配置切换导致挑战绑定漂移。
+
 ```php
 $result = Addon::executeInject('notify', 'site_notify', [
     'channel' => 'site',

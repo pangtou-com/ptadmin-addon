@@ -7,6 +7,9 @@ use PTAdmin\Addon\Contracts\CapabilityReadinessInterface;
 use PTAdmin\Addon\Contracts\AI\AIInterface;
 use PTAdmin\Addon\Contracts\Auth\AuthInterface;
 use PTAdmin\Addon\Contracts\Captcha\CaptchaInterface;
+use PTAdmin\Addon\Contracts\Captcha\ChallengeStatus;
+use PTAdmin\Addon\Contracts\Captcha\ChallengeType;
+use PTAdmin\Addon\Contracts\Captcha\Protocol\ChallengeProviderInterface;
 use PTAdmin\Addon\Contracts\Logistics\LogisticsInterface;
 use PTAdmin\Addon\Contracts\Notify\NotifyInterface;
 use PTAdmin\Addon\Contracts\Payment\PaymentInterface;
@@ -29,6 +32,7 @@ it('defines inject contracts for common capability groups', function (): void {
         ->and(interface_exists(SmsInterface::class))->toBeTrue()
         ->and(interface_exists(AIInterface::class))->toBeTrue()
         ->and(interface_exists(CaptchaInterface::class))->toBeTrue()
+        ->and(interface_exists(ChallengeProviderInterface::class))->toBeTrue()
         ->and(interface_exists(LogisticsInterface::class))->toBeTrue();
 });
 
@@ -86,8 +90,8 @@ it('defines realistic operations for common capability contracts', function (): 
         'generate',
         'embedding',
     ])->and(get_class_methods(CaptchaInterface::class))->toEqualCanonicalizing([
-        'supports',
-        'generate',
+        'definition',
+        'create',
         'verify',
         'refresh',
     ])->and(get_class_methods(LogisticsInterface::class))->toEqualCanonicalizing([
@@ -96,4 +100,17 @@ it('defines realistic operations for common capability contracts', function (): 
         'subscribe',
         'parseCallback',
     ]);
+});
+
+it('freezes the first release captcha types and result statuses', function (): void {
+    expect(ChallengeType::all())->toBe([
+        ChallengeType::IMAGE_TEXT,
+        ChallengeType::IMAGE_SELECT,
+        ChallengeType::SLIDER,
+        ChallengeType::ROTATE,
+        ChallengeType::WIDGET_TOKEN,
+        ChallengeType::RISK_TOKEN,
+    ])->and(ChallengeStatus::all())->toContain(ChallengeStatus::PASSED)
+        ->and(ChallengeStatus::all())->toContain(ChallengeStatus::LOCKED)
+        ->and(fn () => ChallengeType::assert('unknown'))->toThrow(InvalidArgumentException::class);
 });

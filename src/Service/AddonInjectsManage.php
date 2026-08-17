@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PTAdmin\Addon\Service;
 
 use PTAdmin\Addon\Addon;
+use PTAdmin\Addon\Contracts\Captcha\Protocol\CaptchaDefinition;
 use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentDefinition;
 use PTAdmin\Addon\Exception\AddonException;
 
@@ -43,6 +44,12 @@ class AddonInjectsManage
         }
         if ('payment' === $group && [] !== ($registered['type'] ?? [])) {
             throw new \InvalidArgumentException('Payment scenes must be declared through PaymentDefinition, not types().');
+        }
+        if ('captcha' === $group && !isset($registered['captcha_definition'])) {
+            throw new \InvalidArgumentException('Captcha inject definitions must declare captcha protocol v1.');
+        }
+        if ('captcha' === $group && [] !== ($registered['type'] ?? [])) {
+            throw new \InvalidArgumentException('Captcha challenge type must be declared through CaptchaDefinition, not types().');
         }
 
         $this->definitions[$addonCode][$group][] = $registered;
@@ -186,6 +193,12 @@ class AddonInjectsManage
                 ? $definition['payment_definition']
                 : PaymentDefinition::fromArray((array) $definition['payment_definition']);
             $result->paymentDefinition($paymentDefinition);
+        }
+        if (isset($definition['captcha_definition'])) {
+            $captchaDefinition = $definition['captcha_definition'] instanceof CaptchaDefinition
+                ? $definition['captcha_definition']
+                : CaptchaDefinition::fromArray((array) $definition['captcha_definition']);
+            $result->captchaDefinition($captchaDefinition);
         }
 
         return $result;

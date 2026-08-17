@@ -7,6 +7,7 @@
 - [能力接口](/api/contracts.md)
 - [第三方登录能力协议现状](/api/auth-protocol.md)
 - [支付能力协议 v2](/api/payment-protocol-v2.md)
+- [反自动化挑战协议 v1](/api/captcha-protocol.md)
 - [运行期注册 API](/api/runtime.md)
 
 最常用的入口是：

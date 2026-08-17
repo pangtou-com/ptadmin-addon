@@ -4,6 +4,7 @@
 
 ```php
 Addon::executeInject($group, $code, $payload, $action);
+Addon::executeInjectForAddon($addonCode, $group, $code, $payload, $action);
 ```
 
 说明：

@@ -108,6 +108,14 @@ class Addon extends Facade
     }
 
     /**
+     * 调用指定插件中的注入能力，允许不同插件使用相同能力编码。
+     */
+    public static function executeInjectForAddon(string $addonCode, string $group, string $code, array $payload = [], ?string $action = null)
+    {
+        return AddonInjectsActuator::handleForAddon($addonCode, $group, $code, $payload, $action);
+    }
+
+    /**
      * 获取指定分组的公开能力目录。
      */
     public static function capabilities(string $group): CapabilityCatalog
