@@ -19,6 +19,7 @@ export function getSideBarApi() {
         { text: '命令行', link: '/api/commands.md' },
         { text: 'Facade API', link: '/api/facade.md' },
         { text: '能力接口', link: '/api/contracts.md' },
+        { text: '第三方登录能力协议现状', link: '/api/auth-protocol.md' },
         { text: '支付能力协议 v2', link: '/api/payment-protocol-v2.md' },
         {
             text: '运行期注册',

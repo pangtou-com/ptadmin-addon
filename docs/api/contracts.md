@@ -56,6 +56,8 @@ addon_auth($code, $addonCode)->getAuthorizeUrl($payload);
 | `captcha` | `PTAdmin\Addon\Contracts\Captcha\CaptchaInterface` | `generate` `verify` `refresh` |
 | `logistics` | `PTAdmin\Addon\Contracts\Logistics\LogisticsInterface` | `query` `subscribe` `parseCallback` |
 
+通知场景、渠道模板、渠道策略、直发入口和策略扩展 Hook 属于宿主侧编排协议，设计记录位于聚合工作区 `docs/admin-notification.md`。插件的 `notify` 能力只负责渠道适配和标准结果返回，不直接决定系统渠道策略。
+
 ## 支付
 
 ### `create`
@@ -126,6 +128,8 @@ addon_auth($code, $addonCode)->getAuthorizeUrl($payload);
 固定输出：`status_code` `headers` `body` `meta` `raw`
 
 ## 第三方登录
+
+本节列出当前数组协议的字段约定。协议定位、宿主安全责任、已知缺口和后续演进方向见[第三方登录能力协议现状](/api/auth-protocol.md)。
 
 ### `getAuthorizeUrl`
 
