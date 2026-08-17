@@ -43,6 +43,7 @@ use PTAdmin\Addon\Commands\AddonInstallLocal;
 use PTAdmin\Addon\Commands\AddonInit;
 use PTAdmin\Addon\Commands\AddonLogin;
 use PTAdmin\Addon\Commands\AddonResourcesSync;
+use PTAdmin\Addon\Commands\AddonSetup;
 use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpgrade;
 use PTAdmin\Addon\Commands\AddonUpload;
@@ -53,6 +54,7 @@ use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\RuntimeContextNormalizer;
 use PTAdmin\Addon\Service\RuntimeContextProvider;
 use PTAdmin\Addon\Service\AddonLicenseService;
+use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\CloudMarketPurchaseService;
 use PTAdmin\Addon\Service\HostApplicationInstanceProvider;
 
@@ -73,6 +75,7 @@ class AddonServiceProvider extends ServiceProvider
         $this->app->singleton(RuntimeContextProviderInterface::class, RuntimeContextProvider::class);
         $this->app->singleton(ApplicationInstanceProviderInterface::class, HostApplicationInstanceProvider::class);
         $this->app->singleton(AddonLicenseService::class, AddonLicenseService::class);
+        $this->app->singleton(AddonInstallationRegistry::class, AddonInstallationRegistry::class);
         $this->app->singleton(CloudMarketPurchaseService::class, CloudMarketPurchaseService::class);
         $this->registerProvider($this->app);
     }
@@ -89,6 +92,7 @@ class AddonServiceProvider extends ServiceProvider
             AddonFrontendBuild::class,
             AddonFrontendPull::class,
             AddonResourcesSync::class,
+            AddonSetup::class,
             AddonUninstall::class,
             AddonUpgrade::class,
             AddonEnable::class,

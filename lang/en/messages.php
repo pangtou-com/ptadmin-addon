@@ -19,6 +19,8 @@ return [
     'addon' => [
         'not_exists' => 'Addon [:code] does not exist',
         'installed_force' => 'Addon [:code] is already installed. Use --force to overwrite it',
+        'deployed_use_setup' => 'Addon [:code] is deployed but not initialized. Run php artisan addon:setup :code; --force is only for overwriting the addon directory',
+        'setup_done_force' => 'Addon [:code] has already been initialized. Use --force to run its installation lifecycle again',
         'develop_force' => 'Addon [:code] is currently in development mode. Confirm before using forced overwrite',
         'copy_target' => 'Copying addon files to: [:path]',
         'write_failed' => 'Addon [:code] installation failed, unable to write the addon directory',
@@ -30,6 +32,10 @@ return [
         'verify_failed' => 'Addon [:code] upgrade package verification failed',
         'dependency_uninstall_first' => 'Addon [:code] is required by other addons. Uninstall dependents first or use --force',
         'code_duplicated' => 'Addon code [:code] is defined more than once',
+        'code_invalid' => 'Addon code [:code] is invalid',
+        'installation_state_invalid' => 'The installation state for addon [:code] is invalid',
+        'installation_state_write_failed' => 'Unable to write installation state for addon [:code]',
+        'installation_state_delete_failed' => 'Unable to delete installation state for addon [:code]',
         'method_missing' => 'Addon [:addon] does not define method [:method]',
     ],
     'validator' => [

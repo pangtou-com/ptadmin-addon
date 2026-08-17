@@ -28,6 +28,7 @@ use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\AddonApi;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonPackageSourceResolver;
+use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\AddonUtil;
 
 final class AddonUpgrade extends AbstractAddonAction
@@ -74,6 +75,11 @@ final class AddonUpgrade extends AbstractAddonAction
                 $installer->upgrade($currentVersion, $newConfig['version'] ?? null);
             }
             $this->action->publishFrontendRuntime($this->code);
+            app(AddonInstallationRegistry::class)->markInstalled(
+                $this->code,
+                isset($newConfig['version']) ? (string) $newConfig['version'] : null,
+                'marketplace'
+            );
             $this->info(__('ptadmin-addon::messages.action.upgrade_done', [
                 'from' => $currentVersion,
                 'to' => $newConfig['version'] ?? 'unknown',

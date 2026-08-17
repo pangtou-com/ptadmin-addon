@@ -40,6 +40,7 @@ use PTAdmin\Addon\Service\AddonConfigManager;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
 use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
+use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\BaseBootstrap;
 use PTAdmin\Addon\Service\Action\AddonAction;
@@ -821,6 +822,11 @@ it('install addon from local zip package', function (): void {
 
     expect(Addon::hasAddon('test'))->toBeTrue()
         ->and(Addon::getAddonVersion('test'))->toEqual('v0.0.1')
+        ->and(app(AddonInstallationRegistry::class)->get('test'))->toMatchArray([
+            'code' => 'test',
+            'version' => 'v0.0.1',
+            'source' => 'local_package',
+        ])
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'install.log'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'init.log'))->toBeTrue()
         ->and($fakeService->synced)->toHaveCount(1)
@@ -828,6 +834,84 @@ it('install addon from local zip package', function (): void {
         ->and(data_get($fakeService->synced[0], 'definitions.0.name'))->toEqual('test')
         ->and(data_get($fakeService->synced[0], 'definitions.1.name'))->toEqual('test.dashboard')
         ->and(data_get($fakeService->synced[0], 'definitions.2.name'))->toEqual('test.dashboard.create');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('setup addon from existing directory without replacing source', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-setup-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    $fakeService = new FakeAdminResourceServiceForAddonTest();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
+
+    $addonPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test';
+    $manifestPath = $addonPath.\DIRECTORY_SEPARATOR.'manifest.json';
+    $manifest = file_get_contents($manifestPath);
+    $registry = app(AddonInstallationRegistry::class);
+
+    expect($registry->isInstalled('test'))->toBeFalse()
+        ->and(Artisan::all())->toHaveKey('addon:setup');
+    expect(fn () => AddonAction::install('test'))
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.addon.deployed_use_setup', ['code' => 'test']));
+
+    AddonAction::setup('test');
+
+    expect(file_get_contents($manifestPath))->toEqual($manifest)
+        ->and(file_exists($addonPath.\DIRECTORY_SEPARATOR.'install.log'))->toBeTrue()
+        ->and(file_exists($addonPath.\DIRECTORY_SEPARATOR.'init.log'))->toBeTrue()
+        ->and($registry->get('test'))->toMatchArray([
+            'code' => 'test',
+            'version' => 'v0.0.1',
+            'source' => 'existing',
+        ])
+        ->and($fakeService->synced)->toHaveCount(1);
+
+    expect(fn () => AddonAction::setup('test'))
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.addon.setup_done_force', ['code' => 'test']));
+    expect(fn () => AddonAction::install('test'))
+        ->toThrow(AddonException::class, __('ptadmin-addon::messages.addon.installed_force', ['code' => 'test']));
+
+    @unlink($addonPath.\DIRECTORY_SEPARATOR.'install.log');
+    AddonAction::setup('test', true);
+
+    expect(file_exists($addonPath.\DIRECTORY_SEPARATOR.'install.log'))->toBeTrue()
+        ->and($fakeService->synced)->toHaveCount(2);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('preserves existing addon source when setup lifecycle fails', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-setup-failure-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $addonPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test';
+    file_put_contents($addonPath.\DIRECTORY_SEPARATOR.'install.sql', 'THIS IS INVALID SQL;');
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+
+    expect(fn () => AddonAction::setup('test'))->toThrow(AddonException::class)
+        ->and(is_dir($addonPath))->toBeTrue()
+        ->and(file_exists($addonPath.\DIRECTORY_SEPARATOR.'manifest.json'))->toBeTrue()
+        ->and(app(AddonInstallationRegistry::class)->isInstalled('test'))->toBeFalse();
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -1381,12 +1465,14 @@ it('run uninstall lifecycle when removing addon', function (): void {
     AddonHooksManage::getInstance()->reset();
     $fakeService = new FakeAdminResourceServiceForAddonTest();
     app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
+    app(AddonInstallationRegistry::class)->markInstalled('test', 'v0.0.1', 'existing');
 
     AddonAction::uninstall('test', true);
 
     expect(file_exists($basePath.\DIRECTORY_SEPARATOR.'addon-uninstall.log'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addon-purge.log'))->toBeFalse()
         ->and(is_dir($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'))->toBeFalse()
+        ->and(app(AddonInstallationRegistry::class)->isInstalled('test'))->toBeFalse()
         ->and($fakeService->deleted)->toEqual(['test']);
 
     $filesystem->deleteDirectory($basePath);

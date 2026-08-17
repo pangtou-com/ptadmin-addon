@@ -17,6 +17,7 @@ namespace PTAdmin\Addon\Service\Action;
 
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Service\AddonAdminResourceSynchronizer;
+use PTAdmin\Addon\Service\AddonInstallationRegistry;
 
 final class AddonUninstall extends AbstractAddonAction
 {
@@ -40,6 +41,7 @@ final class AddonUninstall extends AbstractAddonAction
         app(AddonAdminResourceSynchronizer::class)->delete($this->code);
         $this->info(__('ptadmin-addon::messages.action.delete_files'));
         $this->filesystem->deleteDirectory(Addon::getAddonPath($this->code));
+        app(AddonInstallationRegistry::class)->forget($this->code);
         $this->info(__('ptadmin-addon::messages.action.uninstall_done'));
 
         return true;

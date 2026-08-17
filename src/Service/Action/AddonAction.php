@@ -28,6 +28,7 @@ use Illuminate\Filesystem\Filesystem;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonAdminResourceSynchronizer;
+use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
 use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
@@ -266,6 +267,10 @@ class AddonAction
     public static function install(string $code, $versionId = 0, bool $force = false, bool $withSource = false)
     {
         if (Addon::hasInstalledAddon($code) && !$force) {
+            if (!app(AddonInstallationRegistry::class)->isInstalled($code)) {
+                throw new AddonException(__('ptadmin-addon::messages.addon.deployed_use_setup', ['code' => $code]));
+            }
+
             throw new AddonException(__('ptadmin-addon::messages.addon.installed_force', ['code' => $code]));
         }
 
@@ -274,7 +279,11 @@ class AddonAction
             $obj->backupCurrentAddon();
         }
 
-        return $obj->addTask(AddonDownload::class, $versionId, $force, $withSource)->addTask('refresh')->addTask(AddonInstall::class)->action();
+        return $obj
+            ->addTask(AddonDownload::class, $versionId, $force, $withSource)
+            ->addTask('refresh')
+            ->addTask(AddonInstall::class, false, 'marketplace')
+            ->action();
     }
 
     public static function installLocal(string $packageFile, bool $force = false)
@@ -282,6 +291,18 @@ class AddonAction
         $obj = new self('__local__');
 
         return $obj->addTask(AddonLocalInstall::class, $packageFile, $force)->addTask('refresh')->action();
+    }
+
+    /**
+     * 初始化已部署插件，不下载或覆盖插件目录。
+     *
+     * @return null|array|mixed
+     */
+    public static function setup(string $code, bool $force = false)
+    {
+        $obj = new self($code);
+
+        return $obj->addTask(AddonSetup::class, $force)->addTask('refresh')->action();
     }
 
     /**

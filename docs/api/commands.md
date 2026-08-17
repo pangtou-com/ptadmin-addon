@@ -33,6 +33,22 @@ php artisan addon:install-local /path/to/demo-addon.zip
 php artisan addon:install-local /path/to/demo-addon.zip --force
 ```
 
+## 初始化已有插件目录
+
+插件源码已经位于 `addons/` 目录时，使用 `addon:setup` 执行 `Installer::install()`、`init()`、前端运行资源发布和后台资源同步。该命令不会下载插件，也不会覆盖插件目录：
+
+```bash
+php artisan addon:setup demo-addon
+```
+
+已经完成初始化时不会重复执行生命周期。确认安装器支持重复执行后，可以显式强制初始化：
+
+```bash
+php artisan addon:setup demo-addon --force
+```
+
+插件目录只表示代码已经部署，成功执行安装生命周期后，宿主会在 `storage/app/ptadmin/addon/installations/{addon_code}.json` 记录安装状态。插件卸载后会删除对应记录。
+
 ## 云端安装
 
 ```bash

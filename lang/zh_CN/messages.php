@@ -19,6 +19,8 @@ return [
     'addon' => [
         'not_exists' => '插件【:code】不存在',
         'installed_force' => '插件【:code】已安装，请使用 --force 覆盖安装',
+        'deployed_use_setup' => '插件【:code】目录已经存在但尚未初始化，请执行 php artisan addon:setup :code；--force 仅用于覆盖插件目录',
+        'setup_done_force' => '插件【:code】已经完成初始化，请使用 --force 重新执行安装生命周期',
         'develop_force' => '插件【:code】当前处于开发模式，请确认后再使用强制覆盖',
         'copy_target' => '开始复制插件到目录：【:path】',
         'write_failed' => '插件【:code】安装失败，无法写入插件目录',
@@ -30,6 +32,10 @@ return [
         'verify_failed' => '插件【:code】升级包校验失败',
         'dependency_uninstall_first' => '插件【:code】依赖插件，请先卸载依赖插件,或使用 --force 参数强制卸载插件',
         'code_duplicated' => '插件代码【:code】重复定义',
+        'code_invalid' => '插件编码【:code】无效',
+        'installation_state_invalid' => '插件【:code】安装状态文件无效',
+        'installation_state_write_failed' => '无法写入插件【:code】安装状态',
+        'installation_state_delete_failed' => '无法删除插件【:code】安装状态',
         'method_missing' => '插件【:addon】未定义方法【:method】',
     ],
     'validator' => [

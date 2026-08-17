@@ -26,6 +26,7 @@ namespace PTAdmin\Addon\Service\Action;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Service\AddonAdminResourceSynchronizer;
+use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\Database;
 
 /**
@@ -35,7 +36,7 @@ final class AddonInstall extends AbstractAddonAction
 {
     private $installer;
 
-    public function handle(): ?bool
+    public function handle(bool $preserveFiles = false, string $source = 'package'): ?bool
     {
         $this->info(__('ptadmin-addon::messages.action.install_start'));
         $this->installer = Addon::getAddonInstaller($this->code);
@@ -50,9 +51,16 @@ final class AddonInstall extends AbstractAddonAction
             }
             $this->action->publishFrontendRuntime($this->code);
             app(AddonAdminResourceSynchronizer::class)->sync($this->code);
+            app(AddonInstallationRegistry::class)->markInstalled(
+                $this->code,
+                Addon::getAddonVersion($this->code),
+                $source
+            );
         } catch (\Throwable $exception) {
-            $this->rollbackInstalledAddon();
-            $this->action->deleteFrontendRuntime($this->code);
+            if (!$preserveFiles) {
+                $this->rollbackInstalledAddon();
+                $this->action->deleteFrontendRuntime($this->code);
+            }
 
             throw $exception instanceof AddonException
                 ? $exception

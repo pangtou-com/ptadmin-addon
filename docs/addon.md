@@ -35,6 +35,18 @@
 php artisan addon:install-local /path/to/plugin.zip
 ```
 
+如果插件源码已经直接放在 `addons/` 目录中，应执行已有目录初始化命令，不要使用云端安装命令或 `--force` 覆盖源码：
+
+```bash
+php artisan addon:setup plugin-code
+```
+
+插件状态分为：
+
+- 已部署：插件目录和有效 `manifest.json` 已存在。
+- 已安装：安装生命周期执行成功，并在 `storage/app/ptadmin/addon/installations/{addon_code}.json` 留有宿主记录。
+- 已启用：插件未被 `disable` 标记禁用，可以参与运行时注册。
+
 当前规则：
 
 - 本地包必须包含 `manifest.json`

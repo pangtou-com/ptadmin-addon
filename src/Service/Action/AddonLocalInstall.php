@@ -58,7 +58,7 @@ final class AddonLocalInstall extends AbstractAddonAction
         }
 
         $this->refreshAddonState();
-        (new AddonInstall($code, $this->action))->handle();
+        (new AddonInstall($code, $this->action))->handle(false, 'local_package');
 
         return $code;
     }
