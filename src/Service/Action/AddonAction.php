@@ -264,7 +264,7 @@ class AddonAction
      *
      * @return null|array|mixed
      */
-    public static function install(string $code, $versionId = 0, bool $force = false, bool $withSource = false)
+    public static function install(string $code, $versionId = 0, bool $force = false, bool $withSource = false, ?string $licenseCode = null)
     {
         if (Addon::hasInstalledAddon($code) && !$force) {
             if (!app(AddonInstallationRegistry::class)->isInstalled($code)) {
@@ -280,7 +280,7 @@ class AddonAction
         }
 
         return $obj
-            ->addTask(AddonDownload::class, $versionId, $force, $withSource)
+            ->addTask(AddonDownload::class, $versionId, $force, $withSource, $licenseCode)
             ->addTask('refresh')
             ->addTask(AddonInstall::class, false, 'marketplace')
             ->action();

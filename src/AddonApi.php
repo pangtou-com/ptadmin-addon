@@ -141,6 +141,25 @@ class AddonApi
         return $results;
     }
 
+    /**
+     * Issue a download URL with a purchase license code.
+     *
+     * License-code downloads are intentionally independent from the cloud
+     * account session; the platform validates the code itself.
+     *
+     * @param array{license_code: string} $data
+     * @return array<string, mixed>
+     */
+    public static function getAddonDownloadUrlByLicenseCode(array $data): array
+    {
+        $results = (new static())->send('download', $data, false);
+        if (!isset($results['url'])) {
+            throw new AddonException(__('ptadmin-addon::messages.api.download_url_failed'));
+        }
+
+        return $results;
+    }
+
     public static function verifyAddonPurchase(array $data): array
     {
         return (new static())->send('verify', $data);
@@ -173,12 +192,9 @@ class AddonApi
 
     public static function activateAddonLicense(array $data): array
     {
-        return (new static())->send('license-activate', $data);
-    }
-
-    public static function transferAddonLicense(array $data): array
-    {
-        return (new static())->send('license-transfer', $data);
+        // License activation is located by the purchase code and does not require
+        // a cloud account session.
+        return (new static())->send('license-activate', $data, false);
     }
 
     public static function verifyAddonLicense(array $data): array

@@ -763,6 +763,52 @@ it('stops cloud install immediately when downloaded package cannot be unzipped',
     $filesystem->deleteDirectory($basePath);
 });
 
+it('installs addon with a license code without a marketplace login session', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-license-cloud-install-'.uniqid();
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'licensed-install.zip';
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    buildAddonPackageZip(
+        __DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test',
+        $zipFile
+    );
+    $zipBody = (string) file_get_contents($zipFile);
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test');
+    $filesystem->deleteDirectory($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test2');
+    $filesystem->ensureDirectoryExists($basePath.\DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', new FakeAdminResourceServiceForAddonTest());
+
+    fakeAddonLicenseDownloadHttpForTest(
+        'test',
+        12,
+        'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV',
+        $zipBody
+    );
+
+    AddonAction::install('test', 12, false, false, 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV');
+
+    expect(Addon::hasAddon('test'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'install.log'))->toBeTrue()
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'init.log'))->toBeTrue()
+        ->and(app(AddonInstallationRegistry::class)->get('test'))->toMatchArray([
+            'code' => 'test',
+            'version' => 'v0.0.1',
+            'source' => 'marketplace',
+        ]);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
 it('prevent upgrade when addon is in develop mode without force', function (): void {
     $filesystem = new Filesystem();
     $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-develop-'.uniqid();
@@ -2884,6 +2930,71 @@ function fakeAddonDownloadHttpForTest(string $code, string $zipBody): void
         return 'https://www.pangtou.com/api-addon/download' === $url;
     })->andReturn($postResponse);
     Http::shouldReceive('get')->once()->with('https://example.com/'.$code.'.zip')->andReturn($getResponse);
+}
+
+function fakeAddonLicenseDownloadHttpForTest(string $code, int $versionId, string $licenseCode, string $zipBody): void
+{
+    $postResponse = new class($code, $zipBody)
+    {
+        public function __construct(private string $code, private string $zipBody)
+        {
+        }
+
+        public function status(): int
+        {
+            return 200;
+        }
+
+        public function json($key = null)
+        {
+            $data = [
+                'code' => 0,
+                'data' => [
+                    'url' => 'https://example.com/'.$this->code.'-licensed.zip',
+                    'hash' => md5($this->zipBody),
+                ],
+            ];
+
+            return null === $key ? $data : data_get($data, $key);
+        }
+
+        public function body(): string
+        {
+            return (string) json_encode($this->json(), JSON_UNESCAPED_UNICODE);
+        }
+    };
+    $getResponse = new class($zipBody)
+    {
+        public function __construct(private string $zipBody)
+        {
+        }
+
+        public function successful(): bool
+        {
+            return true;
+        }
+
+        public function body(): string
+        {
+            return $this->zipBody;
+        }
+
+        public function json($key = null)
+        {
+            return null;
+        }
+    };
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->never();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url, array $payload) use ($code, $versionId, $licenseCode): bool {
+        return 'https://www.pangtou.com/api-addon/download' === $url
+            && $code === ($payload['code'] ?? null)
+            && $versionId === ($payload['addon_version_id'] ?? null)
+            && $licenseCode === ($payload['license_code'] ?? null);
+    })->andReturn($postResponse);
+    Http::shouldReceive('get')->once()->with('https://example.com/'.$code.'-licensed.zip')->andReturn($getResponse);
 }
 
 function writeMarketplaceSessionForTest(string $token = 'Bearer test-token'): void

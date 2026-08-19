@@ -47,7 +47,7 @@ class AddonLicenseServiceTest extends TestCase
     public function test_activation_is_persisted_and_runtime_verification_is_signed(): void
     {
         $this->mockPost('/license-activate', [
-            'license_id' => 15,
+            'license_code' => 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV',
             'code' => 'demo-addon',
             'application_instance_id' => 'pt_test_instance',
         ], [
@@ -58,7 +58,7 @@ class AddonLicenseServiceTest extends TestCase
             'activation_token' => 'activation-token',
             'verification_interval' => 300,
             'offline_grace_seconds' => 900,
-        ], true);
+        ], false);
         $this->mockPost('/license-verify', [
             'activation_token' => 'activation-token',
             'code' => 'demo-addon',
@@ -77,7 +77,7 @@ class AddonLicenseServiceTest extends TestCase
                 && 1 === openssl_verify($payload, $signature, $this->publicKey, OPENSSL_ALGO_SHA256);
         });
         $service = app(AddonLicenseService::class);
-        $service->activate('demo-addon', 15);
+        $service->activate('demo-addon', 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV');
         $verified = $service->verify('demo-addon');
 
         self::assertTrue($verified['allow_run']);
@@ -90,7 +90,7 @@ class AddonLicenseServiceTest extends TestCase
 
     public function test_network_failure_uses_offline_grace_but_expired_grace_blocks_runtime(): void
     {
-        $this->mockPost('/license-activate', ['license_id' => 15], [
+        $this->mockPost('/license-activate', ['license_code' => 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV'], [
             'license_id' => 15,
             'purchase_id' => 22,
             'activation_status' => 'active',
@@ -98,9 +98,9 @@ class AddonLicenseServiceTest extends TestCase
             'activation_token' => 'activation-token',
             'verification_interval' => 300,
             'offline_grace_seconds' => 900,
-        ], true);
+        ], false);
         $service = app(AddonLicenseService::class);
-        $service->activate('demo-addon', 15);
+        $service->activate('demo-addon', 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV');
         $path = $this->licenseDirectory.'/demo-addon.json';
         $license = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
         $license['last_verified_at'] = 0;

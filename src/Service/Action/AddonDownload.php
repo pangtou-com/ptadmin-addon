@@ -39,13 +39,16 @@ final class AddonDownload extends AbstractAddonAction
     private $progress = 0;
     private $hash;
 
-    public function handle($versionId = 0, bool $force = false, bool $withSource = false): ?string
+    public function handle($versionId = 0, bool $force = false, bool $withSource = false, ?string $licenseCode = null): ?string
     {
         $this->ensureDirectoryWritable($this->action->getStorePath());
-        $data = AddonApi::getAddonDownloadUrl([
+        $request = [
             'code' => $this->code,
             'addon_version_id' => $versionId,
-        ]);
+        ];
+        $data = null !== $licenseCode && '' !== trim($licenseCode)
+            ? AddonApi::getAddonDownloadUrlByLicenseCode(array_merge($request, ['license_code' => $licenseCode]))
+            : AddonApi::getAddonDownloadUrl($request);
         if (!isset($data['url']) || '' === $data['url']) {
             throw new AddonException(__('ptadmin-addon::messages.addon.download_url_failed', ['code' => $this->code]));
         }

@@ -41,10 +41,6 @@ final class AddonLicenseService
             $license['is_current_instance'] = '' !== $boundInstanceId && $boundInstanceId === $currentInstanceId;
             $license['can_activate'] = $usable
                 && ('' === $boundInstanceId || 'pending_activation' === (string) ($license['activation_status'] ?? ''));
-            $license['can_transfer'] = $usable
-                && '' !== $boundInstanceId
-                && $boundInstanceId !== $currentInstanceId
-                && (int) ($license['transfer_used'] ?? 0) < (int) ($license['transfer_limit'] ?? 0);
         }
         unset($license);
 
@@ -55,20 +51,9 @@ final class AddonLicenseService
     }
 
     /** @return array<string, mixed> */
-    public function activate(string $code, int $licenseId): array
+    public function activate(string $code, string $licenseCode): array
     {
-        $result = AddonApi::activateAddonLicense($this->activationPayload($code, $licenseId));
-        $this->storeActivation($code, $result);
-
-        return $this->status($code) ?? [];
-    }
-
-    /** @return array<string, mixed> */
-    public function transfer(string $code, int $licenseId, string $reason): array
-    {
-        $payload = $this->activationPayload($code, $licenseId);
-        $payload['reason'] = $reason;
-        $result = AddonApi::transferAddonLicense($payload);
+        $result = AddonApi::activateAddonLicense($this->activationPayload($code, $licenseCode));
         $this->storeActivation($code, $result);
 
         return $this->status($code) ?? [];
@@ -82,7 +67,7 @@ final class AddonLicenseService
             throw new AddonException(sprintf('插件[%s]尚未激活应用实例授权。', $code));
         }
         if ((string) ($license['application_instance_id'] ?? '') !== $this->instance->applicationInstanceId()) {
-            throw new AddonException(sprintf('插件[%s]的授权不属于当前应用，请迁移授权或重新购买。', $code));
+            throw new AddonException(sprintf('插件[%s]的授权已绑定其他应用，请重新购买授权。', $code));
         }
 
         $timestamp = time();
@@ -155,7 +140,7 @@ final class AddonLicenseService
             return;
         }
         if ((string) ($license['application_instance_id'] ?? '') !== $this->instance->applicationInstanceId()) {
-            throw new AddonException(sprintf('插件[%s]授权已绑定其他应用，请迁移授权或重新购买。', $code));
+            throw new AddonException(sprintf('插件[%s]授权已绑定其他应用，请重新购买授权。', $code));
         }
 
         $lastVerifiedAt = (int) ($license['last_verified_at'] ?? 0);
@@ -190,7 +175,7 @@ final class AddonLicenseService
             return;
         }
         if ((string) ($license['application_instance_id'] ?? '') !== $this->instance->applicationInstanceId()) {
-            throw new AddonException(sprintf('插件[%s]授权已绑定其他应用，请迁移授权或重新购买。', $code));
+            throw new AddonException(sprintf('插件[%s]授权已绑定其他应用，请重新购买授权。', $code));
         }
         if ((int) ($license['valid_until'] ?? 0) < time()) {
             throw new AddonException(sprintf('插件[%s]授权离线宽限期已过期，请重新验证。', $code));
@@ -243,8 +228,6 @@ final class AddonLicenseService
             'activation_status' => (string) ($result['activation_status'] ?? 'active'),
             'application_name' => (string) ($result['application_name'] ?? ''),
             'last_seen_domain' => $result['last_seen_domain'] ?? null,
-            'transfer_used' => (int) ($result['transfer_used'] ?? 0),
-            'transfer_limit' => (int) ($result['transfer_limit'] ?? 0),
             'activation_token_version' => (int) ($result['activation_token_version'] ?? 0),
             'verification_interval' => max(300, (int) ($result['verification_interval'] ?? 86400)),
             'offline_grace_seconds' => $offlineGraceSeconds,
@@ -266,10 +249,10 @@ final class AddonLicenseService
     }
 
     /** @return array<string, mixed> */
-    private function activationPayload(string $code, int $licenseId): array
+    private function activationPayload(string $code, string $licenseCode): array
     {
         $payload = [
-            'license_id' => $licenseId,
+            'license_code' => $licenseCode,
             'code' => $code,
             'application_instance_id' => $this->instance->applicationInstanceId(),
             'application_name' => (string) config('app.name', 'PTAdmin'),
