@@ -53,6 +53,7 @@ final class AddonDownload extends AbstractAddonAction
             throw new AddonException(__('ptadmin-addon::messages.addon.download_url_failed', ['code' => $this->code]));
         }
         $this->hash = $data['hash'] ?? '';
+        $this->action->setInstallationMetadata($this->installationMetadata($data, (int) $versionId));
         $this->downloadAddon($data['url']);
 
         return $this->move($force, $withSource);
@@ -84,6 +85,28 @@ final class AddonDownload extends AbstractAddonAction
         $this->filesystem->moveDirectory($base, $target);
 
         return $base;
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     * @return array<string, mixed>
+     */
+    private function installationMetadata(array $response, int $requestedVersionId): array
+    {
+        $entitlement = is_array($response['installation_entitlement'] ?? null)
+            ? $response['installation_entitlement']
+            : [];
+
+        return [
+            'addon_version_id' => (int) ($response['addon_version_id'] ?? $requestedVersionId),
+            'package_hash' => (string) ($response['package_hash'] ?? (
+                '' === (string) ($response['hash'] ?? '') ? '' : 'md5:'.$response['hash']
+            )),
+            'release_license_policy' => (string) ($response['release_license_policy'] ?? ''),
+            'entitlement_id' => (string) ($entitlement['id'] ?? ''),
+            'entitlement_scope' => (string) ($entitlement['scope'] ?? ''),
+            'policy_receipt' => (string) ($entitlement['policy_receipt'] ?? ''),
+        ];
     }
 
     private function downloadAddon($url): void

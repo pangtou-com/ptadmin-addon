@@ -75,10 +75,17 @@ final class AddonUpgrade extends AbstractAddonAction
                 $installer->upgrade($currentVersion, $newConfig['version'] ?? null);
             }
             $this->action->publishFrontendRuntime($this->code);
+            $installationRegistry = app(AddonInstallationRegistry::class);
             app(AddonInstallationRegistry::class)->markInstalled(
                 $this->code,
                 isset($newConfig['version']) ? (string) $newConfig['version'] : null,
-                'marketplace'
+                'marketplace',
+                array_merge(
+                    $installationRegistry->metadataFromManifest($newConfig),
+                    array_filter($this->action->getInstallationMetadata(), static function ($value): bool {
+                        return null !== $value && '' !== $value && 0 !== $value;
+                    })
+                )
             );
             $this->info(__('ptadmin-addon::messages.action.upgrade_done', [
                 'from' => $currentVersion,
@@ -144,6 +151,17 @@ final class AddonUpgrade extends AbstractAddonAction
             throw new AddonException(__('ptadmin-addon::messages.addon.download_url_failed', ['code' => $this->code]));
         }
         $this->hash = $data['hash'] ?? '';
+        $entitlement = is_array($data['installation_entitlement'] ?? null)
+            ? $data['installation_entitlement']
+            : [];
+        $this->action->setInstallationMetadata([
+            'addon_version_id' => (int) ($data['addon_version_id'] ?? $versionId),
+            'package_hash' => (string) ($data['package_hash'] ?? ('' === (string) $this->hash ? '' : 'md5:'.$this->hash)),
+            'release_license_policy' => (string) ($data['release_license_policy'] ?? ''),
+            'entitlement_id' => (string) ($entitlement['id'] ?? ''),
+            'entitlement_scope' => (string) ($entitlement['scope'] ?? ''),
+            'policy_receipt' => (string) ($entitlement['policy_receipt'] ?? ''),
+        ]);
         $this->downloadPackage($data['url']);
 
         return $resolver->resolve($this->action->getStorePath('package'));

@@ -51,10 +51,18 @@ final class AddonInstall extends AbstractAddonAction
             }
             $this->action->publishFrontendRuntime($this->code);
             app(AddonAdminResourceSynchronizer::class)->sync($this->code);
+            $manifest = Addon::getInstalledAddons()[$this->code] ?? [];
+            $installationRegistry = app(AddonInstallationRegistry::class);
             app(AddonInstallationRegistry::class)->markInstalled(
                 $this->code,
                 Addon::getAddonVersion($this->code),
-                $source
+                $source,
+                array_merge(
+                    is_array($manifest) ? $installationRegistry->metadataFromManifest($manifest) : [],
+                    array_filter($this->action->getInstallationMetadata(), static function ($value): bool {
+                        return null !== $value && '' !== $value && 0 !== $value;
+                    })
+                )
             );
         } catch (\Throwable $exception) {
             if (!$preserveFiles) {

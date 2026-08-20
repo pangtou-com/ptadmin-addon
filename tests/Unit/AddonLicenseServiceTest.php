@@ -11,6 +11,7 @@ use PTAdmin\Addon\AesUtil;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Contracts\ApplicationInstanceProviderInterface;
 use PTAdmin\Addon\Exception\AddonException;
+use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\AddonLicenseService;
 use PTAdmin\Addon\Service\AddonPackageValidator;
 use PTAdmin\AddonTests\TestCase;
@@ -18,6 +19,7 @@ use PTAdmin\AddonTests\TestCase;
 class AddonLicenseServiceTest extends TestCase
 {
     private string $licenseDirectory;
+    private string $runtimeDirectory;
     private string $sessionPath;
     private string $privateKey = '';
     private string $publicKey = '';
@@ -27,18 +29,25 @@ class AddonLicenseServiceTest extends TestCase
         parent::setUp();
 
         $this->licenseDirectory = storage_path('framework/testing/addon-licenses');
+        $this->runtimeDirectory = storage_path('framework/testing/addon-runtime');
         $this->sessionPath = storage_path('app/ptadmin/addon/marketplace-session.dat');
         (new Filesystem())->deleteDirectory($this->licenseDirectory);
+        (new Filesystem())->deleteDirectory($this->runtimeDirectory);
         config()->set('addon.license_storage_path', $this->licenseDirectory);
+        config()->set('addon.license_runtime_storage_path', $this->runtimeDirectory);
         config()->set('app.name', '授权测试应用');
         config()->set('app.url', 'https://license.example.com/admin');
         $this->writeMarketplaceSession();
         $this->createInstanceProvider();
+        config()->set('addon.platform_license_public_key', $this->publicKey);
+        app(AddonInstallationRegistry::class)->forget('demo-addon');
     }
 
     protected function tearDown(): void
     {
         (new Filesystem())->deleteDirectory($this->licenseDirectory);
+        (new Filesystem())->deleteDirectory($this->runtimeDirectory);
+        app(AddonInstallationRegistry::class)->forget('demo-addon');
         @unlink($this->sessionPath);
 
         parent::tearDown();
@@ -106,20 +115,17 @@ class AddonLicenseServiceTest extends TestCase
         $license['last_verified_at'] = 0;
         file_put_contents($path, json_encode($license, JSON_THROW_ON_ERROR));
 
-        $this->mockNetworkFailure('/license-verify', false);
         $service->assertCanRun('demo-addon');
         self::assertTrue(true);
 
         $license['valid_until'] = time() - 1;
         file_put_contents($path, json_encode($license, JSON_THROW_ON_ERROR));
-        $this->mockNetworkFailure('/license-verify', false);
-
         $this->expectException(AddonException::class);
-        $this->expectExceptionMessage('www.pangtou.com');
+        $this->expectExceptionMessage('离线宽限期已过期');
         $service->assertCanRun('demo-addon');
     }
 
-    public function test_required_license_blocks_runtime_without_local_activation(): void
+    public function test_required_license_waits_for_platform_decision_without_local_activation(): void
     {
         Addon::swap(new class {
             public function getAddons(): array
@@ -127,10 +133,16 @@ class AddonLicenseServiceTest extends TestCase
                 return ['demo-addon' => ['license_required' => true]];
             }
         });
+        app(AddonInstallationRegistry::class)->markInstalled(
+            'demo-addon',
+            '1.0.0',
+            'marketplace',
+            ['release_license_policy' => 'license_required']
+        );
 
-        $this->expectException(AddonException::class);
-        $this->expectExceptionMessage('需要应用实例授权');
         app(AddonLicenseService::class)->assertCanRun('demo-addon');
+        app(AddonLicenseService::class)->assertCanBoot('demo-addon');
+        self::assertSame('unknown', app(AddonLicenseService::class)->runtimeStatus('demo-addon')['state']);
     }
 
     public function test_legacy_addon_without_required_license_remains_compatible(): void
@@ -143,7 +155,56 @@ class AddonLicenseServiceTest extends TestCase
         });
 
         app(AddonLicenseService::class)->assertCanRun('demo-addon');
-        self::assertTrue(true);
+        self::assertSame('legacy_review', app(AddonLicenseService::class)->runtimeStatus('demo-addon')['state']);
+    }
+
+    public function test_local_addon_is_exempt_even_when_manifest_declares_platform_license(): void
+    {
+        Addon::swap(new class {
+            public function getAddons(): array
+            {
+                return ['demo-addon' => ['license_required' => true]];
+            }
+        });
+        app(AddonInstallationRegistry::class)->markInstalled('demo-addon', '1.0.0', 'local_package');
+
+        $runtime = app(AddonLicenseService::class)->runtimeStatus('demo-addon');
+
+        self::assertSame('exempt', $runtime['state']);
+        self::assertSame('LOCAL_ADDON', $runtime['reason_code']);
+        app(AddonLicenseService::class)->assertCanBoot('demo-addon');
+    }
+
+    public function test_local_addon_rejects_platform_runtime_decision(): void
+    {
+        app(AddonInstallationRegistry::class)->markInstalled('demo-addon', '1.0.0', 'local_package');
+
+        $this->expectException(AddonException::class);
+        $this->expectExceptionMessage('本地插件');
+        app(AddonLicenseService::class)->applyRuntimeDecision($this->signedRuntimeDecision('active'));
+    }
+
+    public function test_local_addon_rejects_platform_activation(): void
+    {
+        app(AddonInstallationRegistry::class)->markInstalled('demo-addon', '1.0.0', 'local_package');
+
+        $this->expectException(AddonException::class);
+        $this->expectExceptionMessage('本地插件');
+        app(AddonLicenseService::class)->activate('demo-addon', 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV');
+    }
+
+    public function test_signed_decision_promotes_legacy_installation_to_platform_management(): void
+    {
+        $registry = app(AddonInstallationRegistry::class);
+        $registry->markInstalled('demo-addon', '1.0.0', 'existing', [
+            'package_hash' => 'sha256:test-package',
+        ]);
+        self::assertSame(AddonInstallationRegistry::MANAGEMENT_LEGACY_UNKNOWN, $registry->managementScope('demo-addon'));
+
+        app(AddonLicenseService::class)->applyRuntimeDecision($this->signedRuntimeDecision('active'));
+
+        self::assertSame(AddonInstallationRegistry::MANAGEMENT_PLATFORM, $registry->managementScope('demo-addon'));
+        self::assertSame('active', app(AddonLicenseService::class)->runtimeStatus('demo-addon')['state']);
     }
 
     public function test_required_license_manifest_accepts_supported_protocol(): void
@@ -168,7 +229,7 @@ class AddonLicenseServiceTest extends TestCase
         ]);
     }
 
-    public function test_required_license_is_blocked_before_provider_boot_without_activation(): void
+    public function test_required_license_is_blocked_after_startup_grace_expires(): void
     {
         Addon::swap(new class {
             public function getAddons(): array
@@ -177,8 +238,79 @@ class AddonLicenseServiceTest extends TestCase
             }
         });
 
+        $service = app(AddonLicenseService::class);
+        $service->applyRuntimeDecision($this->signedRuntimeDecision('grace', [
+            'reason_code' => 'LICENSE_REQUIRED',
+            'grace_started_at' => time() - 7200,
+            'grace_ends_at' => time() - 1,
+        ]));
+
         $this->expectException(AddonException::class);
+        $this->expectExceptionMessage('GRACE_EXPIRED');
+        $service->assertCanBoot('demo-addon');
+    }
+
+    public function test_signed_free_release_decision_remains_exempt_after_market_price_changes(): void
+    {
+        Addon::swap(new class {
+            public function getAddons(): array
+            {
+                return ['demo-addon' => [
+                    'license_required' => true,
+                    'release_license_policy' => 'free_perpetual',
+                ]];
+            }
+        });
+
+        app(AddonLicenseService::class)->applyRuntimeDecision($this->signedRuntimeDecision('exempt', [
+            'reason_code' => 'FREE_GRANDFATHERED',
+        ]));
         app(AddonLicenseService::class)->assertCanBoot('demo-addon');
+        self::assertSame('exempt', app(AddonLicenseService::class)->runtimeStatus('demo-addon')['state']);
+    }
+
+    public function test_tampered_runtime_decision_is_not_used_to_exempt_addon(): void
+    {
+        Addon::swap(new class {
+            public function getAddons(): array
+            {
+                return ['demo-addon' => ['license_required' => true]];
+            }
+        });
+
+        $decision = $this->signedRuntimeDecision('exempt', ['reason_code' => 'FREE_GRANDFATHERED']);
+        $decision['reason_code'] = 'TAMPERED';
+
+        $this->expectException(AddonException::class);
+        $this->expectExceptionMessage('签名无效');
+        app(AddonLicenseService::class)->applyRuntimeDecision($decision);
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function signedRuntimeDecision(string $state, array $overrides = []): array
+    {
+        $decision = array_merge([
+            'protocol' => AddonLicenseService::RUNTIME_PROTOCOL,
+            'application_instance_id' => 'pt_test_instance',
+            'addon_code' => 'demo-addon',
+            'version' => '1.0.0',
+            'package_hash' => 'sha256:test-package',
+            'state' => $state,
+            'reason_code' => 'ACTIVE',
+            'grace_started_at' => 0,
+            'grace_ends_at' => 0,
+            'valid_until' => time() + 86400,
+            'issued_at' => time(),
+            'policy_version' => 1,
+        ], $overrides);
+        $payload = json_encode($decision, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        openssl_sign($payload, $signature, $this->privateKey, OPENSSL_ALGO_SHA256);
+        $decision['signature'] = base64_encode($signature);
+
+        return $decision;
     }
 
     /** @param array<string, mixed> $expectedFields @param array<string, mixed> $data */

@@ -44,6 +44,9 @@ class AddonAction
     /** @var null|string */
     private $frontend_runtime_path;
 
+    /** @var array<string, mixed> */
+    private $installation_metadata = [];
+
     /** @var string */
     private $code;
 
@@ -136,6 +139,18 @@ class AddonAction
     public function getFrontendRuntimePath(): ?string
     {
         return $this->frontend_runtime_path;
+    }
+
+    /** @param array<string, mixed> $metadata */
+    public function setInstallationMetadata(array $metadata): void
+    {
+        $this->installation_metadata = $metadata;
+    }
+
+    /** @return array<string, mixed> */
+    public function getInstallationMetadata(): array
+    {
+        return $this->installation_metadata;
     }
 
     public function publishFrontendRuntime(string $code = null): void

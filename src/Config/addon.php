@@ -102,6 +102,11 @@ return [
         'PTADMIN_ADDON_LICENSE_STORAGE_PATH',
         storage_path('app/ptadmin/addon/licenses')
     ),
+    'license_runtime_storage_path' => env(
+        'PTADMIN_ADDON_LICENSE_RUNTIME_STORAGE_PATH',
+        storage_path('app/ptadmin/addon/runtime')
+    ),
+    'platform_license_public_key' => env('PTADMIN_ADDON_PLATFORM_LICENSE_PUBLIC_KEY', ''),
 
     /*
     |--------------------------------------------------------------------------

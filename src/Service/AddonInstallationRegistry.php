@@ -14,6 +14,10 @@ use PTAdmin\Addon\Exception\AddonException;
  */
 final class AddonInstallationRegistry
 {
+    public const MANAGEMENT_PLATFORM = 'platform';
+    public const MANAGEMENT_LOCAL = 'local';
+    public const MANAGEMENT_LEGACY_UNKNOWN = 'legacy_unknown';
+
     /** @var Filesystem */
     private $filesystem;
 
@@ -51,7 +55,15 @@ final class AddonInstallationRegistry
         return $record;
     }
 
-    public function markInstalled(string $code, ?string $version = null, string $source = 'package'): void
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function markInstalled(
+        string $code,
+        ?string $version = null,
+        string $source = 'package',
+        array $metadata = []
+    ): void
     {
         $previous = $this->get($code);
         $now = gmdate(DATE_ATOM);
@@ -59,11 +71,96 @@ final class AddonInstallationRegistry
             'code' => $code,
             'version' => $version,
             'source' => $source,
+            'management_scope' => $this->scopeForInstallation($source, $previous),
             'installed_at' => $previous['installed_at'] ?? $now,
             'updated_at' => $now,
         ];
 
+        foreach ([
+            'addon_version_id',
+            'package_hash',
+            'release_license_policy',
+            'entitlement_id',
+            'entitlement_scope',
+            'policy_receipt',
+        ] as $field) {
+            if (array_key_exists($field, $metadata) && null !== $metadata[$field] && '' !== $metadata[$field]) {
+                $record[$field] = $metadata[$field];
+                continue;
+            }
+            if (is_array($previous) && array_key_exists($field, $previous)) {
+                $record[$field] = $previous[$field];
+            }
+        }
+
         $this->write($code, $record);
+    }
+
+    public function managementScope(string $code): string
+    {
+        return $this->resolveManagementScope($this->get($code));
+    }
+
+    /** @param array<string, mixed>|null $installation */
+    public function resolveManagementScope(?array $installation): string
+    {
+        $scope = is_array($installation) ? (string) ($installation['management_scope'] ?? '') : '';
+        if (in_array($scope, [self::MANAGEMENT_PLATFORM, self::MANAGEMENT_LOCAL, self::MANAGEMENT_LEGACY_UNKNOWN], true)) {
+            return $scope;
+        }
+
+        $source = is_array($installation) ? (string) ($installation['source'] ?? '') : '';
+        if ('marketplace' === $source) {
+            return self::MANAGEMENT_PLATFORM;
+        }
+        if ('local_package' === $source) {
+            return self::MANAGEMENT_LOCAL;
+        }
+
+        return self::MANAGEMENT_LEGACY_UNKNOWN;
+    }
+
+    public function promoteToPlatform(string $code): void
+    {
+        $record = $this->get($code);
+        if (!is_array($record) || self::MANAGEMENT_LOCAL === $this->resolveManagementScope($record)) {
+            return;
+        }
+
+        $record['management_scope'] = self::MANAGEMENT_PLATFORM;
+        $record['updated_at'] = gmdate(DATE_ATOM);
+        $this->write($code, $record);
+    }
+
+    /**
+     * 从插件清单提取宿主可保存的授权发布元数据。
+     *
+     * 清单是安装时的输入，不是运行时的可信授权来源；签名权益仍需由平台
+     * 通过安装或状态同步接口返回。这里仅保存兼容信息，便于历史安装归档。
+     *
+     * @param array<string, mixed> $manifest
+     * @return array<string, mixed>
+     */
+    public function metadataFromManifest(array $manifest): array
+    {
+        $policy = trim((string) ($manifest['release_license_policy'] ?? ''));
+        if ('' === $policy) {
+            $policy = true === ($manifest['license_required'] ?? false)
+                ? 'license_required'
+                : 'legacy_review';
+        }
+
+        $marketplace = is_array($manifest['marketplace'] ?? null) ? $manifest['marketplace'] : [];
+        $entitlement = is_array($manifest['entitlement'] ?? null) ? $manifest['entitlement'] : [];
+
+        return [
+            'addon_version_id' => (int) ($manifest['addon_version_id'] ?? $marketplace['addon_version_id'] ?? 0),
+            'package_hash' => (string) ($manifest['package_hash'] ?? $marketplace['checksum'] ?? ''),
+            'release_license_policy' => $policy,
+            'entitlement_id' => (string) ($entitlement['id'] ?? ''),
+            'entitlement_scope' => (string) ($entitlement['scope'] ?? ''),
+            'policy_receipt' => (string) ($entitlement['policy_receipt'] ?? ''),
+        ];
     }
 
     public function forget(string $code): void
@@ -88,6 +185,19 @@ final class AddonInstallationRegistry
         if (false === $this->filesystem->put($this->recordPath($code), $payload, true)) {
             throw new AddonException(__('ptadmin-addon::messages.addon.installation_state_write_failed', ['code' => $code]));
         }
+    }
+
+    /** @param array<string, mixed>|null $previous */
+    private function scopeForInstallation(string $source, ?array $previous): string
+    {
+        if ('marketplace' === $source) {
+            return self::MANAGEMENT_PLATFORM;
+        }
+        if ('local_package' === $source) {
+            return self::MANAGEMENT_LOCAL;
+        }
+
+        return $this->resolveManagementScope($previous);
     }
 
     private function recordPath(string $code): string

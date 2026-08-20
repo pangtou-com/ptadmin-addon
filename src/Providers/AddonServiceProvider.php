@@ -125,6 +125,9 @@ class AddonServiceProvider extends ServiceProvider
             if (\in_array($addonCode, $this->addon_booting, true)) {
                 continue;
             }
+            if (!$this->canBootAddon((string) $addonCode)) {
+                continue;
+            }
             $this->registerLang($addonCode);
             $this->registerViews($addonCode);
             $this->registerConfig($addonCode);
@@ -243,6 +246,17 @@ class AddonServiceProvider extends ServiceProvider
                     $this->addon_booting[] = $key;
                 }
             }
+        }
+    }
+
+    private function canBootAddon(string $addonCode): bool
+    {
+        try {
+            app(AddonLicenseService::class)->assertCanBoot($addonCode);
+
+            return true;
+        } catch (AddonException $exception) {
+            return false;
         }
     }
 

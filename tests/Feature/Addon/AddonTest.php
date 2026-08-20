@@ -804,6 +804,7 @@ it('installs addon with a license code without a marketplace login session', fun
             'code' => 'test',
             'version' => 'v0.0.1',
             'source' => 'marketplace',
+            'management_scope' => AddonInstallationRegistry::MANAGEMENT_PLATFORM,
         ]);
 
     $filesystem->deleteDirectory($basePath);
@@ -872,6 +873,7 @@ it('install addon from local zip package', function (): void {
             'code' => 'test',
             'version' => 'v0.0.1',
             'source' => 'local_package',
+            'management_scope' => AddonInstallationRegistry::MANAGEMENT_LOCAL,
         ])
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'install.log'))->toBeTrue()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'init.log'))->toBeTrue()
@@ -920,6 +922,7 @@ it('setup addon from existing directory without replacing source', function (): 
             'code' => 'test',
             'version' => 'v0.0.1',
             'source' => 'existing',
+            'management_scope' => AddonInstallationRegistry::MANAGEMENT_LEGACY_UNKNOWN,
         ])
         ->and($fakeService->synced)->toHaveCount(1);
 
