@@ -81,7 +81,7 @@ final class AddonUpgrade extends AbstractAddonAction
                 isset($newConfig['version']) ? (string) $newConfig['version'] : null,
                 'marketplace',
                 array_merge(
-                    $installationRegistry->metadataFromManifest($newConfig),
+                    $installationRegistry->metadataFromManifest($newConfig, 'marketplace'),
                     array_filter($this->action->getInstallationMetadata(), static function ($value): bool {
                         return null !== $value && '' !== $value && 0 !== $value;
                     })

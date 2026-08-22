@@ -58,7 +58,7 @@ final class AddonInstall extends AbstractAddonAction
                 Addon::getAddonVersion($this->code),
                 $source,
                 array_merge(
-                    is_array($manifest) ? $installationRegistry->metadataFromManifest($manifest) : [],
+                    is_array($manifest) ? $installationRegistry->metadataFromManifest($manifest, $source) : [],
                     array_filter($this->action->getInstallationMetadata(), static function ($value): bool {
                         return null !== $value && '' !== $value && 0 !== $value;
                     })

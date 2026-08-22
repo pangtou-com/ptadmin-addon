@@ -74,7 +74,7 @@ storage/app/ptadmin/addon/licenses/{addon_code}.json
 - 域名只作为运行观察信息上报，不参与 License 归属判断。
 - 应用启动时只读取本地已验签决策，不逐个联网请求平台；状态同步在启动后批量完成。
 - `free_perpetual`、`grace` 和 `blocked` 等运行结论必须来自平台签名决策，不能只相信插件清单或市场当前价格。
-- 平台公钥通过 `PTADMIN_ADDON_PLATFORM_LICENSE_PUBLIC_KEY` 配置，可以填写 PEM 内容或宿主内可读的 PEM 文件路径。
+- 官方平台公钥已随 `ptadmin/addon` 包内置，普通项目不需要增加配置即可验签。`PTADMIN_ADDON_PLATFORM_LICENSE_PUBLIC_KEY` 仅用于私有平台或官方密钥轮换时覆盖，可填写 PEM 内容或宿主内可读的 PEM 文件路径。
 - 平台尚未签发决策的插件进入 `unknown` 或 `legacy_review`，继续加载并提示；只有有效签名决策明确阻断或宽限期结束后才跳过加载。
 - 插件安装记录使用 `management_scope` 区分平台插件、本地插件和历史来源未知插件。市场安装为 `platform`，本地包安装为 `local`，已有目录初始化为 `legacy_unknown`；平台授权不能仅根据插件 `code` 是否存在于市场中判定。
 - `local` 插件不参与 PTAdmin 平台授权门禁，`legacy_unknown` 只在插件管理页提示确认来源。历史记录收到匹配当前版本和包哈希的有效签名决策后可提升为 `platform`。

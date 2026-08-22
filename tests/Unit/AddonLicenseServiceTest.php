@@ -158,6 +158,13 @@ class AddonLicenseServiceTest extends TestCase
         self::assertSame('legacy_review', app(AddonLicenseService::class)->runtimeStatus('demo-addon')['state']);
     }
 
+    public function test_marketplace_install_without_license_metadata_uses_free_perpetual_policy(): void
+    {
+        $metadata = app(AddonInstallationRegistry::class)->metadataFromManifest([], 'marketplace');
+
+        self::assertSame('free_perpetual', $metadata['release_license_policy']);
+    }
+
     public function test_local_addon_is_exempt_even_when_manifest_declares_platform_license(): void
     {
         Addon::swap(new class {

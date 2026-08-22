@@ -141,13 +141,13 @@ final class AddonInstallationRegistry
      * @param array<string, mixed> $manifest
      * @return array<string, mixed>
      */
-    public function metadataFromManifest(array $manifest): array
+    public function metadataFromManifest(array $manifest, string $source = 'package'): array
     {
         $policy = trim((string) ($manifest['release_license_policy'] ?? ''));
         if ('' === $policy) {
             $policy = true === ($manifest['license_required'] ?? false)
                 ? 'license_required'
-                : 'legacy_review';
+                : ('marketplace' === $source ? 'free_perpetual' : 'legacy_review');
         }
 
         $marketplace = is_array($manifest['marketplace'] ?? null) ? $manifest['marketplace'] : [];

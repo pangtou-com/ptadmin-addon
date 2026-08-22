@@ -106,7 +106,11 @@ return [
         'PTADMIN_ADDON_LICENSE_RUNTIME_STORAGE_PATH',
         storage_path('app/ptadmin/addon/runtime')
     ),
-    'platform_license_public_key' => env('PTADMIN_ADDON_PLATFORM_LICENSE_PUBLIC_KEY', ''),
+    // 官方平台签名公钥随包发布，私有平台可以通过环境变量覆盖。
+    'platform_license_public_key' => env(
+        'PTADMIN_ADDON_PLATFORM_LICENSE_PUBLIC_KEY',
+        dirname(__DIR__).'/Resources/Keys/platform-license-public.pem'
+    ),
 
     /*
     |--------------------------------------------------------------------------
