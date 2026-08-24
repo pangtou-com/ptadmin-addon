@@ -153,7 +153,7 @@ abstract class BaseBootstrap
      * @param string               $addonCode
      * @param array<string, mixed> $addonInfo
      *
-     * @return array<int, array<string, mixed>>
+     * @return array<int, object>
      */
     public function getAdminDashboardWidgetDefinitions(string $addonCode, array $addonInfo = array()): array
     {

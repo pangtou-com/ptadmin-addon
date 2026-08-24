@@ -1567,6 +1567,8 @@ it('init addon scaffold with standard development structure via addon action', f
     $manifest = json_decode(file_get_contents($manifestFile), true, 512, JSON_THROW_ON_ERROR);
     $bootstrapFile = $addonDir.\DIRECTORY_SEPARATOR.'Bootstrap.php';
     $bootstrapContent = (string) file_get_contents($bootstrapFile);
+    $widgetFile = $addonDir.\DIRECTORY_SEPARATOR.'Dashboard'.\DIRECTORY_SEPARATOR.'DemoAddonOverviewWidget.php';
+    $widgetContent = (string) file_get_contents($widgetFile);
     $cachePayload = file_exists($cacheFile) ? require $cacheFile : [];
 
     expect(is_dir($addonDir))->toBeTrue()
@@ -1582,6 +1584,10 @@ it('init addon scaffold with standard development structure via addon action', f
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'README.md'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'functions.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Dashboard'.\DIRECTORY_SEPARATOR.'DemoAddonOverviewWidget.php'))->toBeTrue()
+        ->and($bootstrapContent)->toContain('return array(app(DemoAddonOverviewWidget::class));')
+        ->and($widgetContent)->toContain('implements DashboardWidget, AdminDashboardWidgetActionHandlerInterface')
+        ->and($widgetContent)->toContain('function definition(): DashboardWidgetDefinition')
+        ->and($widgetContent)->toContain('function query(DashboardWidgetQuery $query, DashboardWidgetContext $context): StatResult')
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Providers'.\DIRECTORY_SEPARATOR.'DemoAddonServiceProvider.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Models'.\DIRECTORY_SEPARATOR.'DemoAddon.php'))->toBeTrue()
         ->and(file_exists($addonDir.\DIRECTORY_SEPARATOR.'Service'.\DIRECTORY_SEPARATOR.'DemoAddonService.php'))->toBeTrue()

@@ -211,58 +211,16 @@ class Bootstrap extends BaseBootstrap
     ];
 
     /**
-     * 返回插件后台仪表盘组件定义。
-     *
-     * 后台会统一收集所有插件注册的组件定义，
-     * 再按需调用 `query_handler` 查询实时数据。
+     * 返回插件后台仪表盘组件实例。
      *
      * @param string               \$addonCode
      * @param array<string, mixed> \$addonInfo
      *
-     * @return array<int, array<string, mixed>>
+     * @return array<int, object>
      */
     public function getAdminDashboardWidgetDefinitions(string \$addonCode, array \$addonInfo = array()): array
     {
-        return array(
-            array(
-                'code' => '{$code}.overview',
-                'title' => '{$title}概览',
-                'type' => 'stats',
-                'group' => 'overview',
-                'icon' => 'layui-icon-chart',
-                'sort' => 100,
-                'resource_code' => '{$code}.dashboard',
-                'description' => '{$title} 后台概览组件',
-                'default_query' => array(
-                    'range' => 'all',
-                ),
-                'capabilities' => array(
-                    'refresh' => true,
-                    'range' => false,
-                    'filters' => false,
-                    'drilldown' => false,
-                ),
-                'actions' => array(
-                    array(
-                        'code' => 'open_dashboard',
-                        'label' => '进入后台',
-                        'type' => 'link',
-                        'target' => '/{$code}',
-                    ),
-                    array(
-                        'code' => 'refresh_overview',
-                        'label' => '刷新统计',
-                        'type' => 'request',
-                        'confirm_text' => '确认刷新当前插件统计吗？',
-                        'meta' => array(
-                            'intent' => 'refresh',
-                        ),
-                    ),
-                ),
-                'query_handler' => {$basePath}OverviewWidget::class,
-                'cache_ttl' => 300,
-            ),
-        );
+        return array(app({$basePath}OverviewWidget::class));
     }
 
     public function registerDirectives(AddonDirectivesManage \$manager): void
@@ -449,9 +407,14 @@ namespace Addon\\{$basePath}\\Dashboard;
 
 use Addon\\{$basePath}\\Service\\{$basePath}Service;
 use PTAdmin\\Contracts\\AdminDashboardWidgetActionHandlerInterface;
-use PTAdmin\\Contracts\\AdminDashboardWidgetHandlerInterface;
+use PTAdmin\\Contracts\\Dashboard\\DashboardWidget;
+use PTAdmin\\Contracts\\Dashboard\\DashboardWidgetActionDefinition;
+use PTAdmin\\Contracts\\Dashboard\\DashboardWidgetContext;
+use PTAdmin\\Contracts\\Dashboard\\DashboardWidgetDefinition;
+use PTAdmin\\Contracts\\Dashboard\\DashboardWidgetQuery;
+use PTAdmin\\Contracts\\Dashboard\\StatResult;
 
-class {$basePath}OverviewWidget implements AdminDashboardWidgetHandlerInterface, AdminDashboardWidgetActionHandlerInterface
+class {$basePath}OverviewWidget implements DashboardWidget, AdminDashboardWidgetActionHandlerInterface
 {
     private {$basePath}Service \${$serviceProperty};
 
@@ -460,41 +423,32 @@ class {$basePath}OverviewWidget implements AdminDashboardWidgetHandlerInterface,
         \$this->{$serviceProperty} = \${$serviceProperty};
     }
 
-    /**
-     * @param array<string, mixed> \$query
-     * @param array<string, mixed> \$definition
-     * @param array<string, mixed> \$context
-     *
-     * @return array<string, mixed>
-     */
-    public function query(array \$query, array \$definition, array \$context = array()): array
+    public function definition(): DashboardWidgetDefinition
+    {
+        return (new DashboardWidgetDefinition('{$code}.overview', '{$title}概览'))
+            ->type('stats')
+            ->group('overview')
+            ->icon('layui-icon-chart')
+            ->sort(100)
+            ->resource('{$code}.dashboard')
+            ->description('{$title} 后台概览组件')
+            ->defaultQuery(array('range' => 'all'))
+            ->capability('refresh', true)
+            ->action((new DashboardWidgetActionDefinition('open_dashboard', '进入后台', 'link'))->target('/{$code}'))
+            ->action((new DashboardWidgetActionDefinition('refresh_overview', '刷新统计'))->confirm('确认刷新当前插件统计吗？')->meta(array('intent' => 'refresh')))
+            ->cacheFor(300);
+    }
+
+    public function query(DashboardWidgetQuery \$query, DashboardWidgetContext \$context): StatResult
     {
         \$dashboard = \$this->{$serviceProperty}->dashboard();
         \$publicInfo = \$this->{$serviceProperty}->publicInfo();
 
-        return array(
-            'type' => 'stats',
-            'items' => array(
-                array(
-                    'code' => 'plugin_code',
-                    'label' => '插件编码',
-                    'value' => (string) (\$dashboard['code'] ?? '{$code}'),
-                ),
-                array(
-                    'code' => 'version',
-                    'label' => '当前版本',
-                    'value' => (string) (\$publicInfo['version'] ?? '1.0.0'),
-                ),
-                array(
-                    'code' => 'status',
-                    'label' => '开发状态',
-                    'value' => (string) (\$dashboard['status'] ?? 'developing'),
-                ),
-            ),
-            'query' => \$query,
-            'context' => \$context,
-            'definition_code' => (string) (\$definition['code'] ?? '{$code}.overview'),
-        );
+        return (new StatResult())
+            ->metric('plugin_code', '插件编码', (string) (\$dashboard['code'] ?? '{$code}'))
+            ->metric('version', '当前版本', (string) (\$publicInfo['version'] ?? '1.0.0'))
+            ->metric('status', '开发状态', (string) (\$dashboard['status'] ?? 'developing'))
+            ->meta(array('range' => \$query->range(), 'widget_code' => \$context->widgetCode()));
     }
 
     /**
