@@ -41,7 +41,15 @@ class CloudMarketPurchaseServiceTest extends TestCase
             'code' => 'payment',
             'addon_version_id' => 12,
             'idempotency_key' => 'purchase-request-001',
-        ], ['contract_version' => 1, 'order_no' => 'CO1001']);
+        ], [
+            'contract_version' => 1,
+            'checkout_status' => 'payment_required',
+            'order_no' => 'CO1001',
+            'channels' => [
+                ['code' => 'wechat_native', 'name' => '微信支付', 'action' => 'qr_code'],
+                ['code' => 'alipay_web', 'name' => '支付宝', 'action' => 'qr_code'],
+            ],
+        ]);
         $this->mockPost('/purchase-payment-create', [
             'order_no' => 'CO1001',
             'channel' => 'wechat_native',
@@ -54,7 +62,9 @@ class CloudMarketPurchaseServiceTest extends TestCase
         ], ['contract_version' => 1, 'status' => 'closed']);
 
         $service = $this->app->make(CloudMarketPurchaseService::class);
-        self::assertSame('CO1001', $service->createOrder('payment', 12, 'purchase-request-001')['order_no']);
+        $order = $service->createOrder('payment', 12, 'purchase-request-001');
+        self::assertSame('CO1001', $order['order_no']);
+        self::assertSame('alipay_web', $order['channels'][1]['code']);
         self::assertSame('PAY1001', $service->createPayment('CO1001', 'wechat_native')['payment_no']);
         self::assertSame('paying', $service->queryOrder('CO1001')['status']);
         self::assertSame('closed', $service->closeOrder('CO1001')['status']);
