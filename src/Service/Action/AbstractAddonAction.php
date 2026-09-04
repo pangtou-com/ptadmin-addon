@@ -38,6 +38,7 @@ abstract class AbstractAddonAction
         '.github',
         '.hg',
         '.idea',
+        '.ptadmin',
         '.nyc_output',
         '.svn',
         '.turbo',

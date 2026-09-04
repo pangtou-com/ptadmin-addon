@@ -20,6 +20,7 @@ class AddonLicenseServiceTest extends TestCase
 {
     private string $licenseDirectory;
     private string $runtimeDirectory;
+    private string $deliveryDirectory;
     private string $sessionPath;
     private string $privateKey = '';
     private string $publicKey = '';
@@ -30,9 +31,11 @@ class AddonLicenseServiceTest extends TestCase
 
         $this->licenseDirectory = storage_path('framework/testing/addon-licenses');
         $this->runtimeDirectory = storage_path('framework/testing/addon-runtime');
+        $this->deliveryDirectory = storage_path('framework/testing/addon-delivery');
         $this->sessionPath = storage_path('app/ptadmin/addon/marketplace-session.dat');
         (new Filesystem())->deleteDirectory($this->licenseDirectory);
         (new Filesystem())->deleteDirectory($this->runtimeDirectory);
+        (new Filesystem())->deleteDirectory($this->deliveryDirectory);
         config()->set('addon.license_storage_path', $this->licenseDirectory);
         config()->set('addon.license_runtime_storage_path', $this->runtimeDirectory);
         config()->set('app.name', '授权测试应用');
@@ -47,6 +50,7 @@ class AddonLicenseServiceTest extends TestCase
     {
         (new Filesystem())->deleteDirectory($this->licenseDirectory);
         (new Filesystem())->deleteDirectory($this->runtimeDirectory);
+        (new Filesystem())->deleteDirectory($this->deliveryDirectory);
         app(AddonInstallationRegistry::class)->forget('demo-addon');
         @unlink($this->sessionPath);
 
@@ -97,7 +101,7 @@ class AddonLicenseServiceTest extends TestCase
 
     }
 
-    public function test_network_failure_uses_offline_grace_but_expired_grace_blocks_runtime(): void
+    public function test_expired_offline_grace_is_recorded_without_blocking_runtime(): void
     {
         $this->mockPost('/license-activate', ['license_code' => 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV'], [
             'license_id' => 15,
@@ -120,9 +124,10 @@ class AddonLicenseServiceTest extends TestCase
 
         $license['valid_until'] = time() - 1;
         file_put_contents($path, json_encode($license, JSON_THROW_ON_ERROR));
-        $this->expectException(AddonException::class);
-        $this->expectExceptionMessage('离线宽限期已过期');
+
         $service->assertCanRun('demo-addon');
+        $service->assertCanBoot('demo-addon');
+        self::assertSame('offline_grace', $service->runtimeStatus('demo-addon')['state']);
     }
 
     public function test_required_license_waits_for_platform_decision_without_local_activation(): void
@@ -143,6 +148,58 @@ class AddonLicenseServiceTest extends TestCase
         app(AddonLicenseService::class)->assertCanRun('demo-addon');
         app(AddonLicenseService::class)->assertCanBoot('demo-addon');
         self::assertSame('unknown', app(AddonLicenseService::class)->runtimeStatus('demo-addon')['state']);
+    }
+
+    public function test_delivery_license_is_verified_from_addon_directory(): void
+    {
+        $this->fakeDeliveryAddon();
+        app(AddonInstallationRegistry::class)->markInstalled('demo-addon', '1.0.0', 'marketplace', [
+            'addon_version_id' => 42,
+            'package_hash' => 'sha256:'.str_repeat('a', 64),
+        ]);
+        $this->writeDeliveryLicense();
+
+        $status = app(AddonLicenseService::class)->deliveryStatus('demo-addon');
+
+        self::assertSame('verified', $status['status']);
+        self::assertSame(AddonLicenseService::PROTOCOL, $status['protocol']);
+        self::assertSame('delivery', $status['kind']);
+        self::assertSame(str_repeat('a', 32), $status['delivery_id']);
+        self::assertSame(15, $status['license_id']);
+        self::assertSame('1.0.0', $status['version']);
+        self::assertNotSame('', $status['signature']);
+    }
+
+    public function test_delivery_license_problems_are_reported_without_blocking_runtime(): void
+    {
+        $this->fakeDeliveryAddon();
+        $service = app(AddonLicenseService::class);
+
+        self::assertSame('missing', $service->deliveryStatus('demo-addon')['status']);
+
+        $this->writeDeliveryLicense(['signature' => base64_encode('tampered')], false);
+        self::assertSame('unverified', $service->deliveryStatus('demo-addon')['status']);
+
+        $this->writeDeliveryLicense(['delivery_id' => 'invalid']);
+        self::assertSame('INVALID_FORMAT', $service->deliveryStatus('demo-addon')['reason_code']);
+
+        $this->writeDeliveryLicense(['key_id' => 'unknown-platform-key']);
+        self::assertSame('UNSUPPORTED_KEY_ID', $service->deliveryStatus('demo-addon')['reason_code']);
+
+        app(AddonInstallationRegistry::class)->markInstalled('demo-addon', '1.0.0', 'marketplace', [
+            'addon_version_id' => 42,
+            'package_hash' => 'sha256:'.str_repeat('b', 64),
+        ]);
+        $this->writeDeliveryLicense();
+        self::assertSame('mismatched', $service->deliveryStatus('demo-addon')['status']);
+        app(AddonInstallationRegistry::class)->forget('demo-addon');
+
+        $this->writeDeliveryLicense(['expires_at' => time() - 1]);
+        self::assertSame('expired', $service->deliveryStatus('demo-addon')['status']);
+
+        $service->assertCanBoot('demo-addon');
+        $service->assertCanRun('demo-addon');
+        self::assertTrue(true);
     }
 
     public function test_legacy_addon_without_required_license_remains_compatible(): void
@@ -236,7 +293,7 @@ class AddonLicenseServiceTest extends TestCase
         ]);
     }
 
-    public function test_required_license_is_blocked_after_startup_grace_expires(): void
+    public function test_expired_license_grace_is_recorded_without_blocking_startup(): void
     {
         Addon::swap(new class {
             public function getAddons(): array
@@ -252,9 +309,10 @@ class AddonLicenseServiceTest extends TestCase
             'grace_ends_at' => time() - 1,
         ]));
 
-        $this->expectException(AddonException::class);
-        $this->expectExceptionMessage('GRACE_EXPIRED');
         $service->assertCanBoot('demo-addon');
+        $service->assertCanRun('demo-addon');
+        self::assertSame('blocked', $service->runtimeStatus('demo-addon')['state']);
+        self::assertSame('GRACE_EXPIRED', $service->runtimeStatus('demo-addon')['reason_code']);
     }
 
     public function test_signed_free_release_decision_remains_exempt_after_market_price_changes(): void
@@ -318,6 +376,66 @@ class AddonLicenseServiceTest extends TestCase
         $decision['signature'] = base64_encode($signature);
 
         return $decision;
+    }
+
+    private function fakeDeliveryAddon(): void
+    {
+        $directory = $this->deliveryDirectory;
+        (new Filesystem())->ensureDirectoryExists($directory.'/.ptadmin');
+        Addon::swap(new class($directory) {
+            private string $directory;
+
+            public function __construct(string $directory)
+            {
+                $this->directory = $directory;
+            }
+
+            public function getAddonPath(string $code, ?string $path = null): string
+            {
+                return $this->directory.(null === $path ? '' : DIRECTORY_SEPARATOR.$path);
+            }
+
+            public function getAddonVersion(string $code): string
+            {
+                return '1.0.0';
+            }
+        });
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function writeDeliveryLicense(array $overrides = [], bool $sign = true): void
+    {
+        $license = array_merge([
+            'protocol' => AddonLicenseService::PROTOCOL,
+            'kind' => 'delivery',
+            'delivery_id' => str_repeat('a', 32),
+            'license_id' => 15,
+            'addon_code' => 'demo-addon',
+            'addon_version_id' => 42,
+            'version' => '1.0.0',
+            'artifact_hash' => 'sha256:'.str_repeat('a', 64),
+            'license_scope' => 'perpetual',
+            'expires_at' => 0,
+            'issued_at' => time(),
+            'key_id' => 'platform-default',
+            'signature' => '',
+        ], $overrides);
+        if ($sign) {
+            $payload = $license;
+            unset($payload['signature']);
+            openssl_sign(
+                json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                $signature,
+                $this->privateKey,
+                OPENSSL_ALGO_SHA256
+            );
+            $license['signature'] = base64_encode($signature);
+        }
+
+        (new Filesystem())->put(
+            $this->deliveryDirectory.'/.ptadmin/license.json',
+            json_encode($license, JSON_THROW_ON_ERROR)
+        );
     }
 
     /** @param array<string, mixed> $expectedFields @param array<string, mixed> $data */

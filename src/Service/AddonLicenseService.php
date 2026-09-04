@@ -14,6 +14,7 @@ final class AddonLicenseService
 {
     public const PROTOCOL = 'ptadmin-addon-license@1';
     public const RUNTIME_PROTOCOL = 'ptadmin-addon-runtime@1';
+    private const DELIVERY_KEY_ID = 'platform-default';
     public const STATE_EXEMPT = 'exempt';
     public const STATE_ACTIVE = 'active';
     public const STATE_GRACE = 'grace';
@@ -153,10 +154,225 @@ final class AddonLicenseService
     }
 
     /**
-     * 返回插件启动所依据的本地授权状态。
+     * 读取随插件交付的 License 文件。
      *
-     * 平台决策通过状态同步更新后，可写入同一状态文件；在尚未完成首次
-     * 同步时保持 unknown 或 legacy_review，不能因网络不可达立即阻断。
+     * 交付 License 只用于记录来源和权益信息，不参与插件加载、请求或升级决策。
+     * 文件缺失、格式错误、验签失败和版本不匹配均以状态返回，不能阻断运行。
+     *
+     * @return array<string, mixed>
+     */
+    public function deliveryStatus(string $code): array
+    {
+        $base = [
+            'addon_code' => $code,
+            'status' => 'missing',
+            'state' => 'missing',
+            'reason_code' => 'FILE_MISSING',
+        ];
+
+        try {
+            $path = Addon::getAddonPath($code, '.ptadmin'.DIRECTORY_SEPARATOR.'license.json');
+        } catch (\Throwable $exception) {
+            return $base;
+        }
+
+        if (!$this->filesystem->isFile($path)) {
+            return $base;
+        }
+
+        try {
+            $license = json_decode($this->filesystem->get($path), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $exception) {
+            return array_merge($base, [
+                'status' => 'unverified',
+                'state' => 'unverified',
+                'reason_code' => 'INVALID_JSON',
+            ]);
+        }
+        if (!is_array($license)) {
+            return array_merge($base, [
+                'status' => 'unverified',
+                'state' => 'unverified',
+                'reason_code' => 'INVALID_FORMAT',
+            ]);
+        }
+
+        if (!$this->hasValidDeliveryLicenseFormat($license)) {
+            return array_merge($base, [
+                'status' => 'unverified',
+                'state' => 'unverified',
+                'reason_code' => 'INVALID_FORMAT',
+            ]);
+        }
+
+        $result = array_merge($base, [
+            'protocol' => $license['protocol'],
+            'kind' => $license['kind'],
+            'delivery_id' => $license['delivery_id'],
+            'license_id' => $license['license_id'],
+            'addon_version_id' => $license['addon_version_id'],
+            'version' => $license['version'],
+            'artifact_hash' => $license['artifact_hash'],
+            'license_scope' => $license['license_scope'],
+            'expires_at' => $license['expires_at'],
+            'issued_at' => $license['issued_at'],
+            'key_id' => $license['key_id'],
+            'signature' => $license['signature'],
+        ]);
+
+        if (self::PROTOCOL !== (string) ($license['protocol'] ?? '')
+            || 'delivery' !== (string) ($license['kind'] ?? '')
+            || $code !== (string) ($license['addon_code'] ?? '')) {
+            $result['status'] = 'mismatched';
+            $result['state'] = 'mismatched';
+            $result['reason_code'] = 'IDENTITY_MISMATCH';
+
+            return $result;
+        }
+
+        if (self::DELIVERY_KEY_ID !== $license['key_id']) {
+            $result['status'] = 'unverified';
+            $result['state'] = 'unverified';
+            $result['reason_code'] = 'UNSUPPORTED_KEY_ID';
+
+            return $result;
+        }
+
+        $signature = base64_decode($license['signature'], true);
+        $publicKey = $this->platformPublicKey();
+        $verified = is_string($signature)
+            && '' !== $signature
+            && '' !== $publicKey
+            && 1 === openssl_verify($this->deliveryLicenseCanonicalPayload($license), $signature, $publicKey, OPENSSL_ALGO_SHA256);
+        if (!$verified) {
+            $result['status'] = 'unverified';
+            $result['state'] = 'unverified';
+            $result['reason_code'] = '' === $license['signature'] ? 'SIGNATURE_MISSING' : 'SIGNATURE_INVALID';
+
+            return $result;
+        }
+
+        $installedVersion = '';
+        try {
+            $installedVersion = trim(Addon::getAddonVersion($code) ?? '');
+        } catch (\Throwable $exception) {
+        }
+        if ('' !== $installedVersion && '' !== $result['version'] && $installedVersion !== $result['version']) {
+            $result['status'] = 'mismatched';
+            $result['state'] = 'mismatched';
+            $result['reason_code'] = 'VERSION_MISMATCH';
+
+            return $result;
+        }
+
+        $installation = $this->installations->get($code) ?? [];
+        $installedVersionId = (int) ($installation['addon_version_id'] ?? 0);
+        if ($installedVersionId > 0
+            && $result['addon_version_id'] > 0
+            && $installedVersionId !== $result['addon_version_id']) {
+            $result['status'] = 'mismatched';
+            $result['state'] = 'mismatched';
+            $result['reason_code'] = 'VERSION_ID_MISMATCH';
+
+            return $result;
+        }
+        $installedHash = trim((string) ($installation['package_hash'] ?? ''));
+        if ('' !== $installedHash
+            && '' !== $result['artifact_hash']
+            && !hash_equals($installedHash, $result['artifact_hash'])) {
+            $result['status'] = 'mismatched';
+            $result['state'] = 'mismatched';
+            $result['reason_code'] = 'ARTIFACT_MISMATCH';
+
+            return $result;
+        }
+
+        if ($result['expires_at'] > 0 && $result['expires_at'] < time()) {
+            $result['status'] = 'expired';
+            $result['state'] = 'expired';
+            $result['reason_code'] = 'EXPIRED';
+
+            return $result;
+        }
+
+        $result['status'] = 'verified';
+        $result['state'] = 'verified';
+        $result['reason_code'] = 'VERIFIED';
+
+        return $result;
+    }
+
+    /** @param array<string, mixed> $license */
+    private function hasValidDeliveryLicenseFormat(array $license): bool
+    {
+        $expectedFields = [
+            'protocol',
+            'kind',
+            'delivery_id',
+            'license_id',
+            'addon_code',
+            'addon_version_id',
+            'version',
+            'artifact_hash',
+            'license_scope',
+            'expires_at',
+            'issued_at',
+            'key_id',
+            'signature',
+        ];
+        if ([] !== array_diff($expectedFields, array_keys($license))
+            || [] !== array_diff(array_keys($license), $expectedFields)) {
+            return false;
+        }
+
+        return is_string($license['protocol'])
+            && is_string($license['kind'])
+            && is_string($license['delivery_id'])
+            && 1 === preg_match('/^[a-f0-9]{32}$/', $license['delivery_id'])
+            && is_int($license['license_id'])
+            && $license['license_id'] >= 0
+            && is_string($license['addon_code'])
+            && '' !== $license['addon_code']
+            && is_int($license['addon_version_id'])
+            && $license['addon_version_id'] > 0
+            && is_string($license['version'])
+            && '' !== $license['version']
+            && is_string($license['artifact_hash'])
+            && 1 === preg_match('/^sha256:[a-f0-9]{64}$/', $license['artifact_hash'])
+            && is_string($license['license_scope'])
+            && in_array($license['license_scope'], ['free_perpetual', 'perpetual', 'limited_time'], true)
+            && is_int($license['expires_at'])
+            && $license['expires_at'] >= 0
+            && is_int($license['issued_at'])
+            && $license['issued_at'] > 0
+            && is_string($license['key_id'])
+            && is_string($license['signature']);
+    }
+
+    /** @param array<string, mixed> $license */
+    private function deliveryLicenseCanonicalPayload(array $license): string
+    {
+        return json_encode([
+            'protocol' => $license['protocol'],
+            'kind' => $license['kind'],
+            'delivery_id' => $license['delivery_id'],
+            'license_id' => $license['license_id'],
+            'addon_code' => $license['addon_code'],
+            'addon_version_id' => $license['addon_version_id'],
+            'version' => $license['version'],
+            'artifact_hash' => $license['artifact_hash'],
+            'license_scope' => $license['license_scope'],
+            'expires_at' => $license['expires_at'],
+            'issued_at' => $license['issued_at'],
+            'key_id' => $license['key_id'],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * 返回用于记录和提示的本地授权状态。
+     *
+     * 平台决策通过状态同步更新后，可写入同一状态文件；授权状态不参与
+     * 插件加载或业务请求控制。
      *
      * @return array<string, mixed>
      */
@@ -258,34 +474,14 @@ final class AddonLicenseService
 
     public function assertCanRun(string $code): void
     {
-        $runtime = $this->runtimeStatus($code);
-        if (self::STATE_BLOCKED === ($runtime['state'] ?? null)) {
-            throw new AddonException(sprintf('插件[%s]授权状态为%s，当前不可运行。', $code, (string) ($runtime['reason_code'] ?? 'BLOCKED')));
-        }
-        if (self::STATE_OFFLINE_GRACE === ($runtime['state'] ?? null)
-            && (int) ($runtime['valid_until'] ?? 0) < time()) {
-            throw new AddonException(sprintf('插件[%s]授权离线宽限期已过期，请等待后台状态同步或重新激活。', $code));
-        }
+        // 保留公开方法以兼容现有调用方；授权状态只用于记录和提示，不阻断插件运行。
     }
 
     /**
-     * 检查插件是否可以在宿主启动阶段注册服务提供者。
-     * 启动和业务请求阶段都不访问平台，授权决策由请求结束后的批量同步更新。
+     * 保留公开方法以兼容现有调用方；授权状态只用于记录和提示，不阻断插件加载。
      */
     public function assertCanBoot(string $code): void
     {
-        $runtime = $this->runtimeStatus($code);
-        if (self::STATE_BLOCKED === ($runtime['state'] ?? null)) {
-            throw new AddonException(sprintf(
-                '插件[%s]授权状态为%s，当前不可加载。',
-                $code,
-                (string) ($runtime['reason_code'] ?? 'BLOCKED')
-            ));
-        }
-        if (self::STATE_OFFLINE_GRACE === ($runtime['state'] ?? null)
-            && (int) ($runtime['valid_until'] ?? 0) < time()) {
-            throw new AddonException(sprintf('插件[%s]授权离线宽限期已过期，请重新验证。', $code));
-        }
     }
 
     public function requiresApplicationLicense(string $code): bool

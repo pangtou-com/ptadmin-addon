@@ -48,7 +48,6 @@ use PTAdmin\Addon\Commands\AddonUninstall;
 use PTAdmin\Addon\Commands\AddonUpgrade;
 use PTAdmin\Addon\Commands\AddonUpload;
 use PTAdmin\Addon\Compiler\PTCompiler;
-use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Middleware\AddonMiddleware;
 use PTAdmin\Addon\Service\AddonManager;
 use PTAdmin\Addon\Service\RuntimeContextNormalizer;
@@ -123,9 +122,6 @@ class AddonServiceProvider extends ServiceProvider
         $data = array_keys(Addon::getAddons());
         foreach ($data as $addonCode) {
             if (\in_array($addonCode, $this->addon_booting, true)) {
-                continue;
-            }
-            if (!$this->canBootAddon((string) $addonCode)) {
                 continue;
             }
             $this->registerLang($addonCode);
@@ -232,12 +228,6 @@ class AddonServiceProvider extends ServiceProvider
     {
         $providers = Addon::getProviders();
         foreach ($providers as $key => $item) {
-            try {
-                app(AddonLicenseService::class)->assertCanBoot((string) $key);
-            } catch (AddonException $exception) {
-                continue;
-            }
-
             $item = Arr::wrap($item);
             foreach ($item as $val) {
                 $provider = $app->register($val);
@@ -246,17 +236,6 @@ class AddonServiceProvider extends ServiceProvider
                     $this->addon_booting[] = $key;
                 }
             }
-        }
-    }
-
-    private function canBootAddon(string $addonCode): bool
-    {
-        try {
-            app(AddonLicenseService::class)->assertCanBoot($addonCode);
-
-            return true;
-        } catch (AddonException $exception) {
-            return false;
         }
     }
 
