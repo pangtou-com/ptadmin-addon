@@ -76,6 +76,11 @@ return [
         'pack_start' => '开始打包插件',
         'pack_done' => '插件打包完成',
         'upload_start' => '开始上传插件',
+        'upload_version_missing' => '插件 manifest.json 未设置版本号',
+        'upload_version_exists' => '插件版本 :version 已存在，请检查版本号',
+        'upload_version_auto' => '检测到版本冲突，已使用发布版本：:version',
+        'upload_version_auto_failed' => '无法为插件版本 :version 计算可用版本，请手动修改版本号',
+        'upload_version_persist_failed' => '上传成功，但无法更新插件 manifest.json 中的版本号，请手动更新为本次发布版本',
     ],
     'command' => [
         'cache_refreshed' => '插件缓存刷新成功',

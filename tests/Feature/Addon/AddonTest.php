@@ -2766,6 +2766,120 @@ it('clears persisted marketplace login token when api reports unauthorized', fun
     expect(file_exists($sessionFile))->toBeFalse();
 });
 
+it('keeps persisted marketplace login token when api reports a business failure', function (): void {
+    Cache::flush();
+    $sessionFile = storage_path('app'.DIRECTORY_SEPARATOR.'ptadmin'.DIRECTORY_SEPARATOR.'addon'.DIRECTORY_SEPARATOR.'marketplace-session.dat');
+    $filesystem = new Filesystem();
+    $filesystem->ensureDirectoryExists(dirname($sessionFile));
+    $filesystem->put($sessionFile, AesUtil::encryptString((string) json_encode([
+        'token' => 'Bearer valid-token',
+        'username' => 'demo-user',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+
+    $response = \Mockery::mock();
+    $response->shouldReceive('status')->once()->andReturn(200);
+    $response->shouldReceive('json')->once()->andReturn([
+        'code' => 20000,
+        'message' => '插件发布包校验失败',
+        'data' => [],
+    ]);
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->once()->with('valid-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->once()->andReturnSelf();
+    Http::shouldReceive('post')->once()->withArgs(function (string $url): bool {
+        return 'https://www.pangtou.com/api-addon/addon-exists/test' === $url;
+    })->andReturn($response);
+
+    expect(fn () => AddonApi::getAddonCodeExists('test'))
+        ->toThrow(AddonException::class, '插件发布包校验失败');
+
+    expect(file_exists($sessionFile))->toBeTrue();
+});
+
+it('automatically increments a conflicting addon version before upload', function (): void {
+    writeMarketplaceSessionForTest();
+
+    $conflictResponse = \Mockery::mock();
+    $conflictResponse->shouldReceive('status')->once()->andReturn(200);
+    $conflictResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => [
+            'code' => 'test',
+            'version' => 'v0.0.1',
+            'available' => false,
+        ],
+    ]);
+    $conflictResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'code' => 'test',
+        'version' => 'v0.0.1',
+        'available' => false,
+    ]);
+    $availableResponse = \Mockery::mock();
+    $availableResponse->shouldReceive('status')->once()->andReturn(200);
+    $availableResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => [
+            'code' => 'test',
+            'version' => 'v0.0.2',
+            'available' => true,
+        ],
+    ]);
+    $availableResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'code' => 'test',
+        'version' => 'v0.0.2',
+        'available' => true,
+    ]);
+    $explicitResponse = \Mockery::mock();
+    $explicitResponse->shouldReceive('status')->once()->andReturn(200);
+    $explicitResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'message' => 'ok',
+        'data' => [
+            'code' => 'test',
+            'version' => '2.0',
+            'available' => true,
+        ],
+    ]);
+    $explicitResponse->shouldReceive('json')->once()->with('data')->andReturn([
+        'code' => 'test',
+        'version' => '2.0',
+        'available' => true,
+    ]);
+
+    Http::shouldReceive('withHeaders')->times(3)->andReturnSelf();
+    Http::shouldReceive('withToken')->times(3)->with('test-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->times(3)->andReturnSelf();
+    Http::shouldReceive('post')->times(3)->withArgs(function (string $url, array $payload): bool {
+        return 'https://www.pangtou.com/api-addon/addon-upload-check' === $url
+            && 'test' === ($payload['code'] ?? null);
+    })->andReturn($conflictResponse, $availableResponse, $explicitResponse);
+
+    $action = new class('test') {
+        public function __construct(private string $code)
+        {
+        }
+
+        public function getAddonPath(): string
+        {
+            return sys_get_temp_dir();
+        }
+
+        public function getStorePath($path = null): string
+        {
+            return sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-version-check'.(null !== $path ? \DIRECTORY_SEPARATOR.$path : '');
+        }
+    };
+    $packager = new \PTAdmin\Addon\Service\Action\AddonUpload('test', $action);
+    $method = new \ReflectionMethod($packager, 'resolveVersion');
+    $method->setAccessible(true);
+
+    expect($method->invoke($packager, 'v0.0.1'))->toBe('v0.0.2')
+        ->and($method->invoke($packager, 'v0.0.1', '2.0'))->toBe('2.0');
+});
+
 it('falls back to login payload when marketplace user profile refresh fails', function (): void {
     Cache::flush();
 
@@ -3154,7 +3268,7 @@ it('builds addon upload packages with separated partitions', function (): void {
     $packager = new \PTAdmin\Addon\Service\Action\AddonUpload('cms', $action);
     $method = new \ReflectionMethod($packager, 'buildPackageZip');
     $method->setAccessible(true);
-    $method->invoke($packager, $addonDir, $zipFile);
+    $method->invoke($packager, $addonDir, $zipFile, '1.0.1');
 
     $zip = new ZipArchive();
     $zip->open($zipFile);
@@ -3172,7 +3286,15 @@ it('builds addon upload packages with separated partitions', function (): void {
         ->and(data_get($releaseManifest, 'develop'))->toBeFalse()
         ->and(data_get($releaseManifest, 'components.backend.included'))->toBeTrue()
         ->and(data_get($releaseManifest, 'components.frontend_source.included'))->toBeTrue()
-        ->and(data_get($releaseManifest, 'components.frontend_dist.included'))->toBeTrue();
+        ->and(data_get($releaseManifest, 'components.frontend_dist.included'))->toBeTrue()
+        ->and(data_get($packedManifest, 'version'))->toBe('1.0.1')
+        ->and(data_get($releaseManifest, 'version'))->toBe('1.0.1');
+
+    $persist = new \ReflectionMethod($packager, 'persistManifestVersion');
+    $persist->setAccessible(true);
+    $persist->invoke($packager, $addonDir, '1.0.1');
+    $sourceManifest = json_decode((string) file_get_contents($addonDir.\DIRECTORY_SEPARATOR.'manifest.json'), true, 512, JSON_THROW_ON_ERROR);
+    expect(data_get($sourceManifest, 'version'))->toBe('1.0.1');
 
     $zip->close();
     $filesystem->deleteDirectory($basePath);

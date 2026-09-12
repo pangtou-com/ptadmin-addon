@@ -160,6 +160,12 @@ class AddonApi
         return $results;
     }
 
+    /** Validate a purchase license code without issuing a download ticket. */
+    public static function validateAddonLicenseCode(array $data): array
+    {
+        return (new static())->send('license-validate', $data, false);
+    }
+
     public static function verifyAddonPurchase(array $data): array
     {
         return (new static())->send('verify', $data);
@@ -297,6 +303,19 @@ class AddonApi
     }
 
     /**
+     * Check whether an addon version can be uploaded without sending the package.
+     *
+     * @return array<string, mixed>
+     */
+    public static function checkAddonUploadVersion(string $code, string $version): array
+    {
+        return (new static())->send('addon-upload-check', [
+            'code' => $code,
+            'version' => $version,
+        ]);
+    }
+
+    /**
      * 发送请求
      *
      * @param $method
@@ -340,7 +359,9 @@ class AddonApi
     {
         if (200 === $res->status()) {
             $results = $res->json();
-            if (\in_array($results['code'], [401, 20000], true)) {
+            // 20000 is used for validation and other business failures. It must
+            // not invalidate an otherwise usable marketplace login session.
+            if (401 === (int) ($results['code'] ?? 0)) {
                 $this->clearSession();
             }
             if (0 !== $results['code']) {

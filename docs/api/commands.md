@@ -91,9 +91,14 @@ php artisan addon:uninstall demo-addon --force
 
 ```bash
 php artisan addon:upload demo-addon
+php artisan addon:upload demo-addon --ver=2.0
 ```
 
 上传命令接收插件 `code`，会从本地已安装插件清单解析真实插件目录，例如 `base_path('addons/DemoAddon')`。上传包为单个 zip，内部按发布内容分区：
+
+命令会先读取 `manifest.json` 的版本号并向平台预检查版本占用，检查通过后才开始打包和上传。版本冲突时会从版本末尾自动递增，直到平台返回可用版本；上传成功后，命令会把最终版本号回写到源码插件的 `manifest.json`，上传失败则不会修改源码版本。
+
+使用 `--ver=2.0` 可以指定发布版本。指定版本会严格进行平台预检查，已存在时直接报错，不会自动改成其它版本。`--version` 和 `-v` 是 Artisan 全局参数，不能用于指定插件版本。
 
 - `manifest.json`：插件基础声明。
 - `release.json`：发布包结构声明，标记后端、前端源码、前端构建物是否包含。

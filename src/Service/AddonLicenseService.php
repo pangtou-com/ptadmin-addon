@@ -80,6 +80,20 @@ final class AddonLicenseService
     }
 
     /** @return array<string, mixed> */
+    public function validateForInstall(string $code, int $addonVersionId, string $licenseCode): array
+    {
+        if ($this->isLocalAddon($code)) {
+            throw new AddonException(sprintf('插件[%s]属于本地插件，不使用 PTAdmin 平台授权。', $code));
+        }
+
+        return AddonApi::validateAddonLicenseCode([
+            'code' => $code,
+            'addon_version_id' => $addonVersionId,
+            'license_code' => $licenseCode,
+        ]);
+    }
+
+    /** @return array<string, mixed> */
     public function verify(string $code, ?int $addonVersionId = null): array
     {
         if ($this->isLocalAddon($code)) {

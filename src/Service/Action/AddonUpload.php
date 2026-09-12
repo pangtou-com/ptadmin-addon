@@ -30,12 +30,24 @@ use PTAdmin\Addon\Service\AddonUtil;
 
 final class AddonUpload extends AbstractAddonAction
 {
-    public function handle()
+    private ?string $version = null;
+
+    public function handle(?string $requestedVersion = null)
     {
         $this->info(__('ptadmin-addon::messages.action.upload_permission_check'));
         if (!$this->checkUploadPermission()) {
             return null;
         }
+
+        $manifest = AddonUtil::readAddonConfig($this->action->getAddonPath());
+        if (null === $manifest) {
+            throw new AddonException(__('ptadmin-addon::messages.package.manifest_not_found'));
+        }
+
+        $this->version = $this->resolveVersion(
+            trim((string) ($manifest['version'] ?? '')),
+            $requestedVersion
+        );
 
         return $this->pack()->upload();
     }
@@ -52,7 +64,7 @@ final class AddonUpload extends AbstractAddonAction
         $this->info(__('ptadmin-addon::messages.action.pack_start'));
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
 
-        $this->buildPackageZip($this->action->getAddonPath(), $this->action->getStorePath($this->filename));
+        $this->buildPackageZip($this->action->getAddonPath(), $this->action->getStorePath($this->filename), $this->version);
         $this->info(__('ptadmin-addon::messages.action.pack_done'));
 
         return $this;
@@ -71,20 +83,23 @@ final class AddonUpload extends AbstractAddonAction
         $data['md5'] = md5_file($filename);
         $data['content_hash'] = $this->getFolderMd5($stageDir);
 
-        return AddonApi::addonUpload($filename, $data);
+        $result = AddonApi::addonUpload($filename, $data);
+        $this->persistManifestVersion($this->action->getAddonPath(), (string) $this->version);
+
+        return $result;
     }
 
-    private function buildPackageZip(string $addonPath, string $zipFilename): void
+    private function buildPackageZip(string $addonPath, string $zipFilename, ?string $version = null): void
     {
         $stageDir = $this->action->getStorePath('package');
-        $this->buildPackageStage($addonPath, $stageDir);
+        $this->buildPackageStage($addonPath, $stageDir, $version);
         $this->zipDirectoryContents($stageDir, $zipFilename);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function buildPackageStage(string $addonPath, string $stageDir): array
+    private function buildPackageStage(string $addonPath, string $stageDir, ?string $version = null): array
     {
         $manifest = AddonUtil::readAddonConfig($addonPath);
         if (null === $manifest) {
@@ -93,6 +108,10 @@ final class AddonUpload extends AbstractAddonAction
 
         $this->filesystem->deleteDirectory($stageDir);
         $this->filesystem->ensureDirectoryExists($stageDir);
+
+        if (null !== $version && '' !== $version) {
+            $manifest['version'] = $version;
+        }
 
         $this->writeReleaseManifestJson($manifest, $stageDir.\DIRECTORY_SEPARATOR.'manifest.json');
 
@@ -111,6 +130,70 @@ final class AddonUpload extends AbstractAddonAction
         );
 
         return $releaseManifest;
+    }
+
+    private function resolveVersion(string $version, ?string $requestedVersion = null): string
+    {
+        if (null !== $requestedVersion) {
+            $requestedVersion = trim($requestedVersion);
+            if ('' === $requestedVersion) {
+                throw new AddonException(__('ptadmin-addon::messages.action.upload_version_missing'));
+            }
+
+            $result = AddonApi::checkAddonUploadVersion($this->code, $requestedVersion);
+            if (true !== ($result['available'] ?? false)) {
+                throw new AddonException(__('ptadmin-addon::messages.action.upload_version_exists', [
+                    'version' => $requestedVersion,
+                ]));
+            }
+
+            return $requestedVersion;
+        }
+
+        if ('' === $version) {
+            throw new AddonException(__('ptadmin-addon::messages.action.upload_version_missing'));
+        }
+
+        $candidate = $version;
+        for ($attempt = 0; $attempt < 100; ++$attempt) {
+            $result = AddonApi::checkAddonUploadVersion($this->code, $candidate);
+            if (true === ($result['available'] ?? false)) {
+                if ($candidate !== $version) {
+                    $this->info(__('ptadmin-addon::messages.action.upload_version_auto', ['version' => $candidate]));
+                }
+
+                return $candidate;
+            }
+
+            $candidate = $this->incrementVersion($candidate);
+        }
+
+        throw new AddonException(__('ptadmin-addon::messages.action.upload_version_auto_failed', ['version' => $version]));
+    }
+
+    private function incrementVersion(string $version): string
+    {
+        if (preg_match('/^(.*?)(\\d+)$/', $version, $matches)) {
+            return $matches[1].((int) $matches[2] + 1);
+        }
+
+        return $version.'.1';
+    }
+
+    private function persistManifestVersion(string $addonPath, string $version): void
+    {
+        $manifestPath = $addonPath.\DIRECTORY_SEPARATOR.'manifest.json';
+        $content = @file_get_contents($manifestPath);
+        $manifest = false !== $content ? @json_decode($content, true) : null;
+        if (!\is_array($manifest)) {
+            throw new AddonException(__('ptadmin-addon::messages.action.upload_version_persist_failed'));
+        }
+
+        $manifest['version'] = $version;
+        $encoded = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (false === $encoded || false === @file_put_contents($manifestPath, $encoded.\PHP_EOL, LOCK_EX)) {
+            throw new AddonException(__('ptadmin-addon::messages.action.upload_version_persist_failed'));
+        }
     }
 
     private function copyBackendPartition(string $addonPath, string $targetPath): bool

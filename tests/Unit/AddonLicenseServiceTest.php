@@ -101,6 +101,40 @@ class AddonLicenseServiceTest extends TestCase
 
     }
 
+    public function test_validate_for_install_checks_license_without_activation_or_local_write(): void
+    {
+        $licenseCode = 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV';
+        $this->mockPost('/license-validate', [
+            'code' => 'demo-addon',
+            'addon_version_id' => 42,
+            'license_code' => $licenseCode,
+        ], [
+            'valid' => true,
+            'code' => 'demo-addon',
+            'addon_version_id' => 42,
+        ], false);
+
+        $result = app(AddonLicenseService::class)->validateForInstall('demo-addon', 42, $licenseCode);
+
+        self::assertTrue($result['valid']);
+        self::assertSame('demo-addon', $result['code']);
+        self::assertSame(42, $result['addon_version_id']);
+        self::assertFileDoesNotExist($this->licenseDirectory.'/demo-addon.json');
+    }
+
+    public function test_validate_for_install_rejects_local_addon_before_platform_request(): void
+    {
+        app(AddonInstallationRegistry::class)->markInstalled('demo-addon', '1.0.0', 'local_package');
+
+        $this->expectException(AddonException::class);
+        $this->expectExceptionMessage('本地插件');
+        app(AddonLicenseService::class)->validateForInstall(
+            'demo-addon',
+            42,
+            'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV'
+        );
+    }
+
     public function test_expired_offline_grace_is_recorded_without_blocking_runtime(): void
     {
         $this->mockPost('/license-activate', ['license_code' => 'PTL-1234567890ABCDEFGHIJKLMNOPQRSTUV'], [
@@ -444,6 +478,8 @@ class AddonLicenseServiceTest extends TestCase
         Http::shouldReceive('withHeaders')->once()->andReturnSelf();
         if ($needLogin) {
             Http::shouldReceive('withToken')->once()->with('test-token')->andReturnSelf();
+        } else {
+            Http::shouldReceive('withToken')->never();
         }
         Http::shouldReceive('withOptions')->once()->andReturnSelf();
         $response = \Mockery::mock();

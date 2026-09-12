@@ -76,6 +76,11 @@ return [
         'pack_start' => 'Packing addon',
         'pack_done' => 'Addon package completed',
         'upload_start' => 'Uploading addon',
+        'upload_version_missing' => 'The addon manifest.json does not define a version',
+        'upload_version_exists' => 'Addon version :version already exists. Please check the version number',
+        'upload_version_auto' => 'Version conflict detected. Using release version: :version',
+        'upload_version_auto_failed' => 'Unable to calculate an available version from :version. Please update the version manually',
+        'upload_version_persist_failed' => 'Upload succeeded, but manifest.json could not be updated with the release version. Please update it manually',
     ],
     'command' => [
         'cache_refreshed' => 'Addon cache refreshed successfully',

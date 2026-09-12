@@ -501,11 +501,11 @@ class AddonAction
      *
      * @return null|array|mixed
      */
-    public static function upload($code)
+    public static function upload($code, ?string $version = null)
     {
         $obj = new self($code);
 
-        return $obj->addTask(AddonUpload::class)->action();
+        return $obj->addTask(AddonUpload::class, $version)->action();
     }
 
     /**
