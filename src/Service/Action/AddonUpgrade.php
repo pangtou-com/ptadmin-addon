@@ -26,9 +26,10 @@ namespace PTAdmin\Addon\Service\Action;
 use Illuminate\Support\Facades\Http;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\AddonApi;
+use PTAdmin\Addon\Contracts\AddonResourceSyncRunnerInterface;
 use PTAdmin\Addon\Exception\AddonException;
-use PTAdmin\Addon\Service\AddonPackageSourceResolver;
 use PTAdmin\Addon\Service\AddonInstallationRegistry;
+use PTAdmin\Addon\Service\AddonPackageSourceResolver;
 use PTAdmin\Addon\Service\AddonUtil;
 
 final class AddonUpgrade extends AbstractAddonAction
@@ -50,10 +51,15 @@ final class AddonUpgrade extends AbstractAddonAction
             return null;
         }
 
+        $resourceSync = app(AddonResourceSyncRunnerInterface::class);
+        $resourceSync->assertAvailable();
         $this->ensureDirectoryWritable($this->action->getStorePath());
         $currentPath = Addon::getAddonPath($this->code);
         $currentVersion = Addon::getAddonVersion($this->code);
         $disabled = file_exists($currentPath.\DIRECTORY_SEPARATOR.'disable');
+        $installationRegistry = app(AddonInstallationRegistry::class);
+        $previousInstallation = $installationRegistry->get($this->code);
+        $resourceSyncStarted = false;
 
         $this->info(__('ptadmin-addon::messages.action.backup_start'));
         $backupPath = $this->backupAddon($currentPath);
@@ -75,8 +81,7 @@ final class AddonUpgrade extends AbstractAddonAction
                 $installer->upgrade($currentVersion, $newConfig['version'] ?? null);
             }
             $this->action->publishFrontendRuntime($this->code);
-            $installationRegistry = app(AddonInstallationRegistry::class);
-            app(AddonInstallationRegistry::class)->markInstalled(
+            $installationRegistry->markInstalled(
                 $this->code,
                 isset($newConfig['version']) ? (string) $newConfig['version'] : null,
                 'marketplace',
@@ -87,13 +92,31 @@ final class AddonUpgrade extends AbstractAddonAction
                     })
                 )
             );
+            $this->info(__('ptadmin-addon::messages.action.resource_sync_start', ['code' => $this->code]));
+            $resourceSyncStarted = true;
+            $resourceSync->sync($this->code, $disabled, function (string $message): void {
+                $this->info($message);
+            });
             $this->info(__('ptadmin-addon::messages.action.upgrade_done', [
                 'from' => $currentVersion,
                 'to' => $newConfig['version'] ?? 'unknown',
             ]));
         } catch (\Throwable $exception) {
+            $this->info(__('ptadmin-addon::messages.action.rollback_start'));
             $this->restoreBackup($backupPath, $currentPath, $disabled);
             $this->action->restoreFrontendRuntime($frontendBackupPath, $this->code);
+            $installationRegistry->restore($this->code, $previousInstallation);
+
+            if ($resourceSyncStarted) {
+                try {
+                    $resourceSync->sync($this->code, $disabled);
+                } catch (\Throwable $recoveryException) {
+                    throw new AddonException(__('ptadmin-addon::messages.addon.resource_sync_recovery_failed', [
+                        'code' => $this->code,
+                        'message' => $recoveryException->getMessage(),
+                    ]), 20000, $exception);
+                }
+            }
 
             throw $exception;
         }

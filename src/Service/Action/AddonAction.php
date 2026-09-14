@@ -32,6 +32,7 @@ use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\AddonDirectivesManage;
 use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
+use PTAdmin\Addon\Service\AddonOperationLock;
 
 class AddonAction
 {
@@ -394,11 +395,11 @@ class AddonAction
     /**
      * 同步插件后台资源定义.
      */
-    public static function syncResources(string $code)
+    public static function syncResources(string $code, bool $includeDisabled = false)
     {
         $obj = new self($code);
 
-        return $obj->addTask(AddonResourcesSyncAction::class)->action();
+        return $obj->addTask(AddonResourcesSyncAction::class, $includeDisabled)->action();
     }
 
     /**
@@ -439,9 +440,11 @@ class AddonAction
      */
     public static function upgrade(string $code, $versionId = 0, bool $force = false)
     {
-        $obj = new self($code);
+        return app(AddonOperationLock::class)->run($code, static function () use ($code, $versionId, $force) {
+            $obj = new self($code);
 
-        return $obj->addTask(AddonUpgrade::class, $versionId, $force)->addTask('refresh')->action();
+            return $obj->addTask(AddonUpgrade::class, $versionId, $force)->addTask('refresh')->action();
+        });
     }
 
     /**
@@ -501,11 +504,12 @@ class AddonAction
      *
      * @return null|array|mixed
      */
-    public static function upload($code, ?string $version = null)
+    /** @param array<string, mixed> $releaseMetadata */
+    public static function upload($code, ?string $version = null, bool $skipBuild = false, array $releaseMetadata = [])
     {
         $obj = new self($code);
 
-        return $obj->addTask(AddonUpload::class, $version)->action();
+        return $obj->addTask(AddonUpload::class, $version, $skipBuild, $releaseMetadata)->action();
     }
 
     /**

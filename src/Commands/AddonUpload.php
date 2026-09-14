@@ -30,13 +30,30 @@ use PTAdmin\Addon\Service\Action\AddonAction;
  */
 class AddonUpload extends BaseAddonCommand
 {
-    protected $signature = 'addon:upload {code : 应用编码} {--ver= : 指定发布版本}';
+    protected $signature = 'addon:upload
+        {code : 应用编码}
+        {--ver= : 指定发布版本}
+        {--skip-build : 跳过前端构建并使用现有构建产物}
+        {--title= : 本次发布版本标题}
+        {--description= : 本次发布摘要}
+        {--changelog-file= : 从文件读取本次发布更新日志}
+        {--major : 标记为重要更新}';
     protected $description = '上传应用到平台';
 
     public function handle(): int
     {
         $version = $this->option('ver');
-        AddonAction::upload($this->argument('code'), null !== $version ? (string) $version : null);
+        AddonAction::upload(
+            $this->argument('code'),
+            null !== $version ? (string) $version : null,
+            (bool) $this->option('skip-build'),
+            [
+                'title' => $this->option('title'),
+                'description' => $this->option('description'),
+                'changelog_file' => $this->option('changelog-file'),
+                'is_major_update' => (bool) $this->option('major'),
+            ]
+        );
 
         return 0;
     }

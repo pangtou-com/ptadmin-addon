@@ -32,6 +32,7 @@ use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\Contracts\RuntimeContextNormalizerInterface;
 use PTAdmin\Addon\Contracts\RuntimeContextProviderInterface;
 use PTAdmin\Addon\Contracts\ApplicationInstanceProviderInterface;
+use PTAdmin\Addon\Contracts\AddonResourceSyncRunnerInterface;
 use PTAdmin\Addon\Commands\AddonCache;
 use PTAdmin\Addon\Commands\AddonCacheClear;
 use PTAdmin\Addon\Commands\AddonDisable;
@@ -54,6 +55,7 @@ use PTAdmin\Addon\Service\RuntimeContextNormalizer;
 use PTAdmin\Addon\Service\RuntimeContextProvider;
 use PTAdmin\Addon\Service\AddonLicenseService;
 use PTAdmin\Addon\Service\AddonInstallationRegistry;
+use PTAdmin\Addon\Service\AddonResourceSyncProcess;
 use PTAdmin\Addon\Service\CloudMarketPurchaseService;
 use PTAdmin\Addon\Service\HostApplicationInstanceProvider;
 
@@ -75,6 +77,7 @@ class AddonServiceProvider extends ServiceProvider
         $this->app->singleton(ApplicationInstanceProviderInterface::class, HostApplicationInstanceProvider::class);
         $this->app->singleton(AddonLicenseService::class, AddonLicenseService::class);
         $this->app->singleton(AddonInstallationRegistry::class, AddonInstallationRegistry::class);
+        $this->app->singleton(AddonResourceSyncRunnerInterface::class, AddonResourceSyncProcess::class);
         $this->app->singleton(CloudMarketPurchaseService::class, CloudMarketPurchaseService::class);
         $this->registerProvider($this->app);
     }

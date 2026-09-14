@@ -14,6 +14,11 @@ class AddonUploadCommandTest extends TestCase
         $command = new AddonUpload();
 
         $this->assertTrue($command->getDefinition()->hasOption('ver'));
+        $this->assertTrue($command->getDefinition()->hasOption('skip-build'));
+        $this->assertTrue($command->getDefinition()->hasOption('title'));
+        $this->assertTrue($command->getDefinition()->hasOption('description'));
+        $this->assertTrue($command->getDefinition()->hasOption('changelog-file'));
+        $this->assertTrue($command->getDefinition()->hasOption('major'));
         $this->assertFalse($command->getDefinition()->hasOption('version'));
 
         $this->artisan('help', ['command' => 'addon:upload'])

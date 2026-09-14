@@ -32,24 +32,40 @@ final class AddonUpload extends AbstractAddonAction
 {
     private ?string $version = null;
 
-    public function handle(?string $requestedVersion = null)
+    /** @var array<string, mixed> */
+    private array $releaseMetadata = [];
+
+    /** @param array<string, mixed> $releaseMetadata */
+    public function handle(?string $requestedVersion = null, bool $skipBuild = false, array $releaseMetadata = [])
     {
         $this->info(__('ptadmin-addon::messages.action.upload_permission_check'));
         if (!$this->checkUploadPermission()) {
             return null;
         }
 
-        $manifest = AddonUtil::readAddonConfig($this->action->getAddonPath());
+        $addonPath = $this->action->getAddonPath();
+        $manifest = AddonUtil::readAddonConfig($addonPath);
         if (null === $manifest) {
             throw new AddonException(__('ptadmin-addon::messages.package.manifest_not_found'));
         }
 
+        $this->releaseMetadata = $this->normalizeReleaseMetadata($releaseMetadata);
+        $this->buildFrontend($addonPath, $skipBuild);
         $this->version = $this->resolveVersion(
             trim((string) ($manifest['version'] ?? '')),
             $requestedVersion
         );
 
         return $this->pack()->upload();
+    }
+
+    private function buildFrontend(string $addonPath, bool $skipBuild): void
+    {
+        if ($skipBuild || !is_file($addonPath.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'package.json')) {
+            return;
+        }
+
+        (new AddonFrontendBuildAction($this->code, $this->action))->handle();
     }
 
     private function checkUploadPermission(): bool
@@ -64,7 +80,7 @@ final class AddonUpload extends AbstractAddonAction
         $this->info(__('ptadmin-addon::messages.action.pack_start'));
         $this->filesystem->ensureDirectoryExists($this->action->getStorePath());
 
-        $this->buildPackageZip($this->action->getAddonPath(), $this->action->getStorePath($this->filename), $this->version);
+        $this->buildPackageZip($this->action->getAddonPath(), $this->action->getStorePath($this->filename), $this->version, $this->releaseMetadata);
         $this->info(__('ptadmin-addon::messages.action.pack_done'));
 
         return $this;
@@ -82,6 +98,11 @@ final class AddonUpload extends AbstractAddonAction
         $data['code'] = $this->code;
         $data['md5'] = md5_file($filename);
         $data['content_hash'] = $this->getFolderMd5($stageDir);
+        foreach (['title', 'description', 'changelog', 'is_major_update'] as $field) {
+            if (array_key_exists($field, $this->releaseMetadata)) {
+                $data[$field] = $this->releaseMetadata[$field];
+            }
+        }
 
         $result = AddonApi::addonUpload($filename, $data);
         $this->persistManifestVersion($this->action->getAddonPath(), (string) $this->version);
@@ -89,17 +110,19 @@ final class AddonUpload extends AbstractAddonAction
         return $result;
     }
 
-    private function buildPackageZip(string $addonPath, string $zipFilename, ?string $version = null): void
+    /** @param array<string, mixed> $releaseMetadata */
+    private function buildPackageZip(string $addonPath, string $zipFilename, ?string $version = null, array $releaseMetadata = []): void
     {
         $stageDir = $this->action->getStorePath('package');
-        $this->buildPackageStage($addonPath, $stageDir, $version);
+        $this->buildPackageStage($addonPath, $stageDir, $version, $releaseMetadata);
         $this->zipDirectoryContents($stageDir, $zipFilename);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function buildPackageStage(string $addonPath, string $stageDir, ?string $version = null): array
+    /** @param array<string, mixed> $releaseMetadata */
+    private function buildPackageStage(string $addonPath, string $stageDir, ?string $version = null, array $releaseMetadata = []): array
     {
         $manifest = AddonUtil::readAddonConfig($addonPath);
         if (null === $manifest) {
@@ -123,7 +146,7 @@ final class AddonUpload extends AbstractAddonAction
             throw new AddonException(__('ptadmin-addon::messages.package.release_payload_missing'));
         }
 
-        $releaseManifest = $this->buildReleaseManifest($manifest, $backendIncluded, $frontendSourceIncluded, $frontendDistIncluded);
+        $releaseManifest = $this->buildReleaseManifest($manifest, $backendIncluded, $frontendSourceIncluded, $frontendDistIncluded, $releaseMetadata);
         $this->filesystem->put(
             $stageDir.\DIRECTORY_SEPARATOR.'release.json',
             (string) json_encode($releaseManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -255,7 +278,8 @@ final class AddonUpload extends AbstractAddonAction
         });
     }
 
-    private function buildReleaseManifest(array $manifest, bool $backendIncluded, bool $frontendSourceIncluded, bool $frontendDistIncluded): array
+    /** @param array<string, mixed> $releaseMetadata */
+    private function buildReleaseManifest(array $manifest, bool $backendIncluded, bool $frontendSourceIncluded, bool $frontendDistIncluded, array $releaseMetadata = []): array
     {
         $code = (string) data_get($manifest, 'code', $this->code);
         $kind = 'empty';
@@ -269,11 +293,18 @@ final class AddonUpload extends AbstractAddonAction
             $kind = 'source-only';
         }
 
-        return [
+        $version = (string) data_get($manifest, 'version', '');
+        $title = (string) ($releaseMetadata['title'] ?? data_get($manifest, 'release_title', ''));
+        if ('' === $title) {
+            $title = '版本 '.$version;
+        }
+
+        $releaseManifest = [
             'schema' => 'ptadmin-addon-release@1',
             'code' => $code,
             'name' => (string) data_get($manifest, 'name', data_get($manifest, 'title', $code)),
-            'version' => (string) data_get($manifest, 'version', ''),
+            'title' => $title,
+            'version' => $version,
             'kind' => $kind,
             'develop' => false,
             'type' => (string) data_get($manifest, 'type', ''),
@@ -298,6 +329,46 @@ final class AddonUpload extends AbstractAddonAction
                 ],
             ],
         ];
+        $description = (string) ($releaseMetadata['description'] ?? data_get($manifest, 'release_description', ''));
+        $changelog = (string) ($releaseMetadata['changelog'] ?? '');
+        if ('' !== $description) {
+            $releaseManifest['description'] = $description;
+        }
+        if ('' !== $changelog) {
+            $releaseManifest['changelog'] = $changelog;
+        }
+        if (true === ($releaseMetadata['is_major_update'] ?? false)) {
+            $releaseManifest['is_major_update'] = true;
+        }
+
+        return $releaseManifest;
+    }
+
+    /** @param array<string, mixed> $metadata */
+    private function normalizeReleaseMetadata(array $metadata): array
+    {
+        $normalized = [];
+        foreach (['title', 'description'] as $field) {
+            if (null !== ($metadata[$field] ?? null) && '' !== trim((string) $metadata[$field])) {
+                $normalized[$field] = trim((string) $metadata[$field]);
+            }
+        }
+        $changelogFile = trim((string) ($metadata['changelog_file'] ?? ''));
+        if ('' !== $changelogFile) {
+            if (!is_file($changelogFile) || !is_readable($changelogFile)) {
+                throw new AddonException(__('ptadmin-addon::messages.action.upload_changelog_file_missing'));
+            }
+            $changelog = file_get_contents($changelogFile);
+            if (false === $changelog) {
+                throw new AddonException(__('ptadmin-addon::messages.action.upload_changelog_file_missing'));
+            }
+            $normalized['changelog'] = $changelog;
+        }
+        if (true === ($metadata['is_major_update'] ?? false)) {
+            $normalized['is_major_update'] = true;
+        }
+
+        return $normalized;
     }
 
     /**

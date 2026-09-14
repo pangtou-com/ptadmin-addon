@@ -89,6 +89,11 @@ return [
     */
     'host_versions' => [],
 
+    'upgrade' => [
+        'php_binary' => env('PTADMIN_ADDON_PHP_BINARY', ''),
+        'resource_sync_timeout' => env('PTADMIN_ADDON_RESOURCE_SYNC_TIMEOUT', 120),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Marketplace Licenses

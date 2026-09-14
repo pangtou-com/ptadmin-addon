@@ -32,6 +32,7 @@ use FilesystemIterator;
 use PTAdmin\Addon\Addon;
 use PTAdmin\Addon\AddonApi;
 use PTAdmin\Addon\AesUtil;
+use PTAdmin\Addon\Contracts\AddonResourceSyncRunnerInterface;
 use PTAdmin\Addon\Exception\AddonException;
 use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentCapabilityReference;
 use PTAdmin\Addon\Contracts\Payment\Protocol\PaymentRequirements;
@@ -42,6 +43,7 @@ use PTAdmin\Addon\Service\AddonHooksManage;
 use PTAdmin\Addon\Service\AddonInjectsManage;
 use PTAdmin\Addon\Service\AddonInstallationRegistry;
 use PTAdmin\Addon\Service\AddonManager;
+use PTAdmin\Addon\Service\AddonResourceSyncProcess;
 use PTAdmin\Addon\Service\BaseBootstrap;
 use PTAdmin\Addon\Service\Action\AddonAction;
 use RecursiveDirectoryIterator;
@@ -70,6 +72,38 @@ class FakeAdminResourceServiceForAddonTest
     public function deleteByAddonCode(string $addonCode): void
     {
         $this->deleted[] = $addonCode;
+    }
+}
+
+class FakeAddonResourceSyncRunnerForAddonTest implements AddonResourceSyncRunnerInterface
+{
+    public int $availabilityChecks = 0;
+    public array $calls = [];
+    public bool $available = true;
+    public ?int $failureCall = null;
+
+    public function assertAvailable(): void
+    {
+        ++$this->availabilityChecks;
+        if (!$this->available) {
+            throw new AddonException('resource sync unavailable');
+        }
+    }
+
+    public function sync(string $addonCode, bool $includeDisabled = false, ?callable $output = null): void
+    {
+        $this->calls[] = [
+            'code' => $addonCode,
+            'include_disabled' => $includeDisabled,
+        ];
+
+        if ($this->failureCall === \count($this->calls)) {
+            throw new AddonException('resource sync failed');
+        }
+
+        if (null !== $output) {
+            $output('resource sync completed', false);
+        }
     }
 }
 
@@ -487,6 +521,62 @@ it('sync addon resources through addon action', function (): void {
         ->and(data_get($fakeService->synced[0], 'addon_code'))->toEqual('test');
 });
 
+it('registers the include-disabled option for resource synchronization command', function (): void {
+    expect(Artisan::all())->toHaveKey('addon:resources:sync')
+        ->and(Artisan::all()['addon:resources:sync']->getDefinition()->hasOption('include-disabled'))->toBeTrue();
+});
+
+it('runs resource synchronization in an isolated artisan process', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-resource-process-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath);
+    file_put_contents($basePath.\DIRECTORY_SEPARATOR.'artisan', <<<'PHP'
+<?php
+
+file_put_contents(__DIR__.'/arguments.json', json_encode(array_slice($argv, 1)));
+echo "resources synchronized\n";
+PHP
+    );
+
+    $this->app->setBasePath($basePath);
+    config()->set('addon.upgrade.php_binary', PHP_BINARY);
+    $messages = [];
+
+    (new AddonResourceSyncProcess())->sync('test', true, function (string $message, bool $error) use (&$messages): void {
+        $messages[] = [$message, $error];
+    });
+
+    $arguments = json_decode((string) file_get_contents($basePath.\DIRECTORY_SEPARATOR.'arguments.json'), true, 512, JSON_THROW_ON_ERROR);
+    expect($arguments)->toEqual([
+        'addon:resources:sync',
+        'test',
+        '--no-interaction',
+        '--include-disabled',
+    ])->and($messages)->toEqual([
+        ['resources synchronized', false],
+    ]);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('syncs disabled addon resources and keeps them disabled when explicitly requested', function (): void {
+    $testAddonDir = __DIR__.\DIRECTORY_SEPARATOR.'testSrc'.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test';
+    $fakeService = new FakeAdminResourceServiceForAddonTest();
+    app()->instance('PTAdmin\Contracts\Auth\AdminResourceServiceInterface', $fakeService);
+
+    AddonAction::disable('test');
+    $result = AddonAction::syncResources('test', true);
+
+    expect($result)->toMatchArray([
+        'code' => 'test',
+        'synced' => true,
+        'enabled' => false,
+    ])
+        ->and(file_exists($testAddonDir.\DIRECTORY_SEPARATOR.'disable'))->toBeTrue()
+        ->and($fakeService->synced)->toHaveCount(1)
+        ->and($fakeService->disabled)->toEqual(['test', 'test']);
+});
+
 it('throws clear exception when nav resource misses required fields', function (): void {
     $bootstrap = new class() extends BaseBootstrap
     {
@@ -628,6 +718,8 @@ it('upgrade addon from downloaded package', function (): void {
         }
     };
     $this->zipBody = $zipBody;
+    $resourceSync = new FakeAddonResourceSyncRunnerForAddonTest();
+    app()->instance(AddonResourceSyncRunnerInterface::class, $resourceSync);
 
     Http::shouldReceive('withHeaders')->once()->andReturnSelf();
     Http::shouldReceive('withToken')->once()->with('test-token')->andReturnSelf();
@@ -645,7 +737,114 @@ it('upgrade addon from downloaded package', function (): void {
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'frontend.json'))->toBeFalse()
         ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'storage'.\DIRECTORY_SEPARATOR.'app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeFalse()
         ->and(is_link($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'))->toBeFalse()
-        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue();
+        ->and(file_exists($basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'index.js'))->toBeTrue()
+        ->and($resourceSync->availabilityChecks)->toBe(1)
+        ->and($resourceSync->calls)->toEqual([
+            [
+                'code' => 'test',
+                'include_disabled' => false,
+            ],
+        ]);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('checks resource synchronization availability before downloading or replacing addon', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-upgrade-preflight-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+
+    $manifestPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test'.\DIRECTORY_SEPARATOR.'manifest.json';
+    $originalManifest = (string) file_get_contents($manifestPath);
+    $resourceSync = new FakeAddonResourceSyncRunnerForAddonTest();
+    $resourceSync->available = false;
+    app()->instance(AddonResourceSyncRunnerInterface::class, $resourceSync);
+
+    Http::shouldReceive('withHeaders')->never();
+    Http::shouldReceive('withOptions')->never();
+
+    expect(fn () => AddonAction::upgrade('test', 0, true))
+        ->toThrow(AddonException::class, 'resource sync unavailable');
+
+    expect((string) file_get_contents($manifestPath))->toBe($originalManifest)
+        ->and($resourceSync->availabilityChecks)->toBe(1)
+        ->and($resourceSync->calls)->toBe([]);
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('restores addon state when post-upgrade resource synchronization fails', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().\DIRECTORY_SEPARATOR.'ptadmin-addon-upgrade-sync-rollback-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.\DIRECTORY_SEPARATOR.'testSrc', $basePath);
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+
+    $addonPath = $basePath.\DIRECTORY_SEPARATOR.'addons'.\DIRECTORY_SEPARATOR.'Test';
+    $packageDir = $basePath.\DIRECTORY_SEPARATOR.'package-source'.\DIRECTORY_SEPARATOR.'Test';
+    $filesystem->copyDirectory($addonPath, $packageDir);
+    $manifestPath = $packageDir.\DIRECTORY_SEPARATOR.'manifest.json';
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+    $manifest['version'] = 'v0.0.2';
+    file_put_contents($manifestPath, (string) json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    $filesystem->ensureDirectoryExists($packageDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin');
+    file_put_contents($packageDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'frontend.json', '{"code":"test","version":"v0.0.2"}');
+    file_put_contents($packageDir.\DIRECTORY_SEPARATOR.'Frontend'.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'new.js', 'new runtime');
+
+    $zipFile = $basePath.\DIRECTORY_SEPARATOR.'upgrade.zip';
+    buildAddonPackageZip($packageDir, $zipFile);
+    $zipBody = (string) file_get_contents($zipFile);
+    $frontendPath = $basePath.\DIRECTORY_SEPARATOR.'public'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'modules'.\DIRECTORY_SEPARATOR.'test';
+    $filesystem->ensureDirectoryExists($frontendPath);
+    file_put_contents($frontendPath.\DIRECTORY_SEPARATOR.'old.js', 'old runtime');
+
+    $registry = app(AddonInstallationRegistry::class);
+    $registry->markInstalled('test', 'v0.0.1', 'local_package', [
+        'addon_version_id' => 3,
+        'package_hash' => 'sha256:old-package',
+    ]);
+    $previousInstallation = $registry->get('test');
+
+    $resourceSync = new FakeAddonResourceSyncRunnerForAddonTest();
+    $resourceSync->failureCall = 1;
+    app()->instance(AddonResourceSyncRunnerInterface::class, $resourceSync);
+    writeMarketplaceSessionForTest();
+    fakeAddonDownloadHttpForTest('test', $zipBody);
+
+    expect(fn () => AddonAction::upgrade('test', 0, true))
+        ->toThrow(AddonException::class, 'resource sync failed');
+
+    $restoredManifest = json_decode((string) file_get_contents($addonPath.\DIRECTORY_SEPARATOR.'manifest.json'), true, 512, JSON_THROW_ON_ERROR);
+    expect($restoredManifest['version'] ?? null)->toBe('v0.0.1')
+        ->and(file_exists($addonPath.\DIRECTORY_SEPARATOR.'upgrade.log'))->toBeFalse()
+        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'old.js'))->toBeTrue()
+        ->and(file_exists($frontendPath.\DIRECTORY_SEPARATOR.'dist'.\DIRECTORY_SEPARATOR.'admin'.\DIRECTORY_SEPARATOR.'new.js'))->toBeFalse()
+        ->and($registry->get('test'))->toEqual($previousInstallation)
+        ->and($resourceSync->calls)->toEqual([
+            [
+                'code' => 'test',
+                'include_disabled' => false,
+            ],
+            [
+                'code' => 'test',
+                'include_disabled' => false,
+            ],
+        ]);
 
     $filesystem->deleteDirectory($basePath);
 });
@@ -2880,6 +3079,149 @@ it('automatically increments a conflicting addon version before upload', functio
         ->and($method->invoke($packager, 'v0.0.1', '2.0'))->toBe('2.0');
 });
 
+it('builds addon frontend before uploading the release package by default', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'ptadmin-addon-upload-build-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $frontendPath = $basePath.DIRECTORY_SEPARATOR.'addons'.DIRECTORY_SEPARATOR.'Test'.DIRECTORY_SEPARATOR.'Frontend';
+    $filesystem->ensureDirectoryExists($frontendPath.DIRECTORY_SEPARATOR.'node_modules');
+    file_put_contents($frontendPath.DIRECTORY_SEPARATOR.'package.json', (string) json_encode([
+        'name' => 'test-frontend',
+        'version' => '1.0.0',
+        'ptadmin-addon' => [
+            'build_command' => "php -r \"if (!is_dir('dist')) { mkdir('dist', 0777, true); } file_put_contents('dist/index.js', 'built');\"",
+        ],
+    ], JSON_UNESCAPED_SLASHES));
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    writeMarketplaceSessionForTest();
+
+    $versionResponse = \Mockery::mock();
+    $versionResponse->shouldReceive('status')->once()->andReturn(200);
+    $versionResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'data' => ['available' => true],
+    ]);
+    $versionResponse->shouldReceive('json')->once()->with('data')->andReturn(['available' => true]);
+    $uploadResponse = \Mockery::mock();
+    $uploadResponse->shouldReceive('status')->once()->andReturn(200);
+    $uploadResponse->shouldReceive('json')->once()->andReturn([
+        'code' => 0,
+        'data' => ['uploaded' => true],
+    ]);
+    $uploadResponse->shouldReceive('json')->once()->with('data')->andReturn(['uploaded' => true]);
+    $builtAtUpload = false;
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->twice()->with('test-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->twice()->withArgs(function (string $url, array $payload) use (&$builtAtUpload, $frontendPath): bool {
+        if ('addon-upload' === substr($url, -12)) {
+            $builtAtUpload = file_exists($frontendPath.DIRECTORY_SEPARATOR.'dist'.DIRECTORY_SEPARATOR.'index.js');
+        }
+
+        return true;
+    })->andReturn($versionResponse, $uploadResponse);
+    Http::shouldReceive('attach')->once()->andReturnSelf();
+
+    $result = AddonAction::upload('test');
+
+    expect($result)->toMatchArray(['uploaded' => true])
+        ->and($builtAtUpload)->toBeTrue()
+        ->and(file_get_contents($frontendPath.DIRECTORY_SEPARATOR.'dist'.DIRECTORY_SEPARATOR.'index.js'))->toBe('built')
+        ->and(file_exists($basePath.DIRECTORY_SEPARATOR.'addons'.DIRECTORY_SEPARATOR.'Test'.DIRECTORY_SEPARATOR.'frontend.json'))->toBeTrue();
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('skips addon frontend build only when skip-build is enabled', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'ptadmin-addon-upload-skip-build-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $frontendPath = $basePath.DIRECTORY_SEPARATOR.'addons'.DIRECTORY_SEPARATOR.'Test'.DIRECTORY_SEPARATOR.'Frontend';
+    $filesystem->ensureDirectoryExists($frontendPath.DIRECTORY_SEPARATOR.'dist');
+    file_put_contents($frontendPath.DIRECTORY_SEPARATOR.'package.json', '{"name":"test-frontend","ptadmin-addon":{"build_command":"php -r \\\"exit(1);\\\""}}');
+    file_put_contents($frontendPath.DIRECTORY_SEPARATOR.'frontend.json', '{"modules":[]}');
+    file_put_contents($frontendPath.DIRECTORY_SEPARATOR.'dist'.DIRECTORY_SEPARATOR.'index.js', 'existing');
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+    AddonDirectivesManage::getInstance()->reset();
+    AddonInjectsManage::getInstance()->reset();
+    AddonHooksManage::getInstance()->reset();
+    writeMarketplaceSessionForTest();
+
+    $versionResponse = \Mockery::mock();
+    $versionResponse->shouldReceive('status')->once()->andReturn(200);
+    $versionResponse->shouldReceive('json')->once()->andReturn(['code' => 0, 'data' => ['available' => true]]);
+    $versionResponse->shouldReceive('json')->once()->with('data')->andReturn(['available' => true]);
+    $uploadResponse = \Mockery::mock();
+    $uploadResponse->shouldReceive('status')->once()->andReturn(200);
+    $uploadResponse->shouldReceive('json')->once()->andReturn(['code' => 0, 'data' => ['uploaded' => true]]);
+    $uploadResponse->shouldReceive('json')->once()->with('data')->andReturn(['uploaded' => true]);
+
+    Http::shouldReceive('withHeaders')->once()->andReturnSelf();
+    Http::shouldReceive('withToken')->twice()->with('test-token')->andReturnSelf();
+    Http::shouldReceive('withOptions')->twice()->andReturnSelf();
+    Http::shouldReceive('post')->twice()->andReturn($versionResponse, $uploadResponse);
+    Http::shouldReceive('attach')->once()->andReturnSelf();
+
+    expect(AddonAction::upload('test', null, true))->toMatchArray(['uploaded' => true])
+        ->and(file_get_contents($frontendPath.DIRECTORY_SEPARATOR.'dist'.DIRECTORY_SEPARATOR.'index.js'))->toBe('existing');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
+it('stops addon upload before version check when frontend build fails', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'ptadmin-addon-upload-build-failure-'.uniqid();
+    $filesystem->copyDirectory(__DIR__.DIRECTORY_SEPARATOR.'testSrc', $basePath);
+    $frontendPath = $basePath.DIRECTORY_SEPARATOR.'addons'.DIRECTORY_SEPARATOR.'Test'.DIRECTORY_SEPARATOR.'Frontend';
+    $filesystem->ensureDirectoryExists($frontendPath.DIRECTORY_SEPARATOR.'node_modules');
+    file_put_contents($frontendPath.DIRECTORY_SEPARATOR.'package.json', (string) json_encode([
+        'name' => 'test-frontend',
+        'version' => '1.0.0',
+        'ptadmin-addon' => [
+            'build_command' => 'php -r "exit(7);"',
+        ],
+    ], JSON_UNESCAPED_SLASHES));
+
+    $this->app->setBasePath($basePath);
+    $this->app->forgetInstance('addon');
+    $this->app->singleton('addon', function () {
+        return new AddonManager();
+    });
+    Addon::clearResolvedInstance('addon');
+
+    Http::shouldReceive('withHeaders')->never();
+    Http::shouldReceive('attach')->never();
+
+    expect(fn () => AddonAction::upload('test'))
+        ->toThrow(AddonException::class, 'Command failed');
+
+    $manifest = json_decode(
+        (string) file_get_contents($basePath.DIRECTORY_SEPARATOR.'addons'.DIRECTORY_SEPARATOR.'Test'.DIRECTORY_SEPARATOR.'manifest.json'),
+        true,
+        512,
+        JSON_THROW_ON_ERROR
+    );
+    expect($manifest['version'] ?? null)->toBe('v0.0.1');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
 it('falls back to login payload when marketplace user profile refresh fails', function (): void {
     Cache::flush();
 
@@ -3284,11 +3626,31 @@ it('builds addon upload packages with separated partitions', function (): void {
     $releaseManifest = json_decode($zip->getFromName('release.json'), true, 512, JSON_THROW_ON_ERROR);
     expect(data_get($packedManifest, 'develop'))->toBeFalse()
         ->and(data_get($releaseManifest, 'develop'))->toBeFalse()
+        ->and(data_get($releaseManifest, 'name'))->toBe('CMS')
+        ->and(data_get($releaseManifest, 'title'))->toBe('版本 1.0.1')
         ->and(data_get($releaseManifest, 'components.backend.included'))->toBeTrue()
         ->and(data_get($releaseManifest, 'components.frontend_source.included'))->toBeTrue()
         ->and(data_get($releaseManifest, 'components.frontend_dist.included'))->toBeTrue()
         ->and(data_get($packedManifest, 'version'))->toBe('1.0.1')
         ->and(data_get($releaseManifest, 'version'))->toBe('1.0.1');
+
+    $releaseBuilder = new \ReflectionMethod($packager, 'buildReleaseManifest');
+    $releaseBuilder->setAccessible(true);
+    $customRelease = $releaseBuilder->invoke($packager, [
+        'code' => 'cms',
+        'name' => 'CMS',
+        'version' => '1.0.1',
+    ], true, true, true, [
+        'title' => '稳定版',
+        'description' => '本次版本摘要',
+        'changelog' => '修复菜单同步',
+        'is_major_update' => true,
+    ]);
+    expect(data_get($customRelease, 'name'))->toBe('CMS')
+        ->and(data_get($customRelease, 'title'))->toBe('稳定版')
+        ->and(data_get($customRelease, 'description'))->toBe('本次版本摘要')
+        ->and(data_get($customRelease, 'changelog'))->toBe('修复菜单同步')
+        ->and(data_get($customRelease, 'is_major_update'))->toBeTrue();
 
     $persist = new \ReflectionMethod($packager, 'persistManifestVersion');
     $persist->setAccessible(true);

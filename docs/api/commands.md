@@ -74,6 +74,25 @@ php artisan addon:upgrade demo-addon
 php artisan addon:upgrade demo-addon 12 --force
 ```
 
+升级成功后，宿主会在独立 Artisan 进程中重新加载新版插件并同步后台资源定义，因此不需要再手动执行 `addon:setup`。升级入口同时支持命令行和管理后台接口；两者共用同一套升级流程。
+
+升级期间会使用插件级文件锁，避免同一插件被并发覆盖。插件原本处于禁用状态时，资源定义仍会同步，但同步后的资源保持禁用。
+
+宿主可以恢复插件目录、前端运行资源、安装记录和后台资源，但无法统一撤销插件在 `Installer::upgrade()` 中执行的任意外部操作。插件自己的数据库变更应使用事务或可重复执行的迁移。
+
+资源同步子进程可以通过环境变量调整：
+
+```dotenv
+PTADMIN_ADDON_PHP_BINARY=/usr/bin/php
+PTADMIN_ADDON_RESOURCE_SYNC_TIMEOUT=120
+```
+
+`addon:resources:sync` 默认只同步已启用插件。`--include-disabled` 用于升级流程在隔离进程中读取禁用插件的新定义，普通运维场景不需要手动使用：
+
+```bash
+php artisan addon:resources:sync demo-addon --include-disabled
+```
+
 ## 启用与禁用
 
 ```bash
@@ -92,11 +111,15 @@ php artisan addon:uninstall demo-addon --force
 ```bash
 php artisan addon:upload demo-addon
 php artisan addon:upload demo-addon --ver=2.0
+php artisan addon:upload demo-addon --skip-build
+php artisan addon:upload demo-addon --title="2.0 稳定版" --description="本次版本摘要" --changelog-file=CHANGELOG.md --major
 ```
 
-上传命令接收插件 `code`，会从本地已安装插件清单解析真实插件目录，例如 `base_path('addons/DemoAddon')`。上传包为单个 zip，内部按发布内容分区：
+上传命令接收插件 `code`，会从本地已安装插件清单解析真实插件目录，例如 `base_path('addons/DemoAddon')`。如果插件包含 `Frontend/package.json`，默认先执行前端构建，构建成功后才会检查版本、打包和上传；构建失败会停止流程。确认现有构建产物有效时，可以显式使用 `--skip-build` 跳过构建。上传包为单个 zip，内部按发布内容分区：
 
 命令会先读取 `manifest.json` 的版本号并向平台预检查版本占用，检查通过后才开始打包和上传。版本冲突时会从版本末尾自动递增，直到平台返回可用版本；上传成功后，命令会把最终版本号回写到源码插件的 `manifest.json`，上传失败则不会修改源码版本。
+
+`--title` 、`--description` 、`--changelog-file` 和 `--major` 只描述本次版本，不会修改插件固定编码、版本号或 ZIP 内容。未指定标题时默认使用 `版本 {version}`；`release.json.name` 仍保持插件名称，`release.json.title` 承载版本标题。
 
 使用 `--ver=2.0` 可以指定发布版本。指定版本会严格进行平台预检查，已存在时直接报错，不会自动改成其它版本。`--version` 和 `-v` 是 Artisan 全局参数，不能用于指定插件版本。
 

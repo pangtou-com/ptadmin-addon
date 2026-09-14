@@ -171,6 +171,21 @@ final class AddonInstallationRegistry
         }
     }
 
+    /** @param array<string, mixed>|null $record */
+    public function restore(string $code, ?array $record): void
+    {
+        if (null === $record) {
+            $this->forget($code);
+
+            return;
+        }
+        if ((string) ($record['code'] ?? '') !== $code) {
+            throw new AddonException(__('ptadmin-addon::messages.addon.installation_state_invalid', ['code' => $code]));
+        }
+
+        $this->write($code, $record);
+    }
+
     private function write(string $code, array $record): void
     {
         $directory = $this->directory();
