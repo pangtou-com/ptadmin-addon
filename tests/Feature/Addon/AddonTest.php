@@ -2745,6 +2745,49 @@ it('builds frontend assets and generates module manifest via addon action', func
     $filesystem->deleteDirectory($basePath);
 });
 
+it('preserves federation runtime when building a module frontend', function (): void {
+    $filesystem = new Filesystem();
+    $basePath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'ptadmin-addon-frontend-federation-build-'.uniqid();
+    $filesystem->ensureDirectoryExists($basePath.DIRECTORY_SEPARATOR.'addons');
+
+    $this->app->setBasePath($basePath);
+    AddonAction::init('demo-addon', 'Demo Addon');
+
+    $frontendPath = $basePath.DIRECTORY_SEPARATOR.'addons'.DIRECTORY_SEPARATOR.'DemoAddon'.DIRECTORY_SEPARATOR.'Frontend';
+    $filesystem->ensureDirectoryExists($frontendPath);
+    file_put_contents($frontendPath.DIRECTORY_SEPARATOR.'package.json', (string) json_encode([
+        'name' => 'demo-addon-frontend',
+        'version' => '1.0.0',
+        'ptadmin-addon' => [
+            'build_command' => 'php -r "if (!is_dir(\'dist\')) { mkdir(\'dist\', 0777, true); } file_put_contents(\'dist/remoteEntry.js\', \'remote\'); file_put_contents(\'dist/index.js\', \'app\');"',
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    file_put_contents($frontendPath.DIRECTORY_SEPARATOR.'frontend.json', (string) json_encode([
+        'id' => 'demo-addon',
+        'code' => 'demo-addon',
+        'runtime' => 'federation',
+        'entry' => [
+            'federation' => [
+                'remote' => 'demo_addon_remote',
+                'entry' => 'http://localhost:4179/assets/remoteEntry.js',
+                'expose' => './module',
+            ],
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    AddonAction::buildFrontend('demo-addon');
+
+    $moduleManifestPath = $basePath.DIRECTORY_SEPARATOR.'addons'.DIRECTORY_SEPARATOR.'DemoAddon'.DIRECTORY_SEPARATOR.'frontend.json';
+    $moduleManifest = json_decode(file_get_contents($moduleManifestPath), true, 512, JSON_THROW_ON_ERROR);
+
+    expect(data_get($moduleManifest, 'modules.0.runtime'))->toEqual('federation')
+        ->and(data_get($moduleManifest, 'modules.0.entry.federation.remote'))->toEqual('demo_addon_remote')
+        ->and(data_get($moduleManifest, 'modules.0.entry.federation.entry'))->toEqual('http://localhost:4179/assets/remoteEntry.js')
+        ->and(data_get($moduleManifest, 'modules.0.entry.federation.expose'))->toEqual('./module');
+
+    $filesystem->deleteDirectory($basePath);
+});
+
 it('wraps marketplace connection failures as addon exceptions with official host', function (): void {
     Cache::flush();
     $sessionFile = storage_path('app'.\DIRECTORY_SEPARATOR.'ptadmin'.\DIRECTORY_SEPARATOR.'addon'.\DIRECTORY_SEPARATOR.'marketplace-session.dat');

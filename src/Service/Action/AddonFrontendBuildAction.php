@@ -101,7 +101,7 @@ final class AddonFrontendBuildAction
         }
 
         $moduleManifestPath = $addonPath.\DIRECTORY_SEPARATOR.$moduleManifestRelative;
-        $modulePayload = $this->buildModuleManifest($addonManifest, $entries, $package, $moduleManifestPath);
+        $modulePayload = $this->buildModuleManifest($addonManifest, $entries, $package, $moduleManifestPath, $frontendPath);
         $this->filesystem->put(
             $moduleManifestPath,
             (string) json_encode($modulePayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -304,20 +304,46 @@ final class AddonFrontendBuildAction
      *
      * @return array<string, mixed>
      */
-    private function buildModuleManifest(array $addonManifest, array $entries, array $package, string $moduleManifestPath): array
+    private function buildModuleManifest(
+        array $addonManifest,
+        array $entries,
+        array $package,
+        string $moduleManifestPath,
+        string $frontendPath,
+    ): array
     {
         $existing = $this->readExistingModuleDefinition($moduleManifestPath, (string) ($addonManifest['code'] ?? $this->code));
+        $source = $this->readExistingModuleDefinition(
+            $frontendPath.\DIRECTORY_SEPARATOR.'frontend.json',
+            (string) ($addonManifest['code'] ?? $this->code)
+        );
         $frontendConfig = $this->readFrontendConfig($package);
         $configuredModule = isset($frontendConfig['module']) && \is_array($frontendConfig['module'])
             ? $frontendConfig['module']
             : [];
 
-        $module = array_replace_recursive($existing, $configuredModule);
+        // Frontend/frontend.json is the source manifest. The generated root
+        // manifest may still contain a previous build and must not force a
+        // federation module back to the legacy local asset format.
+        $module = array_replace_recursive($existing, $source, $configuredModule);
         $code = (string) ($addonManifest['code'] ?? $this->code);
         $title = (string) ($addonManifest['title'] ?? $addonManifest['name'] ?? $code);
         $description = (string) ($addonManifest['description'] ?? '');
-        $routeBase = $this->normalizeRoute((string) ($module['route_base'] ?? '/'.$code));
+        $routeBase = $this->normalizeRoute((string) ($module['route_base'] ?? $module['routeBase'] ?? '/'.$code));
         $pageTitle = (string) ($module['title'] ?? $title);
+        $runtime = (string) ($module['runtime'] ?? 'local');
+
+        $entry = 'federation' === $runtime
+            ? [
+                'federation' => $this->resolveFederationEntry($module, $code, (bool) ($addonManifest['develop'] ?? false)),
+            ]
+            : [
+                'local' => [
+                    'type' => (string) data_get($module, 'entry.local.type', 'module'),
+                    'js' => $entries['js'],
+                    'css' => $entries['css'],
+                ],
+            ];
 
         $payload = [
             'modules' => [
@@ -325,9 +351,9 @@ final class AddonFrontendBuildAction
                     'key' => (string) ($module['key'] ?? $code),
                     'title' => $pageTitle,
                     'description' => (string) ($module['description'] ?? $description),
-                    'version' => (string) ($module['version'] ?? ($addonManifest['version'] ?? '1.0.0')),
+                    'version' => (string) ($addonManifest['version'] ?? ($module['version'] ?? '1.0.0')),
                     'enabled' => isset($module['enabled']) ? (int) $module['enabled'] : 1,
-                    'runtime' => (string) ($module['runtime'] ?? 'local'),
+                    'runtime' => $runtime,
                     'route_base' => $routeBase,
                     'meta' => [
                         'icon' => $module['meta']['icon'] ?? null,
@@ -335,19 +361,45 @@ final class AddonFrontendBuildAction
                         'preload' => isset($module['meta']['preload']) ? (bool) $module['meta']['preload'] : false,
                         'develop' => isset($module['meta']['develop']) ? (bool) $module['meta']['develop'] : (bool) ($addonManifest['develop'] ?? false),
                     ],
-                    'entry' => [
-                        'local' => [
-                            'type' => (string) data_get($module, 'entry.local.type', 'module'),
-                            'js' => $entries['js'],
-                            'css' => $entries['css'],
-                        ],
-                    ],
+                    'entry' => $entry,
                     'pages' => $this->normalizePages($module['pages'] ?? [], $routeBase, $pageTitle, $code),
                 ],
             ],
         ];
 
         return $payload;
+    }
+
+    /**
+     * @param array<string, mixed> $module
+     *
+     * @return array{remote:string, entry:string, expose:string}
+     */
+    private function resolveFederationEntry(array $module, string $code, bool $develop): array
+    {
+        $federation = \is_array($module['entry']['federation'] ?? null)
+            ? $module['entry']['federation']
+            : [];
+        $remote = (string) ($federation['remote'] ?? config(
+            'addon.frontend_templates.manifest.module.remote_name',
+            '{code_snake}_remote'
+        ));
+        $entry = (string) config(
+            'addon.frontend_templates.manifest.module.'.($develop ? 'develop_entry' : 'deploy_entry'),
+            $develop
+                ? 'http://localhost:4179/assets/remoteEntry.js'
+                : '/{admin_web_prefix}/modules/{code}/dist/assets/remoteEntry.js'
+        );
+        $expose = (string) ($federation['expose'] ?? config(
+            'addon.frontend_templates.manifest.module.expose',
+            './module'
+        ));
+
+        return [
+            'remote' => str_replace('{code_snake}', Str::snake($code), str_replace('{code}', $code, $remote)),
+            'entry' => str_replace('{code}', $code, $entry),
+            'expose' => $expose,
+        ];
     }
 
     /**
@@ -360,6 +412,17 @@ final class AddonFrontendBuildAction
         }
 
         $payload = $this->readJsonFile($moduleManifestPath, __('ptadmin-addon::messages.command.frontend_build_module_invalid'));
+        if (isset($payload['runtime']) || isset($payload['entry']) && (isset($payload['id']) || isset($payload['code']))) {
+            if (!isset($payload['key'])) {
+                $payload['key'] = $payload['code'] ?? $payload['id'] ?? '';
+            }
+            if (!isset($payload['route_base']) && isset($payload['routeBase'])) {
+                $payload['route_base'] = $payload['routeBase'];
+            }
+
+            return $payload;
+        }
+
         $modules = isset($payload['modules']) && \is_array($payload['modules']) ? $payload['modules'] : $payload;
         if (!\is_array($modules)) {
             return [];
